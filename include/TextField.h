@@ -170,6 +170,7 @@ void TextFieldSetEditable P_((Widget aw, Boolean editable));
 void TextFieldSetInsertionPosition P_((Widget aw, int pos));
 void TextFieldSetSelection P_((Widget aw, int start, int end, Time time));
 void TextFieldSetString P_((Widget aw, char *str));
+void TextFieldAutoFocus P_((Widget aw));
 
 #undef P_
 

@@ -1,15 +1,5 @@
 
-#include <stdio.h>
-
-#include <X11/StringDefs.h>
-#include <X11/Intrinsic.h>
-#include <X11/Core.h>
-#include <X11/Object.h>
-#include <X11/Shell.h>
-
-#include <X11/Xaw/Form.h>
-
-#include <Mowitz/Mowitz.h>
+#include <Athena.h>
 
 	/* X11 stuff */
 
@@ -155,7 +145,6 @@ main(int argc, char **argv)
 
 
 
-
 
 
 

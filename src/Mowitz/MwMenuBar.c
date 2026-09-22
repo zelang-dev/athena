@@ -25,7 +25,7 @@ static XtResource menuBarConstraintsResources [] = {
          sizeof(int) ,
          XtOffsetOf(MwMenuBarConstraintsRec , row.left_space) ,
          XtRImmediate ,
-         (XtPointer) 0
+         (XtPointer) 1
         },
         {
          XtNright_space ,
@@ -34,7 +34,7 @@ static XtResource menuBarConstraintsResources [] = {
          sizeof(int) ,
          XtOffsetOf(MwMenuBarConstraintsRec , row.right_space) ,
          XtRImmediate ,
-         (XtPointer) 0
+         (XtPointer) 1
         },
 };
 

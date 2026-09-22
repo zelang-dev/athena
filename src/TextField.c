@@ -407,7 +407,7 @@ static Boolean SetValues(Widget current, Widget request, Widget reply,
 		new->text.HighlightStart = new->text.HighlightEnd = -1;
 		new->text.CursorPos = new->text.TextLen;
 #ifdef USE_DEBUG
-		printf("SetValues: %s\n", new->text.DefaultString);
+		fprintf(stderr, "SetValues: %s\n", new->text.DefaultString);
 #endif
 	}
 
@@ -491,7 +491,7 @@ TextInsert(TextFieldWidget w, char *buf, int len) {
 			w->text.TextAlloc += i + 1;
 			w->text.Text = XtRealloc(w->text.Text, w->text.TextAlloc);
 #ifdef USE_DEBUG
-			printf("TextInsert: Alloced new space: %d bytes\n", w->text.TextAlloc);
+			fprintf(stderr, "TextInsert: Alloced new space: %d bytes\n", w->text.TextAlloc);
 #endif
 		}
 		if (regular_copy) {
@@ -938,7 +938,7 @@ ExtendStart(Widget aw, XEvent *event, String *params, Cardinal *num_params) {
 	}
 	w->text.CursorPos = pos;
 #ifdef USE_DEBUG
-	printf("ExtendStart: %d - %d\n", w->text.HighlightStart,
+	fprintf(stderr, "ExtendStart: %d - %d\n", w->text.HighlightStart,
 		w->text.HighlightEnd);
 #endif
 	DrawHighlight(w);
@@ -981,7 +981,7 @@ ExtendHighlight(TextFieldWidget w) {
 	}
 	w->text.CursorPos = pos;
 #ifdef USE_DEBUG
-	printf("Highlighting: x=%d pos=%d  %d - %d\n", x, pos, w->text.HighlightStart,
+	fprintf(stderr, "Highlighting: x=%d pos=%d  %d - %d\n", x, pos, w->text.HighlightStart,
 		w->text.HighlightEnd);
 #endif
 	if (PositionCursor(w))
@@ -1122,7 +1122,7 @@ RequestSelection(Widget aw, XtPointer client, Atom *selection, Atom *type,
 
 	if ((value == NULL) || (*length == 0)) {
 #ifdef USE_DEBUG
-		printf("RequestSelection: no selection\n");
+		fprintf(stderr, "RequestSelection: no selection\n");
 #endif
 	} else {
 		int savex;
@@ -1131,7 +1131,7 @@ RequestSelection(Widget aw, XtPointer client, Atom *selection, Atom *type,
 		savex = w->text.OldCursorX;
 		w->text.CursorPos = (intptr_t)client;
 #ifdef USE_DEBUG
-		printf("RequestSelection: inserting %s length=%d at pos: %d\n",
+		fprintf(stderr, "RequestSelection: inserting %s length=%d at pos: %d\n",
 			(char *)value, (int)(*length), w->text.CursorPos);
 #endif
 		TextInsert(w, (char *)value, (int)(*length));
@@ -1151,7 +1151,7 @@ InsertSelection(Widget aw, XEvent *event, String *params, Cardinal *num_params) 
 
 	pos = TextPixelToPos(w, event->xbutton.x);
 #ifdef USE_DEBUG
-	printf("InsertSelection: event at pos: %d\n", pos);
+	fprintf(stderr, "InsertSelection: event at pos: %d\n", pos);
 #endif
 	XtGetSelectionValue(aw, XA_PRIMARY, XA_STRING,
 		RequestSelection,
@@ -1340,7 +1340,7 @@ DrawTextReposition(TextFieldWidget w) {
 
 	if (width > 0) {
 #ifdef USE_DEBUG
-		printf("Reposition: xoff=%d old=%d src=%d dest=%d width=%d refresh %d-%d\n",
+		fprintf(stderr, "Reposition: xoff=%d old=%d src=%d dest=%d width=%d refresh %d-%d\n",
 			w->text.XOffset, w->text.OldXOffset, xsrc, xdest, width, start, end);
 #endif
 		XCopyArea(XtDisplay(w), XtWindow(w), XtWindow(w),
@@ -1378,7 +1378,7 @@ DrawTextWithCopyArea(TextFieldWidget w) {
 			(unsigned int)width, (unsigned int)w->core.height,
 			w->text.Margin + xdest, 0);
 #ifdef USE_DEBUG
-		printf("DrawInsert: x=%d xsrc=%d xdest=%d width=%d\n", x, xsrc, xdest, width);
+		fprintf(stderr, "DrawInsert: x=%d xsrc=%d xdest=%d width=%d\n", x, xsrc, xdest, width);
 #endif
 	} else {
 
@@ -1396,7 +1396,7 @@ DrawTextWithCopyArea(TextFieldWidget w) {
 			(unsigned int)width, (unsigned int)w->core.height,
 			w->text.Margin + xdest, 0);
 #ifdef USE_DEBUG
-		printf("DrawInsert: x=%d xsrc=%d xdest=%d width=%d\n", x, xsrc, xdest, width);
+		fprintf(stderr, "DrawInsert: x=%d xsrc=%d xdest=%d width=%d\n", x, xsrc, xdest, width);
 #endif
 	}
 	DrawTextRange(w, w->text.FastInsertCursorStart,
@@ -1697,4 +1697,21 @@ TextFieldSetString(Widget aw, char *str) {
 		TextInsert(w, str, len);
 		MassiveChangeDraw(w);
 	}
+}
+
+static void gain_editable_field(Widget self, XtPointer client, XtPointer data) {
+	TextFieldSetEditable(self, True);
+	XtVaSetValues(self, XtNdisplayCaret, True, NULL);
+}
+
+static void lose_editable_field(Widget self, XtPointer client, XtPointer data) {
+	TextFieldSetEditable(self, False);
+	XtVaSetValues(self, XtNdisplayCaret, False, NULL);
+}
+
+void TextFieldAutoFocus(Widget aw) {
+	XtAddCallback(aw, XtNfocusCallback, gain_editable_field, NULL);
+	XtAddCallback(aw, XtNgainPrimaryCallback, gain_editable_field, NULL);
+	XtAddCallback(aw, XtNlosingFocusCallback, lose_editable_field, NULL);
+	XtAddCallback(aw, XtNlosePrimaryCallback, lose_editable_field, NULL);
 }

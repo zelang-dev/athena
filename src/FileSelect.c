@@ -43,7 +43,7 @@
 #include <Xaw95/Viewport.h>
 #include <Xaw95/List.h>
 #include <Xaw95/Scrollbar.h>
-#include <Xaw95/TraversalP.h>
+#include "Xaw95/TraversalP.h"
 #include <Xaw95/SimpleMenu.h>
 #include <Xaw95/SmeBSB.h>
 #include <Xaw95/SmeLine.h>
@@ -276,7 +276,7 @@ typedef	struct fsinfo {
 
 /* Built-in Bitmaps */
 #define dnarrow_width 11
-#define dnarrow_height 7
+#define dnarrow_height 11
 static unsigned char dnarrow_bits[] = {
    0x00, 0x00, 0xfe, 0x03, 0xfc, 0x01, 0xf8, 0x00, 0x70, 0x00, 0x20, 0x00,
    0x00, 0x00};
@@ -352,17 +352,20 @@ static void FileSelectInit(Widget request, Widget new, ArgList args, Cardinal *n
 		0);
 
 	dbox = XtVaCreateManagedWidget("dbox", gridboxWidgetClass, row1,
-		XtNborderWidth, 1,
+		XtNborderWidth, 0,
 		XtNdefaultDistance, 0,
 		XtNgridx, 1,
 		XtNgridy, 0,
 		XtNweightx, 1,
 		XtNfill, FillWidth,
+		XtNbackground, 0xFFFFFF,
 		0);
 
 	fw->fileSelect.dirName = makeTextField("dirname", dbox);
 	XtVaSetValues(fw->fileSelect.dirName,
+		XtNborder, 1,
 		XtNborderWidth, 0,
+		XtNheight, 18,
 		XtNgridx, 0,
 		XtNgridy, 0,
 		XtNweightx, 1,
@@ -421,6 +424,7 @@ static void FileSelectInit(Widget request, Widget new, ArgList args, Cardinal *n
 		XtNlist, emptyList,
 		XtNdefaultColumns, 1,
 		XtNforceColumns, True,
+		XtNbackground, 0xFFFFFF,
 		0);
 
 	XtAddCallback(fw->fileSelect.fileList, XtNcallback, fileCB, (XtPointer)fw);
@@ -439,20 +443,21 @@ static void FileSelectInit(Widget request, Widget new, ArgList args, Cardinal *n
 		XtNjustify, XtJustifyRight,
 		XtNgridx, 0,
 		XtNgridy, 0,
-		XtNfill, FillWidth,
 		0);
 
 	fw->fileSelect.fileName = makeTextField("selectionText", row3);
 	XtVaSetValues(fw->fileSelect.fileName,
 		XtNwidth, 250,
+		XtNheight, 20,
 		XtNgridx, 1,
 		XtNgridy, 0,
 		XtNweightx, 1,
-		XtNfill, FillWidth,
+		XtNborder, 1,
+		XtNborderWidth, 0,
+		XtNbackground, 0xFFFFFF,
 		0);
 
-	XtVaGetValues(fw->fileSelect.fileName, XtNtextSource, &textSrc, 0);
-	XtAddCallback(textSrc, XtNcallback, fileKey, (XtPointer)fw);
+	XtAddCallback(fw->fileSelect.fileName, XtNvalueChangedCallback, fileKey, (XtPointer)fw);
 	fw->fileSelect.openButton = openButton =
 		XtVaCreateManagedWidget("openButton",
 			commandWidgetClass, row3,
@@ -471,15 +476,18 @@ static void FileSelectInit(Widget request, Widget new, ArgList args, Cardinal *n
 		XtNjustify, XtJustifyRight,
 		XtNgridx, 0,
 		XtNgridy, 1,
-		XtNfill, FillWidth,
 		0);
 
 	fw->fileSelect.filterText = makeTextField("filterText", row3);
 	XtVaSetValues(fw->fileSelect.filterText,
+		XtNwidth, 250,
+		XtNheight, 20,
 		XtNgridx, 1,
 		XtNgridy, 1,
-		XtNfill, FillWidth,
 		XtNweightx, 1,
+		XtNborder,1,
+		XtNborderWidth, 0,
+		XtNbackground, 0xFFFFFF,
 		0);
 
 	fw->fileSelect.cancelButton = cancelButton = XtVaCreateManagedWidget("cancelButton",
@@ -505,7 +513,7 @@ static void FileSelectInit(Widget request, Widget new, ArgList args, Cardinal *n
 	(void)XtCreateManagedWidget("line",
 		smeLineObjectClass, fw->fileSelect.dirMenu, NULL, 0);
 
-	fw->fileSelect.nmenu = 3;
+	fw->fileSelect.nmenu = 4;
 
 	/* TODO: these could be cached on a per-screen basis.  */
 	createbitmap(fw->fileSelect.dirButton,
@@ -796,7 +804,7 @@ static void scrollTo(FileSelectWidget fw, int idx, Widget clip) {
 }
 
 	/* Handle clicks on filename */
-static void fileCB(Widget w,XtPointer	client,XtPointer call_data){
+static void fileCB(Widget w, XtPointer	client, XtPointer call_data) {
 	XawListReturnStruct *item = (XawListReturnStruct *)call_data;
 	FileSelectWidget fw = (FileSelectWidget)client;
 	Time	t = XtLastTimestampProcessed(XtDisplay(w));
@@ -825,7 +833,7 @@ static void fileCB(Widget w,XtPointer	client,XtPointer call_data){
 
 
 	/* User has selected a directory from the menu */
-static void menuSelectCB(Widget	w,XtPointer	client,XtPointer call_data){
+static void menuSelectCB(Widget	w, XtPointer	client, XtPointer call_data) {
 	String	dir;
 
 	XtVaGetValues(w, XtNlabel, &dir, 0);
@@ -833,13 +841,13 @@ static void menuSelectCB(Widget	w,XtPointer	client,XtPointer call_data){
 }
 
 	/* head up tree until we find the parent */
-static	FileSelectWidget getFsWidget(Widget	w){
+static	FileSelectWidget getFsWidget(Widget	w) {
 	while (w != NULL && XtClass(w) != fileSelectWidgetClass)
 		w = XtParent(w);
 	return (FileSelectWidget)w;
 }
 
-static int fileCmp(const void *aa,const void *bb){
+static int fileCmp(const void *aa, const void *bb) {
 	FSinfo *a = (FSinfo *)aa;
 	FSinfo *b = (FSinfo *)bb;
 
@@ -1072,12 +1080,11 @@ static	int fileComplete(FileSelectWidget fw) {
 }
 
 static Widget makeTextField(char *name, Widget parent) {
-	return XtVaCreateManagedWidget(name,
-		asciiTextWidgetClass, parent,
-		XtNresizable, True,
-		XtNresize, XawtextResizeWidth,
-		XtNeditType, XawtextEdit,
-		0);
+	Widget text = XtVaCreateManagedWidget(name, textfieldWidgetClass, parent,
+		XtNresizable, True, XtNresize, XawtextResizeWidth, XtNeditable, True,
+		XtNdisplayCaret, False, XtNbackground, 0xFFFFFF, 0);
+	TextFieldAutoFocus(text);
+	return text;
 }
 
 static void addMenuItem(FileSelectWidget fw, char *name, char *value) {

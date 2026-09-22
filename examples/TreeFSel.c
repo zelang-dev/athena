@@ -24,22 +24,8 @@
 
 #define _TreeFileSelector_
 
+#include <Athena.h>
 #include "Directory.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <X11/IntrinsicP.h>
-#include <X11/StringDefs.h>
-#include <X11/Xaw/Viewport.h>
-#include <X11/Xaw/Label.h>
-#include <X11/Xaw/List.h>
-#include <X11/Xaw/Box.h>
-#include <X11/Xaw/Form.h>
-#include <X11/Xaw/Command.h>
-#include <X11/Xaw/Paned.h>
-#include <X11/Xaw/AsciiText.h>
-#include <Mowitz/MwListTree.h>
 #include "TreeFSelP.h"
 
 #define INITIAL_NUM_FILES	256
@@ -134,7 +120,7 @@ TreeFSelClassRec treefselClassRec = {
 	/* insert_child          */ XtInheritInsertChild,
 	/* delete_child          */ XtInheritDeleteChild,
 	/* extension             */ NULL
-	}, /* Composite Part */		
+	}, /* Composite Part */
 	{
 	0 /* some stupid compilers barf on empty structures */
 	},
@@ -151,7 +137,7 @@ Cardinal *num;
 	TreeFSelWidget new;
 
 	new=(TreeFSelWidget) tnew;
-	
+
 	if (treq->core.width<=200) new->core.width=200;
 	if (treq->core.height<=300) new->core.height=300;
 
@@ -166,7 +152,7 @@ Cardinal *num;
 		XtNshowGrip,		False,
 		XtNjustify,		XtJustifyLeft,
 		NULL, 0);
-    
+
 	new->fsel.paned = XtVaCreateManagedWidget("paned",
 		panedWidgetClass,new->fsel.mainpane,
                 XtNorientation,		XtorientHorizontal,
@@ -203,7 +189,7 @@ Cardinal *num;
 		XtNleafPixmap,		new->fsel.Dir,
 		XtNleafOpenPixmap,	new->fsel.DirOpen,
 		NULL,0);
-	
+
 	new->fsel.form = XtVaCreateManagedWidget("form",
 		viewportWidgetClass,new->fsel.paned,
 		XtNallowVert,		True,
@@ -211,7 +197,7 @@ Cardinal *num;
 		XtNuseBottom,		True,
 		XtNuseRight,		True,
 		NULL,0);
-	
+
 	new->fsel.list=XtVaCreateManagedWidget("scrolledList",
 		listWidgetClass,new->fsel.form,
 		XtNfont,		new->fsel.font,
@@ -224,7 +210,7 @@ Cardinal *num;
 		XtNrowSpacing,		0,
 		XtNverticalList,	True,
 		NULL,0);
-	
+
 	new->fsel.box1 = XtVaCreateManagedWidget("box",
 		formWidgetClass,new->fsel.mainpane,
 		XtNshowGrip,		False,
@@ -246,7 +232,7 @@ Cardinal *num;
 		XtNleft,		XawChainLeft,
 		XtNright,		XawChainRight,
 		NULL,0);
-	
+
 	new->fsel.box2 = XtVaCreateManagedWidget("box2",
 		boxWidgetClass,new->fsel.mainpane,
                 XtNorientation,		XtorientHorizontal,
@@ -397,7 +383,7 @@ char *name;
 	}
 	strcpy(w->fsel.WorkingDir,DirectoryPath(&directory));
 	ClearFiles(w);
-		
+
 	MwListTreeRefreshOff((Widget)w->fsel.tree);
 
 	while (DirectoryReadNextEntry(&directory,&entry)) {
@@ -454,7 +440,7 @@ char *path,*loc,name[256];
 		loc=path;
 		if (*loc=='/') loc++;
 		*path='\0';
-		
+
 		path=name;
 /*		printf("path: %s\n",path);*/
 		item=MwListTreeFindSiblingName((Widget)w->fsel.tree,first,path);
@@ -465,7 +451,7 @@ char *path,*loc,name[256];
 			item->open=True;
 			first=item->firstchild;
 		}
-		
+
 		path=loc;
 	}
 	strcpy(w->fsel.CurrentDir,DirectoryPath(&directory));
@@ -489,7 +475,7 @@ char *name;
 	}
 	strcpy(w->fsel.WorkingDir,DirectoryPath(&directory));
 	ClearFiles(w);
-		
+
 	MwListTreeRefreshOff((Widget)w->fsel.tree);
 	MwListTreeHighlightItem((Widget)w->fsel.tree,item);
 

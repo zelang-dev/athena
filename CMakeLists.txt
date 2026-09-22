@@ -62,14 +62,14 @@ else()
 		FetchContent_MakeAvailable(opentls)
 	endif()
 
-	find_package(OpenGL REQUIRED COMPONENTS GLX)
+	find_package(OpenGL QUIET COMPONENTS GLX)
 	find_package(TIFF REQUIRED)
 	file(GLOB mowitz_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Mowitz/*.c)
 	file(GLOB webview_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Webview/*.c)
 	set(athena_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/gui.c
+		${CMAKE_CURRENT_SOURCE_DIR}/src/athena.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/libsmallregex.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/TextField.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/FileSelect.c

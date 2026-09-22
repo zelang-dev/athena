@@ -1,5 +1,5 @@
 /* XPM */
-static char *magick[] = {
+static char *fld_open_xpm[] = {
 /* columns rows colors chars-per-pixel */
 "24 24 71 1",
 "  c gray0",

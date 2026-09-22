@@ -57,7 +57,7 @@ static XtResource resources[] = {
 	 sizeof(int),
 	 offset(box_type),
 	 XtRImmediate,
-	 (XtPointer) XtCup_box
+	 (XtPointer)XtCshadow_box
 	},
 	{
 	 XtNbox_width,
@@ -75,7 +75,7 @@ static XtResource resources[] = {
 	 sizeof(int),
 	 offset(box_intensity),
 	 XtRImmediate,
-	 (XtPointer) 10000
+	 (XtPointer) 1000
 	},
 	{
 	 XtNbox_color,
@@ -111,7 +111,7 @@ static XtResource resources[] = {
                 sizeof(int),
                 offset(top_shadow_contrast),
                 XtRImmediate,
-                (XtPointer)20
+                (XtPointer)10
         },
         {
                 XtNbottomShadowContrast,
@@ -120,7 +120,7 @@ static XtResource resources[] = {
                 sizeof(int),
                 offset(bot_shadow_contrast),
                 XtRImmediate,
-                (XtPointer)40
+                (XtPointer)0
         },
 };
 

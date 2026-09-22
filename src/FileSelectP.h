@@ -12,6 +12,7 @@
 #define _FileSelectP_h
 
 #include <FileSelect.h>
+#include "TextFieldP.h"
 #include "GridboxP.h"
 
 typedef struct {XtPointer extension;} FileSelectClassPart;

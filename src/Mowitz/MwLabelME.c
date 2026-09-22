@@ -77,7 +77,7 @@ static XtResource resources [] = {
 	 sizeof(int) ,
 	 offset(spacing) ,
 	 XtRImmediate ,
-	 (XtPointer) 3
+	 (XtPointer) 5
 	},
 };
 

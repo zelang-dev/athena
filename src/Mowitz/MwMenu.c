@@ -40,7 +40,7 @@ static XtResource resources[] = {
 	 sizeof(int),
 	 offset(box_type),
 	 XtRImmediate,
-	 (XtPointer) XtCup_box
+	 (XtPointer)XtCshadow_box
 	},
 	{
 	 XtNbox_width,

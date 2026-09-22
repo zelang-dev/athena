@@ -1,6 +1,4 @@
-#include <stdio.h>
-#include <X11/Intrinsic.h>
-#include <X11/StringDefs.h>
+#include <Athena.h>
 #include "TreeFSel.h"
 
 Widget	toplevel,tree;

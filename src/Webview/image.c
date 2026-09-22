@@ -29,6 +29,155 @@ static image *img_stack = NULL;
 static pixel bg = {255, 255, 255};	/* white background */
 static pixel fg = {0, 0, 0};		/* black foreground */
 
+// Structure to hold streamed data for stb_image
+typedef struct {
+	unsigned char *data;
+	size_t size;
+	size_t offset;
+} MemoryStream;
+
+/* Custom read function for TIFFClientOpen */
+tsize_t mem_read(thandle_t handle, tdata_t buf, tsize_t size) {
+	MemoryStream *image = (MemoryStream *)handle;
+	if (image->offset + size > image->size)
+		size = image->size - image->offset;
+	memcpy(buf, image->data + image->offset, size);
+	image->offset += size;
+	return size;
+}
+
+/* Dummy write function (read-only) */
+tsize_t mem_write(thandle_t handle, tdata_t buf, tsize_t size) {
+	return 0; // not supported
+}
+
+/* Seek function */
+toff_t mem_seek(thandle_t handle, toff_t offset, int whence) {
+	MemoryStream *image = (MemoryStream *)handle;
+	size_t new_offset;
+	switch (whence) {
+		case SEEK_SET: new_offset = offset; break;
+		case SEEK_CUR: new_offset = image->offset + offset; break;
+		case SEEK_END: new_offset = image->size + offset; break;
+		default: return (toff_t)-1;
+	}
+	if (new_offset > image->size) return (toff_t)-1;
+	image->offset = new_offset;
+	return image->offset;
+}
+
+/* Close function */
+int mem_close(thandle_t handle) {
+	return 0; // nothing to free here
+}
+
+/* Size function */
+toff_t mem_size(thandle_t handle) {
+	MemoryStream *image = (MemoryStream *)handle;
+	return image->size;
+}
+
+/* Map/unmap functions (optional, not used here) */
+int mem_map(thandle_t handle, tdata_t *data, toff_t *size) { return 0; }
+void mem_unmap(thandle_t handle, tdata_t data, toff_t size) {}
+
+/* Convert RGBA to BGRA in-place */
+void tiff_rgba_to_bgra(uint32_t *pixels, size_t count) {
+	size_t i;
+	for (i = 0; i < count; i++) {
+		uint32_t p = pixels[i];
+		uint8_t r = TIFFGetR(p);
+		uint8_t g = TIFFGetG(p);
+		uint8_t b = TIFFGetB(p);
+		uint8_t a = TIFFGetA(p);
+		pixels[i] = ((uint32_t)b << 24) | ((uint32_t)g << 16) | ((uint32_t)r << 8) | a;
+	}
+}
+
+// Convert RGBA to BGRA in-place
+static void rgba_to_bgra_inplace(uint8_t *pixels, size_t pixel_count) {
+	if (!pixels)
+		return;
+
+	size_t i;
+	for (i = 0; i < pixel_count; i++) {
+		uint8_t *p = &pixels[i * 4];
+		uint8_t r = p[0];
+		uint8_t b = p[2];
+		p[0] = b; // Swap R and B
+		p[2] = r;
+	}
+}
+
+static unsigned char *to_pixmap_memory(unsigned char *data, int len) {
+	int x, y, comp, req_comp = 0;
+	NSVGimage *shapes = NULL;
+	NSVGrasterizer *rast = NULL;
+	stbi_uc *image_data = NULL;
+	MemoryStream stb;
+	TIFF *tif = NULL;
+	if (!data)
+		return NULL;
+
+	stb.data = data;
+	stb.size = len;
+	if (stbi_info_from_memory((const stbi_uc *)data, len, &x, &y, &comp)
+		&& (image_data = stbi_load_from_memory(data, len, &x, &y, &comp, req_comp))) {
+		rgba_to_bgra_inplace(image_data, (x * y));
+		return image_data;
+	} else if ((shapes = nsvgParse(data, "px", 96.0f))) {
+		x = (int)shapes->width;
+		y = (int)shapes->height;
+		rast = nsvgCreateRasterizer();
+		if (!rast) {
+			fprintf(stderr, "Raster allocation failed\n");
+			nsvgDelete(shapes);
+			return NULL;
+		}
+
+		image_data = malloc(x * y * 4);
+		if (!image_data) {
+			fprintf(stderr, "Memory allocation failed\n");
+			nsvgDeleteRasterizer(rast);
+			nsvgDelete(shapes);
+			return NULL;
+		}
+
+		nsvgRasterize(rast, shapes, 0, 0, 1.0f, image_data, x, y, x * 4);
+		nsvgDeleteRasterizer(rast);
+		nsvgDelete(shapes);
+		rgba_to_bgra_inplace(image_data, (x * y));
+		return image_data;
+	} else if ((tif = TIFFClientOpen("MemTIFF", "r", (thandle_t)&stb, mem_read,
+		mem_write, mem_seek, mem_close, mem_size, mem_map, mem_unmap))) {
+		uint32_t width, height;
+		TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
+		TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+
+		uint32_t *raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
+		if (!raster) {
+			fprintf(stderr, "Raster allocation failed\n");
+			TIFFClose(tif);
+			return NULL;
+		}
+
+		/* Read RGBA image */
+		if (!TIFFReadRGBAImageOriented(tif, width, height, raster, ORIENTATION_TOPLEFT, 0)) {
+			fprintf(stderr, "TIFFReadRGBAImage failed\n");
+			_TIFFfree(raster);
+			TIFFClose(tif);
+			return NULL;
+		}
+
+		tiff_rgba_to_bgra(raster, (width * height));
+		return (unsigned char *)raster;
+	} else {
+		fprintf(stderr, "Failed to load image: %s\n", stbi_failure_reason());
+	}
+
+	return NULL;
+}
+
 static void debug(char *fmt, ...)
 {
 #ifdef USE_DEBUG
@@ -707,21 +856,6 @@ static unsigned char *read_tiff_rgba(const char *filename, uint32_t *width, uint
 	_TIFFfree(raster);
 	TIFFClose(tif);
 	return img_data;
-}
-
-// Convert RGBA to BGRA in-place
-static void rgba_to_bgra_inplace(uint8_t *pixels, size_t pixel_count) {
-	if (!pixels)
-		return;
-
-	size_t i;
-	for (i = 0; i < pixel_count; i++) {
-		uint8_t *p = &pixels[i * 4];
-		uint8_t r = p[0];
-		uint8_t b = p[2];
-		p[0] = b; // Swap R and B
-		p[2] = r;
-	}
 }
 
 static image *read_stbi_or_svg_or_tiff(const char *filename) {

@@ -1,5 +1,5 @@
 #if defined(__linux__)
-#include "gui_internal.h"
+#include "ats_internal.h"
 
 struct hist {
 	char *url;
@@ -16,7 +16,7 @@ static void fwfree(struct hist *h) {
 	}
 }
 
-static void adjust_scrollbars(gui_info *ui, Widget w) {
+static void adjust_scrollbars(ats_t *ui, Widget w) {
 	int tr, tc, tw, th;
 	Dimension ww, wh;
 	float pos, size;
@@ -31,13 +31,13 @@ static void adjust_scrollbars(gui_info *ui, Widget w) {
 		NULL);
 	pos = (float)tr / (float)th;
 	size = (float)wh / (float)th;
-	XawScrollbarSetThumb((ui == NULL ? main_gui_info->web->priv.scroller : ui->web->priv.scroller),
+	XawScrollbarSetThumb((ui == NULL ? main_athena_info->web->priv.scroller : ui->web->priv.scroller),
 		pos, size);
 	pos = (float)tc / (float)tw;
 	size = (float)ww / (float)tw;
 }
 
-static void new_url(Widget w, gui_info *ui, char *u) {
+static void new_url(Widget w, ats_t *ui, char *u) {
 	struct hist *h = MwMalloc(sizeof *h);
 	char *v;
 	int r;
@@ -66,11 +66,11 @@ static void new_url(Widget w, gui_info *ui, char *u) {
 	adjust_scrollbars(ui, w);
 }
 
-static void scroll_updown(Widget w, gui_info *ui, float amount) {
+static void scroll_updown(Widget w, ats_t *ui, float amount) {
 	Dimension height;
 	int top_row, th;
 
-	XtVaGetValues((ui == NULL ? main_gui_info->web->priv.webview : ui->web->priv.webview),
+	XtVaGetValues((ui == NULL ? main_athena_info->web->priv.webview : ui->web->priv.webview),
 		XtNtotalHeight, &th,
 		XtNheight, &height,
 		XtNtopRow, &top_row,
@@ -78,10 +78,10 @@ static void scroll_updown(Widget w, gui_info *ui, float amount) {
 	top_row += amount * height;
 	if (top_row > th) top_row = th;
 	if (top_row < 0) top_row = 0;
-	XtVaSetValues((ui == NULL ? main_gui_info->web->priv.webview : ui->web->priv.webview),
+	XtVaSetValues((ui == NULL ? main_athena_info->web->priv.webview : ui->web->priv.webview),
 		XtNtopRow, top_row,
 		NULL);
-	adjust_scrollbars(ui, (ui == NULL ? main_gui_info->web->priv.webview : ui->web->priv.webview));
+	adjust_scrollbars(ui, (ui == NULL ? main_athena_info->web->priv.webview : ui->web->priv.webview));
 }
 
 static void web_page_down(Widget w) {
@@ -145,8 +145,8 @@ static void scroll_right(Widget w, XEvent *event, String *params, Cardinal *n) {
 	web_scroll_leftright(w, 0.1);
 }
 
-static void cb_back(__GUI_WEBVIEW__) {
-	gui_info *ui = (gui_info *)client;
+static void cb_back(__ATS_WEBVIEW__) {
+	ats_t *ui = (ats_t *)client;
 	struct hist *h = ui->web->priv.backhist;
 	char *u;
 	int r;
@@ -177,8 +177,8 @@ static void cb_back(__GUI_WEBVIEW__) {
 	}
 }
 
-static void cb_forward(__GUI_WEBVIEW__) {
-	gui_info *ui = (gui_info *)client;
+static void cb_forward(__ATS_WEBVIEW__) {
+	ats_t *ui = (ats_t *)client;
 	struct hist *h = ui->web->priv.forwhist;
 	char *u;
 	int r;
@@ -209,26 +209,26 @@ static void cb_forward(__GUI_WEBVIEW__) {
 	}
 }
 
-static void cb_reload(__GUI_WEBVIEW__) {
+static void cb_reload(__ATS_WEBVIEW__) {
 	char *u;
 	XtVaGetValues(self, XtNurl, &u, NULL);
 	u = MwStrdup(u);
 	XtVaSetValues(self, XtNurl, u, NULL);
 	MwFree(u);
-	adjust_scrollbars((gui_info *)client, self);
+	adjust_scrollbars((ats_t *)client, self);
 }
 
-static void cb_cancel(__GUI_WEBVIEW__) {
+static void cb_cancel(__ATS_WEBVIEW__) {
 	printf("cb_cancel()\n");
 }
 
-static void cb_home(__GUI_WEBVIEW__) {
-	gui_info *ui = (gui_info *)client;
+static void cb_home(__ATS_WEBVIEW__) {
+	ats_t *ui = (ats_t *)client;
 	new_url(ui->web->priv.webview, ui, (char *)ui->web->url);
 }
 
-static void cb_goto(__GUI_WEBVIEW__) {
-	gui_info *ui = (gui_info *)client;
+static void cb_goto(__ATS_WEBVIEW__) {
+	ats_t *ui = (ats_t *)client;
 	String value = TextFieldGetString((Widget)ui->web->userdata);
 	if (is_ValidUrl(value))
 		new_url(ui->web->priv.webview, ui, value);
@@ -236,16 +236,16 @@ static void cb_goto(__GUI_WEBVIEW__) {
 	free(value);
 }
 
-static void cb_error(__GUI_WEBVIEW__) {
+static void cb_error(__ATS_WEBVIEW__) {
 	MwErrorBox(self, "Nothing to see here.");
 }
 
-static void cb_click(__GUI_WEBVIEW__) {
+static void cb_click(__ATS_WEBVIEW__) {
 	new_url(self, client, (char *)data);
 }
 
-static void cb_open(__GUI_WEBVIEW__) {
-	gui_info *ui = (gui_info *)client;
+static void cb_open(__ATS_WEBVIEW__) {
+	ats_t *ui = (ats_t *)client;
 	static char path[1024];
 	char name[1024] = "";
 	char *patterns[] = {"All files (*)", NULL};
@@ -262,8 +262,8 @@ static void cb_open(__GUI_WEBVIEW__) {
 	}
 }
 
-static void cb_save(__GUI_WEBVIEW__) {
-	gui_info *ui = (gui_info *)client;
+static void cb_save(__ATS_WEBVIEW__) {
+	ats_t *ui = (ats_t *)client;
 	static char path[1024];
 	char name[1024] = "";
 	char *patterns[] = {"All files (*)", NULL};
@@ -282,8 +282,8 @@ static void cb_save(__GUI_WEBVIEW__) {
 	}
 }
 
-static void cb_url(__GUI_WEBVIEW__) {
-	gui_info *ui = (gui_info *)client;
+static void cb_url(__ATS_WEBVIEW__) {
+	ats_t *ui = (ats_t *)client;
 	char *u = (char *)data;
 	if (ui->web->showtoolbar)
 		TextFieldSetString((Widget)ui->web->userdata, u);
@@ -291,8 +291,8 @@ static void cb_url(__GUI_WEBVIEW__) {
 	adjust_scrollbars(ui, self);
 }
 
-static void cb_vscroll_jump(__GUI_WEBVIEW__) {
-	gui_info *ui = (gui_info *)client;
+static void cb_vscroll_jump(__ATS_WEBVIEW__) {
+	ats_t *ui = (ats_t *)client;
 	float top;
 	int top_row, th;
 
@@ -302,8 +302,8 @@ static void cb_vscroll_jump(__GUI_WEBVIEW__) {
 	XtVaSetValues(self, XtNtopRow, top_row, NULL);
 }
 
-static void cb_vscroll_scroll(__GUI_WEBVIEW__) {
-	gui_info *ui = (gui_info *)client;
+static void cb_vscroll_scroll(__ATS_WEBVIEW__) {
+	ats_t *ui = (ats_t *)client;
 	int i = (long)data;
 	Dimension length, height;
 	int top_row, th;
@@ -359,7 +359,7 @@ static XtActionsRec web_actions[] = {
 	{"quit", quit},
 };
 
-int webview_create(gui_info *ui, webview_t *w) {
+int webview_create(ats_t *ui, webview_t *w) {
 	int argc = 0;
 	char **argv = NULL;
 	Widget toolcmd, tooltip = NULL;
@@ -473,7 +473,7 @@ int webview_create(gui_info *ui, webview_t *w) {
 			XtNborder, 0,
 			XtNborderWidth, 0,
 			XtNxLayout, "100%", NULL);
-		Widget addressfield = Xt_field(w->priv.inspector_window, navbox, "https://", (33 * numtools), 0, 100, field_url, NULL);
+		Widget addressfield = ats_field_set(w->priv.inspector_window, navbox, "https://", (33 * numtools), 0, 100, field_url, NULL);
 		XtAddCallback(addressfield, XtNactivateCallback, cb_goto, ui);
 		toolcmd = add_command(navbox, cb_goto, ui, "preview.xpm");
 		ui->user_data = (void *)toolcmd;
@@ -507,61 +507,61 @@ int webview_create(gui_info *ui, webview_t *w) {
 		XtNorientation, XtorientVertical,
 		NULL);
 
-	main_gui_info->web->priv.window = w->priv.window;
-	main_gui_info->web->priv.webview = w->priv.webview;
-	main_gui_info->web->priv.scroller = w->priv.scroller;
+	main_athena_info->web->priv.window = w->priv.window;
+	main_athena_info->web->priv.webview = w->priv.webview;
+	main_athena_info->web->priv.scroller = w->priv.scroller;
 	XtAddCallback((Widget)w->priv.scroller, XtNjumpProc, cb_vscroll_jump, ui);
 	XtAddCallback((Widget)w->priv.scroller, XtNscrollProc, cb_vscroll_scroll, ui);
 
 	XtVaSetValues(ui->statusLine, XtNbackground, color, NULL);
 	XtVaSetValues(statbar, XtNbackground, color, NULL);
-	ui->app->gui = ui;
-	w->priv.gui = ui;
+	ui->app->ats = ui;
+	w->priv.ats = ui;
 	return 1;
 }
 
 FORCEINLINE int webview_loop(webview_t *w, int blocking) {
 	blocking = 1;
-	if (w->priv.gui) {
-		XtAppContext context = XtWidgetToApplicationContext((Widget)w->priv.gui->topLevel);
-		XtRealizeWidget(w->priv.gui->topLevel);
+	if (w->priv.ats) {
+		XtAppContext context = XtWidgetToApplicationContext((Widget)w->priv.ats->topLevel);
+		XtRealizeWidget(w->priv.ats->topLevel);
 
-		if (!w->priv.gui->icon_set) {
-			w->priv.gui->icon_set = 1;
-			MwSetIcon(w->priv.gui->topLevel, icon_32x32);
+		if (!w->priv.ats->icon_set) {
+			w->priv.ats->icon_set = 1;
+			MwSetIcon(w->priv.ats->topLevel, athena);
 		}
 
-		w->priv.gui->dpy = XtDisplay(w->priv.gui->topLevel);
-		w->priv.gui->win = XtWindow(w->priv.gui->topLevel);
-		Atom wm_protocols = XInternAtom(w->priv.gui->dpy,
+		w->priv.ats->dpy = XtDisplay(w->priv.ats->topLevel);
+		w->priv.ats->win = XtWindow(w->priv.ats->topLevel);
+		Atom wm_protocols = XInternAtom(w->priv.ats->dpy,
 			"WM_PROTOCOLS", False);
-		w->priv.gui->wmDeleteMessage = XInternAtom(w->priv.gui->dpy,
+		w->priv.ats->wmDeleteMessage = XInternAtom(w->priv.ats->dpy,
 			"WM_DELETE_WINDOW", False);
-		XtOverrideTranslations(w->priv.gui->topLevel,
+		XtOverrideTranslations(w->priv.ats->topLevel,
 			XtParseTranslationTable(
 				"<Message>WM_PROTOCOLS: quit()"));
-		XSetWMProtocols(w->priv.gui->dpy, w->priv.gui->win, &w->priv.gui->wmDeleteMessage, 1);
-		XStoreName(w->priv.gui->dpy, w->priv.gui->win, w->priv.gui->app->name);
+		XSetWMProtocols(w->priv.ats->dpy, w->priv.ats->win, &w->priv.ats->wmDeleteMessage, 1);
+		XStoreName(w->priv.ats->dpy, w->priv.ats->win, w->priv.ats->app->name);
 
 		for (;;) {
-			XtAppNextEvent(context, &w->priv.gui->xev);
-			XtDispatchEvent(&w->priv.gui->xev);
-			if (w->priv.gui->xev.xclient.type == ClientMessage
-				&& w->priv.gui->xev.xclient.data.l[0] == w->priv.gui->wmDeleteMessage) {
+			XtAppNextEvent(context, &w->priv.ats->xev);
+			XtDispatchEvent(&w->priv.ats->xev);
+			if (w->priv.ats->xev.xclient.type == ClientMessage
+				&& w->priv.ats->xev.xclient.data.l[0] == w->priv.ats->wmDeleteMessage) {
 				break;
-			} else if (w->priv.gui->xev.type == ConfigureNotify) {
-				XConfigureEvent xce = w->priv.gui->xev.xconfigure;
+			} else if (w->priv.ats->xev.type == ConfigureNotify) {
+				XConfigureEvent xce = w->priv.ats->xev.xconfigure;
 				/* This event type is generated for a variety of
 				   happenings, so check whether the window has been
 				   resized. */
 				if (xce.width != w->width) {
 					int numtools = 4;
 					XtResizeWidget((Widget)w->priv.inspector_window, (xce.width - (33 * numtools)), 30, 0);
-					XtMoveWidget((Widget)w->priv.gui->user_data, xce.width - 34, 0);
+					XtMoveWidget((Widget)w->priv.ats->user_data, xce.width - 34, 0);
 				}
 			}
 		}
-		XtUnrealizeWidget(w->priv.gui->topLevel);
+		XtUnrealizeWidget(w->priv.ats->topLevel);
 		blocking = 0;
 	}
 
@@ -593,8 +593,8 @@ FORCEINLINE void webview_dispatch(webview_t *w, webview_dispatch_fn fn,
 }
 
 FORCEINLINE void webview_exit(webview_t *w) {
-	if (w->priv.gui) {
-		XtDestroyApplicationContext(w->priv.gui->app_con);
+	if (w->priv.ats) {
+		XtDestroyApplicationContext(w->priv.ats->app_con);
 		fwfree(w->priv.forwhist);
 	}
 }
