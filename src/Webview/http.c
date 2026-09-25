@@ -291,7 +291,7 @@ Content-Language: en
 	tls_free(tls);
 	p = getenv("HOME");
 	if (!p) p = "/tmp";
-	sprintf(b, "%s/.kylie/cache/%s/%d%s", p, http_server, po, http_file);
+	sprintf(b, "%s/.webview/cache/%s/%d%s", p, http_server, po, http_file);
 	p = strrchr(b, '/');
 	if (p[1] == '\0') strcat(p, "index.html");
 	p = b;

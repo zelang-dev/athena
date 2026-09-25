@@ -178,8 +178,7 @@ static unsigned char *to_pixmap_memory(unsigned char *data, int len) {
 	return NULL;
 }
 
-static void debug(char *fmt, ...)
-{
+static void debug(char *fmt, ...) {
 #ifdef USE_DEBUG
 	va_list ap;
 	va_start(ap, fmt);
@@ -188,8 +187,7 @@ static void debug(char *fmt, ...)
 #endif
 }
 
-static void img_warn(char *fmt, ...)
-{
+static void img_warn(char *fmt, ...) {
 	va_list ap;
 	fprintf(stderr, "Warning: ");
 	va_start(ap, fmt);
@@ -199,13 +197,12 @@ static void img_warn(char *fmt, ...)
 	return;
 }
 
-static image *img_new(int npixels)
-{
-	image *i1 = MwMalloc(sizeof *i1);
+static image *img_new(int npixels) {
+	image *i1 = MwMalloc(sizeof * i1);
 	if (npixels) {
 		i1->npixels = npixels;
 		/* the extra 7 are for P4; think about it */
-		i1->pixels = MwMalloc((npixels+7)*sizeof *i1->pixels);
+		i1->pixels = MwMalloc((npixels + 7) * sizeof * i1->pixels);
 	} else {
 		i1->npixels = 0;
 		i1->pixels = NULL;
@@ -227,13 +224,12 @@ struct img_cache {
 } *ic;
 
 /* free an image */
-void img_free(image *i1)
-{
+void img_free(image *i1) {
 	struct img_cache *i;
 
 	if (i1 == NULL) return;
 
-	for (i = ic; i->img != i1; i = i->next);
+	for (i = ic; i && i->img != i1; i = i->next);
 	if (i) {
 		i->ref--;
 		return;	/* we don't actually free anything */
@@ -249,8 +245,7 @@ void img_free(image *i1)
 	MwFree(i1);
 }
 
-image *img_load(char *url)
-{
+image *img_load(char *url) {
 	url_info *ui;
 	struct img_cache *i, *i1;
 	for (i = ic; i; i = i->next) {
@@ -262,7 +257,7 @@ image *img_load(char *url)
 	ui = load_url(url);
 	if (ui == NULL) return NULL;
 	if (img_read(ui->local) == -1) return NULL;
-	i1 = MwMalloc(sizeof *i1);
+	i1 = MwMalloc(sizeof * i1);
 	i1->ui = ui;
 	i1->img = img_pop();
 	i1->ref = 1;
@@ -271,20 +266,17 @@ image *img_load(char *url)
 	return i1->img;
 }
 
-int img_eq_pixel(pixel p, pixel q)
-{
+int img_eq_pixel(pixel p, pixel q) {
 	return (p.r == q.r) && (p.g == q.g) && (p.b == q.b);
 }
 
-static void readchar(FILE *fpi)
-{
+static void readchar(FILE *fpi) {
 	lastc = getc(fpi);
 	if (lastc == EOF) img_warn("unexpected end of file");
 }
 
 /* Skip past a stretch of white space and/or comments */
-static void skip_space(FILE *fpi)
-{
+static void skip_space(FILE *fpi) {
 	int state = 0;	/* 1 for comment */
 	for (;;) {
 		if (state) {
@@ -297,8 +289,7 @@ static void skip_space(FILE *fpi)
 	}
 }
 
-static int read_number(FILE *fpi)
-{
+static int read_number(FILE *fpi) {
 	char b[100];
 	int n, i = 0;
 	while (isdigit(lastc)) {
@@ -310,8 +301,7 @@ static int read_number(FILE *fpi)
 	return n;
 }
 
-static image *alloc_pixels(FILE *fpi)
-{
+static image *alloc_pixels(FILE *fpi) {
 	image *i1;
 	int w, h;
 
@@ -320,19 +310,18 @@ static image *alloc_pixels(FILE *fpi)
 	w = read_number(fpi);
 	skip_space(fpi);
 	h = read_number(fpi);
-	i1 = img_new(w*h);
+	i1 = img_new(w * h);
 	i1->width = w;
 	i1->height = h;
 	i1->_image = NULL;
 	return i1;
 }
 
-static int hexto255(char *p)
-{
-	int r, n = strtol(p, NULL, 16)*255;
+static int hexto255(char *p) {
+	int r, n = strtol(p, NULL, 16) * 255;
 	static int t[] = {1, 15, 255, 4095, 65535};
 	p[4] = '\0';
-	r = n/t[strlen(p)];
+	r = n / t[strlen(p)];
 	return r;
 }
 
@@ -351,8 +340,7 @@ static struct {
 	{NULL}
 };
 
-static pixel scan_pixel(char *p)
-{
+static pixel scan_pixel(char *p) {
 	pixel p1, black = {0, 0, 0};
 	char rp[10], gp[10], bp[10];
 	char q[10], *r;
@@ -366,49 +354,49 @@ static pixel scan_pixel(char *p)
 		if (!strcmp(p, known_colors[i].n)) return known_colors[i].p;
 	}
 	if (p[0] == '#') {
-		switch (strlen(p+1)) {
-		case 3:
-			q[0] = p[1];
-			q[1] = '\0';
-			p1.r = hexto255(q);
-			q[0] = p[2];
-			p1.g = hexto255(q);
-			q[0] = p[3];
-			p1.b = hexto255(q);
-			break;
-		case 6:
-			strncpy(q, p+1, 2);
-			q[2] = '\0';
-			p1.r = hexto255(q);
-			strncpy(q, p+3, 2);
-			p1.g = hexto255(q);
-			strncpy(q, p+5, 2);
-			p1.b = hexto255(q);
-			break;
-		case 9:
-			strncpy(q, p+1, 3);
-			q[3] = '\0';
-			p1.r = hexto255(q);
-			strncpy(q, p+4, 3);
-			p1.g = hexto255(q);
-			strncpy(q, p+7, 3);
-			p1.b = hexto255(q);
-			break;
-		case 12:
-			strncpy(q, p+1, 4);
-			q[4] = '\0';
-			p1.r = hexto255(q);
-			strncpy(q, p+5, 4);
-			p1.g = hexto255(q);
-			strncpy(q, p+9, 4);
-			p1.b = hexto255(q);
-			break;
-		default:
-			img_warn("'%s' is not a colour", p);
-			return black;
+		switch (strlen(p + 1)) {
+			case 3:
+				q[0] = p[1];
+				q[1] = '\0';
+				p1.r = hexto255(q);
+				q[0] = p[2];
+				p1.g = hexto255(q);
+				q[0] = p[3];
+				p1.b = hexto255(q);
+				break;
+			case 6:
+				strncpy(q, p + 1, 2);
+				q[2] = '\0';
+				p1.r = hexto255(q);
+				strncpy(q, p + 3, 2);
+				p1.g = hexto255(q);
+				strncpy(q, p + 5, 2);
+				p1.b = hexto255(q);
+				break;
+			case 9:
+				strncpy(q, p + 1, 3);
+				q[3] = '\0';
+				p1.r = hexto255(q);
+				strncpy(q, p + 4, 3);
+				p1.g = hexto255(q);
+				strncpy(q, p + 7, 3);
+				p1.b = hexto255(q);
+				break;
+			case 12:
+				strncpy(q, p + 1, 4);
+				q[4] = '\0';
+				p1.r = hexto255(q);
+				strncpy(q, p + 5, 4);
+				p1.g = hexto255(q);
+				strncpy(q, p + 9, 4);
+				p1.b = hexto255(q);
+				break;
+			default:
+				img_warn("'%s' is not a colour", p);
+				return black;
 		}
 	} else if (!strncmp("rgb:", p, 4)) {
-		if (sscanf(p+4, "%9[^/]/%9[^/]/%9s", rp, gp, bp) != 3) {
+		if (sscanf(p + 4, "%9[^/]/%9[^/]/%9s", rp, gp, bp) != 3) {
 			img_warn("'%s' is not a colour", p);
 			return black;
 		}
@@ -416,13 +404,13 @@ static pixel scan_pixel(char *p)
 		p1.g = hexto255(gp);
 		p1.b = hexto255(bp);
 	} else if (!strncmp("rgbi:", p, 5)) {
-		if (sscanf(p+5, "%f/%f/%f", &rf, &gf, &bf) != 3) {
+		if (sscanf(p + 5, "%f/%f/%f", &rf, &gf, &bf) != 3) {
 			img_warn("'%s' is not a colour", p);
 			return black;
 		}
-		p1.r = 255*rf;
-		p1.g = 255*gf;
-		p1.b = 255*bf;
+		p1.r = 255 * rf;
+		p1.g = 255 * gf;
+		p1.b = 255 * bf;
 	} else {
 		img_warn("'%s' is not a colour", p);
 		return black;
@@ -430,62 +418,59 @@ static pixel scan_pixel(char *p)
 	return p1;
 }
 
-pixel img_average_pixel(int x, int y, int w, int h)
-{
+pixel img_average_pixel(int x, int y, int w, int h) {
 	pixel p;
 	int i, j;
 	int w1 = img_stack->width, h1 = img_stack->height;
 	long r, g, b;
 	if (x < 0) x = 0;
-	if (x > w1-1) x = w1-1;
+	if (x > w1 - 1) x = w1 - 1;
 	if (y < 0) y = 0;
-	if (y > h1-1) y = h1-1;
-	if (w > w1-x) w = w1-x;
+	if (y > h1 - 1) y = h1 - 1;
+	if (w > w1 - x) w = w1 - x;
 	if (w < 1) w = 1;
-	if (h > h1-y) h = h1-y;
+	if (h > h1 - y) h = h1 - y;
 	if (h < 1) h = 1;
 	r = g = b = 0;
 	for (i = 0; i < h; i++) {
 		for (j = 0; j < w; j++) {
-			p = GET_PIXEL(img_stack, x+j, y+i);
+			p = GET_PIXEL(img_stack, x + j, y + i);
 			r += p.r;
 			g += p.g;
 			b += p.b;
 		}
 	}
-	p.r = r/(w*h);
-	p.g = g/(w*h);
-	p.b = b/(w*h);
+	p.r = r / (w * h);
+	p.g = g / (w * h);
+	p.b = b / (w * h);
 	return p;
 }
 
-static int pixel_cmp(const void *p, const void *q)
-{
+static int pixel_cmp(const void *p, const void *q) {
 	pixel *p2 = (pixel *)p, *q2 = (pixel *)q;
-	return ((long)p2->r+p2->g+p2->b) - ((long)q2->r+q2->g+q2->b);
+	return ((long)p2->r + p2->g + p2->b) - ((long)q2->r + q2->g + q2->b);
 }
 
-pixel img_median_pixel(int x, int y, int w, int h)
-{
+pixel img_median_pixel(int x, int y, int w, int h) {
 	pixel *p, r;
 	int i, j;
 	int w1 = img_stack->width, h1 = img_stack->height;
 	if (x < 0) x = 0;
-	if (x > w1-1) x = w1-1;
+	if (x > w1 - 1) x = w1 - 1;
 	if (y < 0) y = 0;
-	if (y > h1-1) y = h1-1;
-	if (w > w1-x) w = w1-x;
+	if (y > h1 - 1) y = h1 - 1;
+	if (w > w1 - x) w = w1 - x;
 	if (w < 1) w = 1;
-	if (h > h1-y) h = h1-y;
+	if (h > h1 - y) h = h1 - y;
 	if (h < 1) h = 1;
-	p = MwMalloc(w*h*sizeof *p);
+	p = MwMalloc(w * h * sizeof * p);
 	for (i = 0; i < h; i++) {
 		for (j = 0; j < w; j++) {
-			p[i*w+j] = GET_PIXEL(img_stack, x+j, y+i);
+			p[i * w + j] = GET_PIXEL(img_stack, x + j, y + i);
 		}
 	}
-	qsort(p, w*h, sizeof *p, pixel_cmp);
-	r = p[w*h/2];
+	qsort(p, w * h, sizeof * p, pixel_cmp);
+	r = p[w * h / 2];
 	MwFree(p);
 	return r;
 }
@@ -496,8 +481,7 @@ typedef struct palette {
 	struct palette *next;
 } palette;
 
-static palette *palette_lookup(palette *p, char *n)
-{
+static palette *palette_lookup(palette *p, char *n) {
 	palette *q;
 	for (q = p; q; q = q->next) {
 		if (!strcmp(n, q->n)) break;
@@ -505,34 +489,30 @@ static palette *palette_lookup(palette *p, char *n)
 	return q;
 }
 
-static palette *palette_add(palette *pa, char *n, pixel p)
-{
+static palette *palette_add(palette *pa, char *n, pixel p) {
 	palette *q = palette_lookup(pa, n);
 	if (q) return pa;
-	q = MwMalloc(sizeof *q);
-	q->n = MwMalloc(strlen(n)+1);
+	q = MwMalloc(sizeof * q);
+	q->n = MwMalloc(strlen(n) + 1);
 	strcpy(q->n, n);
 	q->p = p;
 	q->next = pa;
 	return q;
 }
 
-static void palette_free(palette *pa)
-{
+static void palette_free(palette *pa) {
 	if (pa == NULL) return
-	palette_free(pa->next);
+		palette_free(pa->next);
 	MwFree(pa);
 }
 
-static int palette_size(palette *pa)
-{
+static int palette_size(palette *pa) {
 	if (pa == NULL) return 0;
-	return palette_size(pa->next)+1;
+	return palette_size(pa->next) + 1;
 }
 
 /* ascii pbm */
-static image *read_p1(FILE *fpi)
-{
+static image *read_p1(FILE *fpi) {
 	image *i1;
 	int i, n;
 	pixel *pixels;
@@ -548,21 +528,19 @@ static image *read_p1(FILE *fpi)
 }
 
 /* image output */
-static int write_p1(image *i1, FILE *fpo)
-{
-	int i, w = i1->width, h = i1->height, m, n = w*h;
+static int write_p1(image *i1, FILE *fpo) {
+	int i, w = i1->width, h = i1->height, m, n = w * h;
 	pixel *pixels = i1->pixels;
 	fprintf(fpo, "P1\n%d\n%d\n", w, h);
 	for (i = 0; i < n; i++) {
-		m = (int)pixels[i].r+pixels[i].g+pixels[i].b;
-		fprintf(fpo, "%d\n", (m>381)?1:0);
+		m = (int)pixels[i].r + pixels[i].g + pixels[i].b;
+		fprintf(fpo, "%d\n", (m > 381) ? 1 : 0);
 	}
 	return 0;
 }
 
 /* ascii pgm */
-static image *read_p2(FILE *fpi)
-{
+static image *read_p2(FILE *fpi) {
 	image *i1;
 	int i, n, m;
 	pixel *pixels;
@@ -572,29 +550,27 @@ static image *read_p2(FILE *fpi)
 	m = read_number(fpi);	/* max grey */
 	for (i = 0; i < i1->npixels; i++) {
 		skip_space(fpi);
-		n = read_number(fpi)*255/m;
+		n = read_number(fpi) * 255 / m;
 		pixels[i].r = pixels[i].g = pixels[i].b = n;
 	}
 	return i1;
 }
 
-static int write_p2(image *i1, FILE *fpo)
-{
+static int write_p2(image *i1, FILE *fpo) {
 	int i;
 	pixel *pixels = i1->pixels;
-	int n = i1->width*i1->height;
+	int n = i1->width * i1->height;
 	int m;
 	fprintf(fpo, "P2\n%d\n%d\n255\n", i1->width, i1->height);
 	for (i = 0; i < n; i++) {
-		m = (int)pixels[i].r+pixels[i].g+pixels[i].b;
-		fprintf(fpo, "%d\n", m/3);
+		m = (int)pixels[i].r + pixels[i].g + pixels[i].b;
+		fprintf(fpo, "%d\n", m / 3);
 	}
 	return 0;
 }
 
 /* ascii ppm */
-static image *read_p3(FILE *fpi)
-{
+static image *read_p3(FILE *fpi) {
 	image *i1;
 	int i, m;
 	pixel *pixels;
@@ -604,20 +580,19 @@ static image *read_p3(FILE *fpi)
 	m = read_number(fpi);	/* max colour component */
 	for (i = 0; i < i1->npixels; i++) {
 		skip_space(fpi);
-		pixels[i].r = read_number(fpi)*255/m;
+		pixels[i].r = read_number(fpi) * 255 / m;
 		skip_space(fpi);
-		pixels[i].g = read_number(fpi)*255/m;
+		pixels[i].g = read_number(fpi) * 255 / m;
 		skip_space(fpi);
-		pixels[i].b = read_number(fpi)*255/m;
+		pixels[i].b = read_number(fpi) * 255 / m;
 	}
 	return i1;
 }
 
-static int write_p3(image *i1, FILE *fpo)
-{
+static int write_p3(image *i1, FILE *fpo) {
 	int i;
 	pixel *pixels = i1->pixels;
-	int n = i1->width*i1->height;
+	int n = i1->width * i1->height;
 	fprintf(fpo, "P3\n%d\n%d\n255\n", i1->width, i1->height);
 	for (i = 0; i < n; i++) {
 		fprintf(fpo, "%d %d %d\n",
@@ -627,8 +602,7 @@ static int write_p3(image *i1, FILE *fpo)
 }
 
 /* raw pbm */
-static image *read_p4(FILE *fpi)
-{
+static image *read_p4(FILE *fpi) {
 	image *i1;
 	int i, j;
 	pixel *pixels;
@@ -637,22 +611,21 @@ static image *read_p4(FILE *fpi)
 	for (i = 0; i < i1->npixels; i += i1->width) {
 		for (j = 0; j < i1->width; j += 8) {
 			readchar(fpi);
-			pixels[i+j] = (lastc & 128) ? fg : bg;
-			pixels[i+j+1] = (lastc & 64) ? fg : bg;
-			pixels[i+j+2] = (lastc & 32) ? fg : bg;
-			pixels[i+j+3] = (lastc & 16) ? fg : bg;
-			pixels[i+j+4] = (lastc & 8) ? fg : bg;
-			pixels[i+j+5] = (lastc & 4) ? fg : bg;
-			pixels[i+j+6] = (lastc & 2) ? fg : bg;
-			pixels[i+j+7] = (lastc & 1) ? fg : bg;
+			pixels[i + j] = (lastc & 128) ? fg : bg;
+			pixels[i + j + 1] = (lastc & 64) ? fg : bg;
+			pixels[i + j + 2] = (lastc & 32) ? fg : bg;
+			pixels[i + j + 3] = (lastc & 16) ? fg : bg;
+			pixels[i + j + 4] = (lastc & 8) ? fg : bg;
+			pixels[i + j + 5] = (lastc & 4) ? fg : bg;
+			pixels[i + j + 6] = (lastc & 2) ? fg : bg;
+			pixels[i + j + 7] = (lastc & 1) ? fg : bg;
 		}
 	}
 	return i1;
 }
 
 /* raw pgm */
-static image *read_p5(FILE *fpi)
-{
+static image *read_p5(FILE *fpi) {
 	image *i1;
 	int i, m;
 	pixel *pixels;
@@ -662,14 +635,13 @@ static image *read_p5(FILE *fpi)
 	m = read_number(fpi);	/* max grey */
 	for (i = 0; i < i1->npixels; i++) {
 		readchar(fpi);
-		pixels[i].r = pixels[i].g = pixels[i].b = (lastc & 255)*255/m;
+		pixels[i].r = pixels[i].g = pixels[i].b = (lastc & 255) * 255 / m;
 	}
 	return i1;
 }
 
 /* raw ppm */
-static image *read_p6(FILE *fpi)
-{
+static image *read_p6(FILE *fpi) {
 	image *i1;
 	int i, m;
 	pixel *pixels;
@@ -679,50 +651,48 @@ static image *read_p6(FILE *fpi)
 	m = read_number(fpi);	/* max colour component */
 	for (i = 0; i < i1->npixels; i++) {
 		readchar(fpi);
-		pixels[i].r = (lastc & 255)*255/m;
+		pixels[i].r = (lastc & 255) * 255 / m;
 		readchar(fpi);
-		pixels[i].g = (lastc & 255)*255/m;
+		pixels[i].g = (lastc & 255) * 255 / m;
 		readchar(fpi);
-		pixels[i].b = (lastc & 255)*255/m;
+		pixels[i].b = (lastc & 255) * 255 / m;
 	}
 	return i1;
 }
 
-static image *read_pnm(FILE *fpi)
-{
+static image *read_pnm(FILE *fpi) {
 	readchar(fpi);
 	if (lastc == 'P') {	/* possible P?M */
 		readchar(fpi);
 		switch (lastc) {
-		case '1':
-			return read_p1(fpi);
-		case '2':
-			return read_p2(fpi);
-		case '3':
-			return read_p3(fpi);
-		case '4':
-			return read_p4(fpi);
-		case '5':
-			return read_p5(fpi);
-		case '6':
-			return read_p6(fpi);
-		default:
-			img_warn("not pnm (bad magic in PNM file)");
-			return NULL;
+			case '1':
+				return read_p1(fpi);
+			case '2':
+				return read_p2(fpi);
+			case '3':
+				return read_p3(fpi);
+			case '4':
+				return read_p4(fpi);
+			case '5':
+				return read_p5(fpi);
+			case '6':
+				return read_p6(fpi);
+			default:
+				img_warn("not pnm (bad magic in PNM file)");
+				return NULL;
 		}
 	}
 	img_warn("unknown PNM format");
 	return NULL;
 }
 
-static int write_gba(image *i1, FILE *fpo)
-{
+static int write_gba(image *i1, FILE *fpo) {
 	int i;
 	int cm[256];	/* color map */
 	int rcm[32768];	/* reverse color map */
 	int r, g, b, bgr;
 	pixel *pixels = i1->pixels;
-	int n = i1->width*i1->height;
+	int n = i1->width * i1->height;
 	int index, index0 = 10;
 	FILE *fp;
 	for (i = 0; i < 256; i++) cm[i] = -1;
@@ -732,10 +702,10 @@ static int write_gba(image *i1, FILE *fpo)
 	fprintf(fpo, "/* First colormap index is %d */\n", 10);
 	fprintf(fpo, "/* Colormap in gba.colormap */\n");
 	for (i = 0; i < n; i++) {
-		r = pixels[i].r*31/255;
-		g = pixels[i].g*31/255;
-		b = pixels[i].b*31/255;
-		bgr = (b<<10)+(g<<5)+r;
+		r = pixels[i].r * 31 / 255;
+		g = pixels[i].g * 31 / 255;
+		b = pixels[i].b * 31 / 255;
+		bgr = (b << 10) + (g << 5) + r;
 		index = rcm[bgr];
 		if (index == -1) {
 			index = index0;
@@ -764,12 +734,11 @@ static int write_gba(image *i1, FILE *fpo)
 	return 0;
 }
 
-static void read_string(char *b, int n, FILE *fpi)
-{
+static void read_string(char *b, int n, FILE *fpi) {
 	int i;
 
 	readchar(fpi);
-	for (i = 0; lastc != '"' && i < n-1; i++) {
+	for (i = 0; lastc != '"' && i < n - 1; i++) {
 		b[i] = lastc;
 		readchar(fpi);
 	}
@@ -777,29 +746,27 @@ static void read_string(char *b, int n, FILE *fpi)
 }
 
 /* used to sort the array in alphabetic order by name */
-static int xpm_comp(const void *p, const void *q)
-{
+static int xpm_comp(const void *p, const void *q) {
 	palette *p1 = (palette *)p;
 	palette *q1 = (palette *)q;
 	return strcmp(p1->n, q1->n);
 }
 
-static pixel xpm_find(palette *colors, int ncolors, char *name)
-{
+static pixel xpm_find(palette *colors, int ncolors, char *name) {
 	int lower, upper, i, d;
 
 #if 1	/* binary search */
 	lower = 0;
-	upper = ncolors-1;
+	upper = ncolors - 1;
 	while (lower <= upper) {
-		i = (lower+upper)/2;
+		i = (lower + upper) / 2;
 		d = strcmp(name, colors[i].n);
 		if (d == 0) {
 			return colors[i].p;
 		} else if (d > 0) {
-			lower = i+1;
+			lower = i + 1;
 		} else {
-			upper = i-1;
+			upper = i - 1;
 		}
 	}
 #else	/* linear search */
@@ -858,17 +825,30 @@ static unsigned char *read_tiff_rgba(const char *filename, uint32_t *width, uint
 	return img_data;
 }
 
-static image *read_stbi_or_svg_or_tiff(const char *filename) {
-	int i, len, x, y, channels_in_file;
-	unsigned *dp;
+static image *read_stbi(const char *filename) {
+	int x, y, channels_in_file;
+	stbi_uc *data = NULL;
+
+	if ((data = stbi_load(filename, &x, &y, &channels_in_file, 4))) {
+		rgba_to_bgra_inplace(data, (x * y));
+		image *i1 = img_new(0);
+		i1->width = x;
+		i1->height = y;
+		i1->_image = data;
+		return i1;
+	}
+
+	img_warn("Failed to load image: %s\n", stbi_failure_reason());
+	return NULL;
+}
+
+static image *read_nsvg(const char *filename) {
+	int x, y;
 	NSVGimage *shapes = NULL;
 	NSVGrasterizer *rast = NULL;
 	stbi_uc *data = NULL;
 
-	if ((data = stbi_load(filename, &x, &y, &channels_in_file, 4))) {
-		;
-	} else if ((shapes = nsvgParseFromFile(filename, "px", 96.0f))) {
-		img_warn("Failed to load image: %s\n", stbi_failure_reason());
+	if ((shapes = nsvgParseFromFile(filename, "px", 96.0f))) {
 		x = (int)shapes->width;
 		y = (int)shapes->height;
 		rast = nsvgCreateRasterizer();
@@ -876,38 +856,52 @@ static image *read_stbi_or_svg_or_tiff(const char *filename) {
 		nsvgRasterize(rast, shapes, 0, 0, 1.0f, data, x, y, x * 4);
 		nsvgDeleteRasterizer(rast);
 		nsvgDelete(shapes);
-	} else if (data = read_tiff_rgba(filename, &x, &y)) {
-		;
-	} else {
-		return NULL;
+		rgba_to_bgra_inplace(data, (x * y));
+		image *i1 = img_new(0);
+		i1->width = x;
+		i1->height = y;
+		i1->_image = data;
+		return i1;
 	}
 
-	rgba_to_bgra_inplace(data, (x * y));
-	image *i1 = img_new(0);
-	i1->width = x;
-	i1->height = y;
-	i1->_image = data;
-	return i1;
+	img_warn("Failed to load `svg` image\n");
+	return NULL;
 }
 
-static image *read_internal(FILE *fpi) {
+static image *read_tiff(const char *filename) {
+	int x, y;
+	stbi_uc *data = NULL;
+
+	if ((data = read_tiff_rgba(filename, &x, &y))) {
+		rgba_to_bgra_inplace(data, (x * y));
+		image *i1 = img_new(0);
+		i1->width = x;
+		i1->height = y;
+		i1->_image = data;
+		return i1;
+	}
+
+	img_warn("Failed to load `tiff` image\n");
+	return NULL;
+}
+
+static int read_internal(FILE *fpi) {
 	int c;
 	FILE *fp = fopen("/tmp/fnord", "w");
 	if (fp == NULL) {
 		img_warn("can't write temp file");
-		return NULL;
+		return 0;
 	}
 
 	while ((c = getc(fpi)) != EOF)
 		putc(c, fp);
 
 	fclose(fp);
-	return read_stbi_or_svg_or_tiff("/tmp/fnord");
+	return 1;
 }
 
 /* this format is a bloody mess; someone ought to be shot */
-static image *read_xpm(FILE *fpi)
-{
+static image *read_xpm(FILE *fpi) {
 	image *i1;
 	pixel p;
 	char b[1024], c[10];
@@ -929,47 +923,47 @@ static image *read_xpm(FILE *fpi)
 		img_warn("yeah, right...");
 		return NULL;
 	}
-	i1 = img_new(w*h);
+	i1 = img_new(w * h);
 	i1->width = w;
 	i1->height = h;
 	/* then we start reading colours... */
 	for (i = 0; i < n; i++) {
 		int a = 0, state;
 		char *cname, na[100];
-debug("Color %d of %d\n", i, n);
+		debug("Color %d of %d\n", i, n);
 		readchar(fpi);
 		while (lastc != '"') readchar(fpi);
 		read_string(b, sizeof b, fpi);
 		strncpy(na, b, cpp);
 		na[cpp] = '\0';
-		q = b+cpp;
+		q = b + cpp;
 		state = 0;
 		cname = NULL;
-		for (q = b+cpp; *q; q++) {
+		for (q = b + cpp; *q; q++) {
 			switch (state) {
-			case 0:	/* initial space */
-				if (!isspace(*q)) {
-					a = *q;
-					state = 1;
-				}
-				break;
-			case 1: /* required space */
-				if (!isspace(*q))
-					img_warn("'%c' is no space", *q);
-				state = 2;
-				break;
-			case 2:	/* optional space */
-				if (!isspace(*q)) {
-					if (a == 'c') cname = q;
-					state = 3;
-				}
-				break;
-			case 3:	/* colour name */
-				if (isspace(*q)) state = 0;
-				break;
-			default:
-				img_warn("you can't be here");
-				return NULL;
+				case 0:	/* initial space */
+					if (!isspace(*q)) {
+						a = *q;
+						state = 1;
+					}
+					break;
+				case 1: /* required space */
+					if (!isspace(*q))
+						img_warn("'%c' is no space", *q);
+					state = 2;
+					break;
+				case 2:	/* optional space */
+					if (!isspace(*q)) {
+						if (a == 'c') cname = q;
+						state = 3;
+					}
+					break;
+				case 3:	/* colour name */
+					if (isspace(*q)) state = 0;
+					break;
+				default:
+					img_warn("you can't be here");
+					return NULL;
 			}
 		}
 		if (cname == NULL) p = bg;
@@ -977,7 +971,7 @@ debug("Color %d of %d\n", i, n);
 		pa = palette_add(pa, na, p);
 	}
 	/* we now need to store the colours differently, or die waiting... */
-	colors = MwMalloc(n*sizeof *colors);
+	colors = MwMalloc(n * sizeof * colors);
 	pb = pa;
 	for (i = 0; i < n && pb; i++) {
 		colors[i] = *pb;
@@ -987,16 +981,16 @@ debug("Color %d of %d\n", i, n);
 		img_warn("Wrong number of colors");
 		return NULL;
 	}
-	qsort(colors, n, sizeof *colors, xpm_comp);
-for (i = 0; i < n; i++)
-debug("%s ", colors[i].n);
+	qsort(colors, n, sizeof * colors, xpm_comp);
+	for (i = 0; i < n; i++)
+		debug("%s ", colors[i].n);
 	for (i = 0; i < h; i++) {
-debug("Scanline %d of %d\n", i, h);
+		debug("Scanline %d of %d\n", i, h);
 		readchar(fpi);
 		while (lastc != '"') readchar(fpi);
 		read_string(b, sizeof b, fpi);
 		for (j = 0; j < w; j++) {
-			strncpy(c, b+cpp*j, cpp);
+			strncpy(c, b + cpp * j, cpp);
 			c[cpp] = '\0';
 			p = xpm_find(colors, n, c);
 			PUT_PIXEL(i1, j, i, p);
@@ -1007,19 +1001,18 @@ debug("Scanline %d of %d\n", i, h);
 	return i1;
 }
 
-static int write_xpm(image *i1, FILE *fpo)
-{
+static int write_xpm(image *i1, FILE *fpo) {
 	palette *pa = NULL, *pb;
 	int i, j, k, m, n, cpp, w = i1->width, h = i1->height;
 	pixel p, *pixels;
 	char b[100];
-	char pn[] =	" .-"
-			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-			"abcdefghijklmnopqrstuvwxyz"
-			"0123456789";
+	char pn[] = " .-"
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		"abcdefghijklmnopqrstuvwxyz"
+		"0123456789";
 
 	for (i = 0; i < h; i++) {
-debug("%d\n", i);
+		debug("%d\n", i);
 		for (j = 0; j < w; j++) {
 			p = GET_PIXEL(i1, j, i);
 			sprintf(b, "%02x%02x%02x",
@@ -1039,7 +1032,7 @@ debug("%d\n", i);
 		"static char * fnord_xpm[] = {\n"
 		"\"%d %d %d %d\",\n",
 		w, h, n, cpp);
-	pixels = MwMalloc(n*sizeof *pixels);
+	pixels = MwMalloc(n * sizeof * pixels);
 	i = 0;
 	pb = pa;
 	while (pb) {
@@ -1051,14 +1044,14 @@ debug("%d\n", i);
 		m = i;
 		fprintf(fpo, "\"");
 		for (j = 0; j < cpp; j++) {
-			fprintf(fpo, "%c", pn[m&63]);
+			fprintf(fpo, "%c", pn[m & 63]);
 			m /= 64;
 		}
 		fprintf(fpo, " c #%02x%02x%02x\",\n",
 			(int)pixels[i].r, (int)pixels[i].g, (int)pixels[i].b);
 	}
 	for (i = 0; i < h; i++) {
-debug("%d\n", i);
+		debug("%d\n", i);
 		fprintf(fpo, "\"");
 		for (j = 0; j < w; j++) {
 			p = GET_PIXEL(i1, j, i);
@@ -1067,24 +1060,22 @@ debug("%d\n", i);
 			}
 			if (m == n) m = 0;
 			for (k = 0; k < cpp; k++) {
-				fprintf(fpo, "%c", pn[m&63]);
+				fprintf(fpo, "%c", pn[m & 63]);
 				m /= 64;
 			}
 		}
-		if (i < h-1) fprintf(fpo, "\",\n");
+		if (i < h - 1) fprintf(fpo, "\",\n");
 		else fprintf(fpo, "\"};\n");
 	}
 	return 0;
 }
 
-static image *read_xbm(FILE *fpi)
-{
+static image *read_xbm(FILE *fpi) {
 	img_warn("Can't read XBM");
 	return NULL;
 }
 
-static int write_xbm(image *i1, FILE *fpo)
-{
+static int write_xbm(image *i1, FILE *fpo) {
 	int i, j, w = i1->width, h = i1->height, m, n;
 	pixel p;
 	fprintf(fpo,
@@ -1096,12 +1087,12 @@ static int write_xbm(image *i1, FILE *fpo)
 		n = 0;
 		for (j = 0; j < w; j++) {
 			p = GET_PIXEL(i1, j, i);
-			m = (int)p.r+p.g+p.b;
-			n = 2*n+(m>381);
-			if ((j & 7) == 7 || (j+1) == w) {
+			m = (int)p.r + p.g + p.b;
+			n = 2 * n + (m > 381);
+			if ((j & 7) == 7 || (j + 1) == w) {
 				fprintf(fpo, "0x%02x", n);
 				n = 0;
-				if ((i+1) == h && (j+1) == w) {
+				if ((i + 1) == h && (j + 1) == w) {
 					fprintf(fpo, "};\n");
 				} else {
 					fprintf(fpo, ",\n");
@@ -1112,39 +1103,53 @@ static int write_xbm(image *i1, FILE *fpo)
 	return 0;
 }
 
-static image *read_jpeg(FILE *fpi)
-{
-	return read_internal(fpi);
+static image *read_jpeg(FILE *fpi) {
+	if (read_internal(fpi))
+		return read_stbi("/tmp/fnord");
+
+	return NULL;
 }
 
-static image *read_gif(FILE *fpi)
-{
-	return read_internal(fpi);
+static image *read_gif(FILE *fpi) {
+	if (read_internal(fpi))
+		return read_stbi("/tmp/fnord");
+
+	return NULL;
 }
 
-static image *read_tif(FILE *fpi)
-{
-	return read_internal(fpi);
+static image *read_tif(FILE *fpi) {
+	if (read_internal(fpi))
+		return read_tiff("/tmp/fnord");
+
+	return NULL;
 }
 
-static image *read_svg(FILE *fpi)
-{
-	return read_internal(fpi);
+static image *read_svg(FILE *fpi) {
+	if (read_internal(fpi))
+		return read_nsvg("/tmp/fnord");
+
+	return NULL;
 }
 
-static image *read_png(FILE *fpi)
-{
-	return read_internal(fpi);
+static image *read_png(FILE *fpi) {
+	if (read_internal(fpi))
+		return read_stbi("/tmp/fnord");
+
+	return NULL;
 }
 
-static image *read_bmp(FILE *fpi)
-{
-	return read_internal(fpi);
+static image *read_bmp(FILE *fpi) {
+	if (read_internal(fpi))
+		return read_stbi("/tmp/fnord");
+
+	return NULL;
 }
 
-static image *read_unknown(FILE *fpi)
-{
-	return read_internal(fpi);
+static image *read_unknown(FILE *fpi) {
+	if (read_internal(fpi))
+		return read_stbi("/tmp/fnord");
+
+	return NULL;
 }
 
 struct {
@@ -1172,45 +1177,44 @@ struct {
 	{NULL, NULL, NULL}
 };
 
-int img_alias(void)
-{
+int img_alias(void) {
 	pixel p, p1, p2, p3, p4, p5, p6, p7, p8;
 	image *i2;
 	int i, j, w = img_stack->width, h = img_stack->height;
 
-	i2 = img_new(w*h);
+	i2 = img_new(w * h);
 	i2->width = w;
 	i2->height = h;
 	for (j = 0; j < w; j++) {
 		p = GET_PIXEL(img_stack, j, 0);
 		PUT_PIXEL(i2, j, 0, p);
-		p = GET_PIXEL(img_stack, j, h-1);
-		PUT_PIXEL(i2, j, h-1, p);
+		p = GET_PIXEL(img_stack, j, h - 1);
+		PUT_PIXEL(i2, j, h - 1, p);
 	}
-	for (i = 1; i < h-1; i++) {
+	for (i = 1; i < h - 1; i++) {
 		p = GET_PIXEL(img_stack, 0, i);
 		PUT_PIXEL(i2, 0, i, p);
-		p = GET_PIXEL(img_stack, w-1, i);
-		PUT_PIXEL(i2, w-1, i, p);
-		for (j = 1; j < w-1; j++) {
+		p = GET_PIXEL(img_stack, w - 1, i);
+		PUT_PIXEL(i2, w - 1, i, p);
+		for (j = 1; j < w - 1; j++) {
 			p = GET_PIXEL(img_stack, j, i);
 			if (img_eq_pixel(p, bg)) {
-				p1 = GET_PIXEL(img_stack, j, i-1);
-				p2 = GET_PIXEL(img_stack, j-1, i);
-				p3 = GET_PIXEL(img_stack, j+1, i);
-				p4 = GET_PIXEL(img_stack, j, i+1);
+				p1 = GET_PIXEL(img_stack, j, i - 1);
+				p2 = GET_PIXEL(img_stack, j - 1, i);
+				p3 = GET_PIXEL(img_stack, j + 1, i);
+				p4 = GET_PIXEL(img_stack, j, i + 1);
 				if ((img_eq_pixel(p1, fg) || img_eq_pixel(p4, fg)) &&
-				     (img_eq_pixel(p2, fg) || img_eq_pixel(p3, fg))) {
-					p5 = GET_PIXEL(img_stack, j-1, i-1);
-					p6 = GET_PIXEL(img_stack, j+1, i-1);
-					p7 = GET_PIXEL(img_stack, j-1, i+1);
-					p8 = GET_PIXEL(img_stack, j+1, i+1);
-					p.r = p.r/2+((int)p1.r+p2.r+p3.r+p4.r+
-						p5.r+p6.r+p7.r+p8.r)/16;
-					p.g = p.g/2+((int)p1.g+p2.g+p3.g+p4.g+
-						p5.g+p6.g+p7.g+p8.g)/16;
-					p.b = p.b/2+((int)p1.b+p2.b+p3.b+p4.b+
-						p5.b+p6.b+p7.b+p8.b)/16;
+					(img_eq_pixel(p2, fg) || img_eq_pixel(p3, fg))) {
+					p5 = GET_PIXEL(img_stack, j - 1, i - 1);
+					p6 = GET_PIXEL(img_stack, j + 1, i - 1);
+					p7 = GET_PIXEL(img_stack, j - 1, i + 1);
+					p8 = GET_PIXEL(img_stack, j + 1, i + 1);
+					p.r = p.r / 2 + ((int)p1.r + p2.r + p3.r + p4.r +
+						p5.r + p6.r + p7.r + p8.r) / 16;
+					p.g = p.g / 2 + ((int)p1.g + p2.g + p3.g + p4.g +
+						p5.g + p6.g + p7.g + p8.g) / 16;
+					p.b = p.b / 2 + ((int)p1.b + p2.b + p3.b + p4.b +
+						p5.b + p6.b + p7.b + p8.b) / 16;
 				}
 			}
 			PUT_PIXEL(i2, j, i, p);
@@ -1222,19 +1226,16 @@ int img_alias(void)
 	return 0;
 }
 
-int img_bg(char *p)
-{
+int img_bg(char *p) {
 	bg = scan_pixel(p);
 	return 0;
 }
 
-int img_cd(char *p)
-{
+int img_cd(char *p) {
 	return chdir(p);
 }
 
-int img_crop(void)
-{
+int img_crop(void) {
 	image *i1 = img_stack;
 	pixel p1, p2;
 	int lc, rc, tr, br, i, w, h, n;
@@ -1244,7 +1245,7 @@ int img_crop(void)
 	h = i1->height;
 	for (tr = 0; tr < h; tr++) {
 		for (i = 0; i < w; i++) {
-			n = tr*h+i;
+			n = tr * h + i;
 			p2 = i1->pixels[n];
 			if (p2.r != p1.r || p2.g != p1.g || p2.b != p1.b) {
 				goto L1;	/* double break */
@@ -1253,9 +1254,9 @@ int img_crop(void)
 	}
 L1:	/* tr now contains the topmost line we want to keep */
 
-	for (br = h-1; br > 0; br--) {
+	for (br = h - 1; br > 0; br--) {
 		for (i = 0; i < w; i++) {
-			n = br*h+i;
+			n = br * h + i;
 			p2 = i1->pixels[n];
 			if (p2.r != p1.r || p2.g != p1.g || p2.b != p1.b) {
 				goto L2;
@@ -1266,7 +1267,7 @@ L2:	/* br now contains the bottommost line we want to keep */
 
 	for (lc = 0; lc < w; lc++) {
 		for (i = tr; i <= br; i++) {
-			n = i*h+lc;
+			n = i * h + lc;
 			p2 = i1->pixels[n];
 			if (p2.r != p1.r || p2.g != p1.g || p2.b != p1.b) {
 				goto L3;
@@ -1275,9 +1276,9 @@ L2:	/* br now contains the bottommost line we want to keep */
 	}
 L3:	/* lc now contains the leftmost column we want to keep */
 
-	for (rc = w-1; rc > 0; rc--) {
+	for (rc = w - 1; rc > 0; rc--) {
 		for (i = tr; i <= br; i++) {
-			n = i*h+rc;
+			n = i * h + rc;
 			p2 = i1->pixels[n];
 			if (p2.r != p1.r || p2.g != p1.g || p2.b != p1.b) {
 				goto L4;
@@ -1285,11 +1286,10 @@ L3:	/* lc now contains the leftmost column we want to keep */
 		}
 	}
 L4:	/* rc now contains the rightmost column we want to keep */
-	return img_cut(lc, tr, rc-lc+1, br-tr+1);
+	return img_cut(lc, tr, rc - lc + 1, br - tr + 1);
 }
 
-int img_cut(int x, int y, int w, int h)
-{
+int img_cut(int x, int y, int w, int h) {
 	image i2 = *img_stack;
 	pixel p;
 	int i, j;
@@ -1298,37 +1298,35 @@ int img_cut(int x, int y, int w, int h)
 	if (h < 0) h = 0;
 	img_stack->width = w;
 	img_stack->height = h;
-	img_stack->npixels = w*h;
+	img_stack->npixels = w * h;
 
 	for (i = 0; i < h; i++) {
 		for (j = 0; j < w; j++) {
-			p = GET_PIXEL(&i2, x+j, y+i);
+			p = GET_PIXEL(&i2, x + j, y + i);
 			PUT_PIXEL(img_stack, j, i, p);
 		}
 	}
 	return 0;
 }
 
-int img_depth(int n)
-{
+int img_depth(int n) {
 	int i;
 	pixel p;
 
 	for (i = 0; i < img_stack->npixels; i++) {
 		p = img_stack->pixels[i];
-		p.r = p.r*n/255;
-		p.r = p.r*255/n;
-		p.g = p.g*n/255;
-		p.g = p.g*255/n;
-		p.b = p.b*n/255;
-		p.b = p.b*255/n;
+		p.r = p.r * n / 255;
+		p.r = p.r * 255 / n;
+		p.g = p.g * n / 255;
+		p.g = p.g * 255 / n;
+		p.b = p.b * n / 255;
+		p.b = p.b * 255 / n;
 		img_stack->pixels[i] = p;
 	}
 	return 0;
 }
 
-int img_despeckle(int w, int h)
-{
+int img_despeckle(int w, int h) {
 	int w1, h1;
 	int i, j;
 	image *i2;
@@ -1347,7 +1345,7 @@ int img_despeckle(int w, int h)
 
 	for (i = 0; i < h1; i++) {
 		for (j = 0; j < w1; j++) {
-			p = img_median_pixel(j-(w/2), i-(h/2), w, h);
+			p = img_median_pixel(j - (w / 2), i - (h / 2), w, h);
 			PUT_PIXEL(i2, j, i, p);
 		}
 	}
@@ -1357,8 +1355,7 @@ int img_despeckle(int w, int h)
 	return 0;
 }
 
-int img_drop(void)
-{
+int img_drop(void) {
 	image *i1 = img_stack;
 	if (i1 == NULL) return -1;
 	img_stack = img_stack->next;
@@ -1366,8 +1363,7 @@ int img_drop(void)
 	return 0;
 }
 
-int img_dup(void)
-{
+int img_dup(void) {
 	image *i1 = img_new(img_stack->npixels);
 	if (img_stack == NULL) return -1;
 	i1->width = img_stack->width;
@@ -1378,51 +1374,47 @@ int img_dup(void)
 	return 0;
 }
 
-int img_enlarge(int n)
-{
-	return img_size(n*img_stack->width, n*img_stack->height);
+int img_enlarge(int n) {
+	return img_size(n * img_stack->width, n * img_stack->height);
 }
 
-int img_fg(char *p)
-{
+int img_fg(char *p) {
 	fg = scan_pixel(p);
 	return 0;
 }
 
-int img_fit(int w, int h)
-{
+int img_fit(int w, int h) {
 	float w1, h1, c1;
 	if (img_stack == NULL) return -1;
 	w1 = img_stack->width;
 	h1 = img_stack->height;
 	if (w1 == 0 || h1 == 0) return -1;
-	c1 = w1/h1;
+	c1 = w1 / h1;
 	if (w1 > w) {
 		w1 = w;
-		h1 = w1/c1;
+		h1 = w1 / c1;
 	}
 	if (h1 > h) {
 		h1 = h;
-		w1 = h1/c1;
+		w1 = h1 / c1;
 	}
 	return img_size(w1, h1);
 }
 
-int img_gamma(float r, float g, float b)
-{
+int img_gamma(float r, float g, float b) {
 	pixel p;
 	int i, m;
 
 	if (img_stack == NULL) return -1;
 	for (i = 0; i < img_stack->npixels; i++) {
 		p = img_stack->pixels[i];
-		m = r*p.r;
+		m = r * p.r;
 		if (m > 255) m = 255;
 		p.r = m;
-		m = g*p.g;
+		m = g * p.g;
 		if (m > 255) m = 255;
 		p.g = m;
-		m = b*p.b;
+		m = b * p.b;
 		if (m > 255) m = 255;
 		p.b = m;
 		img_stack->pixels[i] = p;
@@ -1430,39 +1422,36 @@ int img_gamma(float r, float g, float b)
 	return 0;
 }
 
-int img_invert(void)
-{
+int img_invert(void) {
 	pixel p;
 	int i;
 	if (img_stack == NULL) return -1;
 	for (i = 0; i < img_stack->npixels; i++) {
 		p = img_stack->pixels[i];
-		p.r = 255-p.r;
-		p.g = 255-p.g;
-		p.b = 255-p.b;
+		p.r = 255 - p.r;
+		p.g = 255 - p.g;
+		p.b = 255 - p.b;
 		img_stack->pixels[i] = p;
 	}
 	return 0;
 }
 
-int img_lr(void)
-{
+int img_lr(void) {
 	pixel p1, p2;
 	int i, j;
 	if (img_stack == NULL) return -1;
 	for (i = 0; i < img_stack->height; i++) {
-		for (j = 0; j < img_stack->width/2; j++) {
+		for (j = 0; j < img_stack->width / 2; j++) {
 			p1 = GET_PIXEL(img_stack, j, i);
-			p2 = GET_PIXEL(img_stack, img_stack->width-j-1, i);
+			p2 = GET_PIXEL(img_stack, img_stack->width - j - 1, i);
 			PUT_PIXEL(img_stack, j, i, p2);
-			PUT_PIXEL(img_stack, img_stack->width-j-1, i, p1);
+			PUT_PIXEL(img_stack, img_stack->width - j - 1, i, p1);
 		}
 	}
 	return 0;
 }
 
-int img_makeicons(int w, int h, char *tndir)
-{
+int img_makeicons(int w, int h, char *tndir) {
 	image *i1;
 	DIR *dp = opendir(".");
 	struct dirent *de;
@@ -1478,15 +1467,15 @@ int img_makeicons(int w, int h, char *tndir)
 		fn = de->d_name;
 		load = NULL;
 		if ((q = strrchr(fn, '.'))) {
-        	        strncpy(b, q+1, sizeof b);
-	                b[sizeof b-1] = '\0';
-	                for (q = b; *q; q++) *q = toupper(*q);
-	                for (i = 0; img_io[i].name; i++) {
-	                        if (!strcmp(b, img_io[i].name)) {
-	                                load = img_io[i].load;
-	                                break;
-	                        }
-	                }
+			strncpy(b, q + 1, sizeof b);
+			b[sizeof b - 1] = '\0';
+			for (q = b; *q; q++) *q = toupper(*q);
+			for (i = 0; img_io[i].name; i++) {
+				if (!strcmp(b, img_io[i].name)) {
+					load = img_io[i].load;
+					break;
+				}
+			}
 		}
 		if (load == NULL) continue;
 		fpi = fopen(fn, "r");
@@ -1505,26 +1494,22 @@ int img_makeicons(int w, int h, char *tndir)
 	return 0;
 }
 
-int img_margin(char *p)
-{
+int img_margin(char *p) {
 	return -1;
 }
 
-int img_noop(char *p)
-{
+int img_noop(char *p) {
 	fprintf(stderr,
 		"No operation; "
 		"this is probably because '%s' is unimplemented\n", p);
 	return 0;
 }
 
-int img_pixels(int n)
-{
+int img_pixels(int n) {
 	return -1;
 }
 
-image *img_pop(void)
-{
+image *img_pop(void) {
 	image *i;
 	if (img_stack == NULL) return NULL;
 	i = img_stack;
@@ -1532,28 +1517,26 @@ image *img_pop(void)
 	return i;
 }
 
-int img_push(image *i)
-{
+int img_push(image *i) {
 	i->next = img_stack;
 	img_stack = i;
 	return 0;
 }
 
-int img_r90(void)
-{
+int img_r90(void) {
 	int i, j;
 	int w1, h1, w2, h2;
 	pixel p1;
 	image *i2;
 	if (img_stack == NULL) return -1;
 	w1 = img_stack->width, h1 = img_stack->height;
-	i2 = img_new(w1*h1);
+	i2 = img_new(w1 * h1);
 	w2 = i2->width = h1;
 	h2 = i2->height = w1;
 	for (i = 0; i < h1; i++) {
 		for (j = 0; j < w1; j++) {
 			p1 = GET_PIXEL(img_stack, j, i);
-			PUT_PIXEL(i2, i, h2-j-1, p1);
+			PUT_PIXEL(i2, i, h2 - j - 1, p1);
 		}
 	}
 	i2->next = img_stack->next;
@@ -1562,18 +1545,17 @@ int img_r90(void)
 	return 0;
 }
 
-int img_r180(void)
-{
+int img_r180(void) {
 	int i, j;
 	int w1 = img_stack->width, h1 = img_stack->height, w2, h2;
 	pixel p1;
-	image *i2 = img_new(w1*h1);
+	image *i2 = img_new(w1 * h1);
 	w2 = i2->width = w1;
 	h2 = i2->height = h1;
 	for (i = 0; i < h1; i++) {
 		for (j = 0; j < w1; j++) {
 			p1 = GET_PIXEL(img_stack, j, i);
-			PUT_PIXEL(i2, w2-j-1, h2-i-1, p1);
+			PUT_PIXEL(i2, w2 - j - 1, h2 - i - 1, p1);
 		}
 	}
 	i2->next = img_stack->next;
@@ -1582,18 +1564,17 @@ int img_r180(void)
 	return 0;
 }
 
-int img_r270(void)
-{
+int img_r270(void) {
 	int i, j;
 	int w1 = img_stack->width, h1 = img_stack->height, w2, h2;
 	pixel p1;
-	image *i2 = img_new(w1*h1);
+	image *i2 = img_new(w1 * h1);
 	w2 = i2->width = h1;
 	h2 = i2->height = w1;
 	for (i = 0; i < h1; i++) {
 		for (j = 0; j < w1; j++) {
 			p1 = GET_PIXEL(img_stack, j, i);
-			PUT_PIXEL(i2, w2-i-1, j, p1);
+			PUT_PIXEL(i2, w2 - i - 1, j, p1);
 		}
 	}
 	i2->next = img_stack->next;
@@ -1603,8 +1584,7 @@ int img_r270(void)
 }
 
 /* If format is specified as FMT:filename, trust the FMT. Otherwise guess. */
-int img_read(char *fn)
-{
+int img_read(char *fn) {
 	char *q, b[100];
 	image *i1 = NULL;
 	FILE *fpi;
@@ -1613,10 +1593,10 @@ int img_read(char *fn)
 
 	q = strchr(fn, ':');
 	if (q) {
-		n = q-fn;
-		if (n > sizeof b-1) n = sizeof b-1;
+		n = q - fn;
+		if (n > sizeof b - 1) n = sizeof b - 1;
 		strncpy(b, fn, n);
-		fn = q+1;
+		fn = q + 1;
 		b[n] = '\0';
 		for (q = b; *q; q++) *q = toupper(*q);
 		for (i = 0; img_io[i].name; i++) {
@@ -1630,8 +1610,8 @@ int img_read(char *fn)
 			return -1;
 		}
 	} else if ((q = strrchr(fn, '.'))) {
-		strncpy(b, q+1, sizeof b);
-		b[sizeof b-1] = '\0';
+		strncpy(b, q + 1, sizeof b);
+		b[sizeof b - 1] = '\0';
 		for (q = b; *q; q++) *q = toupper(*q);
 		for (i = 0; img_io[i].name; i++) {
 			if (!strcmp(b, img_io[i].name)) {
@@ -1660,8 +1640,7 @@ int img_read(char *fn)
 	return 0;
 }
 
-int img_rotate(int n)
-{
+int img_rotate(int n) {
 	debug("Cheating because this is unimplemented\n");
 	n %= 360;
 	if (n < 45) return 0;
@@ -1671,27 +1650,25 @@ int img_rotate(int n)
 	return 0;
 }
 
-int img_scale(float w, float h)
-{
-	float w1 = w*img_stack->width;
-	float h1 = h*img_stack->height;
+int img_scale(float w, float h) {
+	float w1 = w * img_stack->width;
+	float h1 = h * img_stack->height;
 	if (w1 == 0 || h1 == 0) return 0;
 	return img_size(w1, h1);
 }
 
-int img_scroll(int x, int y)
-{
+int img_scroll(int x, int y) {
 	int i, j;
 	int w1 = img_stack->width, h1 = img_stack->height, w2, h2;
 	pixel p1;
-	image *i2 = img_new(w1*h1);
+	image *i2 = img_new(w1 * h1);
 	if (i2 == NULL) return -1;
 	w2 = i2->width = w1;
 	h2 = i2->height = h1;
 	for (i = 0; i < h1; i++) {
 		for (j = 0; j < w1; j++) {
 			p1 = GET_PIXEL(img_stack, j, i);
-			PUT_PIXEL(i2, (j+x)%w2, (i+y)%h2, p1);
+			PUT_PIXEL(i2, (j + x) % w2, (i + y) % h2, p1);
 		}
 	}
 	i2->next = img_stack->next;
@@ -1700,18 +1677,15 @@ int img_scroll(int x, int y)
 	return 0;
 }
 
-int img_sh(char *cmd)
-{
+int img_sh(char *cmd) {
 	return system(cmd);
 }
 
-int img_shear(int a)
-{
+int img_shear(int a) {
 	return -1;
 }
 
-int img_size(int w, int h)
-{
+int img_size(int w, int h) {
 	int w1 = img_stack->width, h1 = img_stack->height;
 	int w2, h2;
 	int i, j;
@@ -1723,13 +1697,13 @@ int img_size(int w, int h)
 	if (h) h2 = h;
 	else h2 = h1;
 
-	i2 = img_new(w2*h2);
+	i2 = img_new(w2 * h2);
 	if (i2 == NULL) return -1;
 	i2->width = w2;
 	i2->height = h2;
 	for (i = 0; i < h2; i++) {
 		for (j = 0; j < w2; j++) {
-			p1 = GET_PIXEL(img_stack, (j*w1)/w2, (i*h1)/h2);
+			p1 = GET_PIXEL(img_stack, (j * w1) / w2, (i * h1) / h2);
 			PUT_PIXEL(i2, j, i, p1);
 		}
 	}
@@ -1739,8 +1713,7 @@ int img_size(int w, int h)
 	return 0;
 }
 
-int img_smooth(int w, int h)
-{
+int img_smooth(int w, int h) {
 	int w1 = img_stack->width, h1 = img_stack->height;
 	int i, j;
 	image *i2 = img_new(img_stack->npixels);
@@ -1756,7 +1729,7 @@ int img_smooth(int w, int h)
 
 	for (i = 0; i < h1; i++) {
 		for (j = 0; j < w1; j++) {
-			p = img_average_pixel(j-(w/2), i-(h/2), w, h);
+			p = img_average_pixel(j - (w / 2), i - (h / 2), w, h);
 			PUT_PIXEL(i2, j, i, p);
 		}
 	}
@@ -1766,8 +1739,7 @@ int img_smooth(int w, int h)
 	return 0;
 }
 
-int img_swap(void)
-{
+int img_swap(void) {
 	image *i1 = img_stack;
 	if (i1 == NULL) return -1;
 	img_stack = i1->next;
@@ -1777,25 +1749,23 @@ int img_swap(void)
 	return 0;
 }
 
-int img_tb(void)
-{
+int img_tb(void) {
 	pixel p1, p2;
 	int i, j;
 	if (img_stack == NULL) return -1;
-	for (i = 0; i < img_stack->height/2; i++) {
+	for (i = 0; i < img_stack->height / 2; i++) {
 		for (j = 0; j < img_stack->width; j++) {
 			p1 = GET_PIXEL(img_stack, j, i);
-			p2 = GET_PIXEL(img_stack, j, img_stack->height-i-1);
+			p2 = GET_PIXEL(img_stack, j, img_stack->height - i - 1);
 			PUT_PIXEL(img_stack, j, i, p2);
-			PUT_PIXEL(img_stack, j, img_stack->height-i-1, p1);
+			PUT_PIXEL(img_stack, j, img_stack->height - i - 1, p1);
 		}
 	}
 	return 0;
 }
 
-int img_tile(int w, int h)
-{
-	image *i2 = img_new(w*h);
+int img_tile(int w, int h) {
+	image *i2 = img_new(w * h);
 	int i, j;
 	int w1, h1;
 	pixel p;
@@ -1806,7 +1776,7 @@ int img_tile(int w, int h)
 	i2->height = h;
 	for (i = 0; i < h; i++) {
 		for (j = 0; j < w; j++) {
-			p = GET_PIXEL(img_stack, j%w1, i%h1);
+			p = GET_PIXEL(img_stack, j % w1, i % h1);
 			PUT_PIXEL(i2, j, i, p);
 		}
 	}
@@ -1816,14 +1786,12 @@ int img_tile(int w, int h)
 	return 0;
 }
 
-image *img_top(void)
-{
+image *img_top(void) {
 	return img_stack;
 }
 
 /* Format can be specified as FMT:filename.foo or filename.fmt */
-int img_write(char *p)
-{
+int img_write(char *p) {
 	FILE *fpo;
 	char b[1024];
 	char *q = strrchr(p, '.');
@@ -1832,10 +1800,10 @@ int img_write(char *p)
 
 	q = strchr(p, ':');
 	if (q) {
-		n = q-p;
+		n = q - p;
 		if (n > sizeof b - 1) n = sizeof b - 1;
 		strncpy(b, p, n);
-		p = q+1;
+		p = q + 1;
 		b[n] = '\0';
 		for (q = b; *q; q++) *q = toupper(*q);
 		for (i = 0; img_io[i].name; i++) {
@@ -1849,7 +1817,7 @@ int img_write(char *p)
 			return -1;
 		}
 	} else if ((q = strrchr(p, '.'))) {
-		strncpy(b, q+1, sizeof b);
+		strncpy(b, q + 1, sizeof b);
 		b[sizeof b - 1] = '\0';
 		for (q = b; *q; q++) *q = toupper(*q);
 		for (i = 0; img_io[i].name; i++) {
@@ -1874,72 +1842,71 @@ int img_write(char *p)
 	return -1;
 }
 
-int img_main(int argc, char **argv)
-{
+int img_main(int argc, char **argv) {
 	int i;
 
 	i = 1;
 	while (i < argc) {
-debug("argv[%d] = '%s'\n", i, argv[i]);
-		if (!strcmp(argv[i], "-o") && i+1 < argc) {
+		debug("argv[%d] = '%s'\n", i, argv[i]);
+		if (!strcmp(argv[i], "-o") && i + 1 < argc) {
 			i++;
 			img_write(argv[i]);
 		} else if (!strcmp(argv[i], "-alias")) {
 			img_alias();
-		} else if (!strcmp(argv[i], "-bg") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-bg") && i + 1 < argc) {
 			i++;
 			img_bg(argv[i]);
-		} else if (!strcmp(argv[i], "-cd") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-cd") && i + 1 < argc) {
 			i++;
 			img_cd(argv[i]);
 		} else if (!strcmp(argv[i], "-crop")) {
 			img_crop();
-		} else if (!strcmp(argv[i], "-cut") && i+4 < argc) {
-			img_cut(atoi(argv[i+1]), atoi(argv[i+2]),
-				atoi(argv[i+3]), atoi(argv[i+4]));
+		} else if (!strcmp(argv[i], "-cut") && i + 4 < argc) {
+			img_cut(atoi(argv[i + 1]), atoi(argv[i + 2]),
+				atoi(argv[i + 3]), atoi(argv[i + 4]));
 			i += 4;
-		} else if (!strcmp(argv[i], "-depth") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-depth") && i + 1 < argc) {
 			i++;
 			img_depth(atoi(argv[i]));
-		} else if (!strcmp(argv[i], "-despeckle") && i+2 < argc) {
-			img_despeckle(atoi(argv[i+1]), atoi(argv[i+2]));
+		} else if (!strcmp(argv[i], "-despeckle") && i + 2 < argc) {
+			img_despeckle(atoi(argv[i + 1]), atoi(argv[i + 2]));
 			i += 2;
 		} else if (!strcmp(argv[i], "-drop")) {
 			img_drop();
 		} else if (!strcmp(argv[i], "-dup")) {
 			img_dup();
-		} else if (!strcmp(argv[i], "-enlarge") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-enlarge") && i + 1 < argc) {
 			i++;
 			img_enlarge(atoi(argv[i]));
-		} else if (!strcmp(argv[i], "-fg") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-fg") && i + 1 < argc) {
 			i++;
 			img_fg(argv[i]);
-		} else if (!strcmp(argv[i], "-fit") && i+2 < argc) {
-			img_fit(atoi(argv[i+1]), atoi(argv[i+2]));
+		} else if (!strcmp(argv[i], "-fit") && i + 2 < argc) {
+			img_fit(atoi(argv[i + 1]), atoi(argv[i + 2]));
 			i += 2;
-		} else if (!strcmp(argv[i], "-gamma") && i+3 < argc) {
-			img_gamma(strtod(argv[i+1], NULL),
-				strtod(argv[i+2], NULL),
-				strtod(argv[i+3], NULL));
+		} else if (!strcmp(argv[i], "-gamma") && i + 3 < argc) {
+			img_gamma(strtod(argv[i + 1], NULL),
+				strtod(argv[i + 2], NULL),
+				strtod(argv[i + 3], NULL));
 			i += 3;
-		} else if (!strcmp(argv[i], "-i") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-i") && i + 1 < argc) {
 			i++;
 			img_read(argv[i]);
 		} else if (!strcmp(argv[i], "-invert")) {
 			img_invert();
 		} else if (!strcmp(argv[i], "-lr")) {
 			img_lr();
-		} else if (!strcmp(argv[i], "-makeicons") && i+3 < argc) {
-			img_makeicons( strtol(argv[i+1], NULL, 10),
-					strtol(argv[i+2], NULL, 10),
-					argv[i+3]);
+		} else if (!strcmp(argv[i], "-makeicons") && i + 3 < argc) {
+			img_makeicons(strtol(argv[i + 1], NULL, 10),
+				strtol(argv[i + 2], NULL, 10),
+				argv[i + 3]);
 			i += 3;
-		} else if (!strcmp(argv[i], "-margin") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-margin") && i + 1 < argc) {
 			i++;
 			img_margin(argv[i]);
 		} else if (!strcmp(argv[i], "-noop")) {
 			img_noop(argv[i]);
-		} else if (!strcmp(argv[i], "-pixels") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-pixels") && i + 1 < argc) {
 			i++;
 			img_pixels(atoi(argv[i]));
 		} else if (!strcmp(argv[i], "-r90")) {
@@ -1948,34 +1915,34 @@ debug("argv[%d] = '%s'\n", i, argv[i]);
 			img_r180();
 		} else if (!strcmp(argv[i], "-r270")) {
 			img_r270();
-		} else if (!strcmp(argv[i], "-rotate") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-rotate") && i + 1 < argc) {
 			i++;
 			img_rotate(atoi(argv[i]));
-		} else if (!strcmp(argv[i], "-scale") && i+2 < argc) {
-			img_scale(strtod(argv[i+1], NULL),
-				strtod(argv[i+2], NULL));
+		} else if (!strcmp(argv[i], "-scale") && i + 2 < argc) {
+			img_scale(strtod(argv[i + 1], NULL),
+				strtod(argv[i + 2], NULL));
 			i += 2;
-		} else if (!strcmp(argv[i], "-scroll") && i+2 < argc) {
-			img_scroll(atoi(argv[i+1]), atoi(argv[i+2]));
+		} else if (!strcmp(argv[i], "-scroll") && i + 2 < argc) {
+			img_scroll(atoi(argv[i + 1]), atoi(argv[i + 2]));
 			i += 2;
-		} else if (!strcmp(argv[i], "-sh") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-sh") && i + 1 < argc) {
 			i++;
 			img_sh(argv[i]);
-		} else if (!strcmp(argv[i], "-shear") && i+1 < argc) {
+		} else if (!strcmp(argv[i], "-shear") && i + 1 < argc) {
 			i++;
 			img_shear(atoi(argv[i]));
-		} else if (!strcmp(argv[i], "-size") && i+2 < argc) {
-			img_size(atoi(argv[i+1]), atoi(argv[i+2]));
+		} else if (!strcmp(argv[i], "-size") && i + 2 < argc) {
+			img_size(atoi(argv[i + 1]), atoi(argv[i + 2]));
 			i += 2;
-		} else if (!strcmp(argv[i], "-smooth") && i+2 < argc) {
-			img_smooth(atoi(argv[i+1]), atoi(argv[i+2]));
+		} else if (!strcmp(argv[i], "-smooth") && i + 2 < argc) {
+			img_smooth(atoi(argv[i + 1]), atoi(argv[i + 2]));
 			i += 2;
 		} else if (!strcmp(argv[i], "-swap")) {
 			img_swap();
 		} else if (!strcmp(argv[i], "-tb")) {
 			img_tb();
 		} else if (!strcmp(argv[i], "-tile")) {
-			img_tile(atoi(argv[i+1]), atoi(argv[i+2]));
+			img_tile(atoi(argv[i + 1]), atoi(argv[i + 2]));
 			i += 2;
 		} else {
 			img_read(argv[i]);

@@ -360,15 +360,12 @@ static XtActionsRec web_actions[] = {
 };
 
 int webview_create(ats_t *ui, webview_t *w) {
-	int argc = 0;
-	char **argv = NULL;
-	Widget toolcmd, tooltip = NULL;
-	Pixel color;
+	Widget toolcmd;
 	char b[1024], *p;
-	int i;
 
-	p = getenv("HOME");
-	if (!p) p = "/tmp";
+	if (!(p = getenv("HOME")))
+		p = "/tmp";
+
 	sprintf(b, "%s/.webview", p);
 	mkdir(b, 0700);
 	strcat(b, "/cache");
@@ -379,172 +376,97 @@ int webview_create(ats_t *ui, webview_t *w) {
 		putenv(b);
 	}
 
-	ui->width = w->width;
-	ui->height = w->height;
-	ui->app->name = w->title;
-	ui->topLevel = XtVaAppInitialize(&ui->app_con, "webview",
-		NULL, 0,
-		&argc, argv,
-		fallback,
-		XtNbackground, 0x808080,
-		XtNbeNiceToColormap, False,
-		NULL);
+	ui->use_icon = icon_32x32;
+	ui->webview_set = true;
+	if (ats_window(ui, w->title, w->width, w->height, false)) {
+		XtVaSetValues(ui->topLevel, XtNbackground, 0x808080, NULL);
+		XtAppAddActions(ui->app_con, web_actions, XtNumber(web_actions));
+		MwHighlightInit(ui->topLevel);
+		w->priv.window = ats_windowgrid_set(ui, 30, 30);
+		Widget statbar = ats_gridlayout_set(w->priv.window, 0, 2, "100%", "100%");
 
-	XtAppAddActions(ui->app_con, web_actions, XtNumber(web_actions));
-	XtResizeWidget(ui->topLevel, ui->width, ui->height, 0);
-	if (w->showtoolbar)
-		tooltip = XtVaCreatePopupShell("tooltip", mwTooltipWidgetClass, ui->topLevel, NULL);
-	else
-		MwInitFormat(XtDisplayOfObject(ui->topLevel));
+		ui->statusLine = ats_statusline_set(statbar, w->priv.window, "", 0, 0, w->width - 20);
+		XtVaGetValues(ui->statusLine, XtNbackground, &ui->color, NULL);
+		if (w->showtoolbar) {
+			Widget navbar = ats_gridlayout_set(w->priv.window, 0, 0, "100%", NULL);
+			Widget navbox = ats_boxspace_set(navbar, 0, 0);
 
-	MwHighlightInit(ui->topLevel);
-	w->priv.window = XtVaCreateManagedWidget("topbox",
-		mwRudegridWidgetClass, ui->topLevel,
-		XtNyLayout, "30 0 0 100% 30",
-		XtNborderWidth, 0,
-		XtNbeNiceToColormap, False,
-		NULL);
+			ats_toolbar_set(ui, navbox, cb_home, "home.xpm", "Home", true);
+			ats_toolbar_set(ui, navbox, cb_back, "back.xpm", "Back", true);
+			toolcmd = ats_toolbar_set(ui, navbox, cb_forward, "forward.xpm", "Forward", true);
+			//ats_toolbar_set(ui, navbox, cb_reload, "reload.xpm", "Reload");
+			//ats_toolbar_set(ui, navbox, cb_cancel, "cancel.xpm", "Cancel");
+			//ats_toolbar_set(ui, navbox, cb_open, "fld_open.xpm", "Open");
+			//ats_toolbar_set(ui, navbox, cb_save, "save.xpm", "Save");
 
-	Widget statbar = XtVaCreateManagedWidget("statbar",
-		mwRudegridWidgetClass, w->priv.window,
-		XtNbackground, 0x808080,
-		XtNgridy, 4,
-		XtNxLayout, "0 100%",
-		XtNyLayout, "0 100% 4",
-		NULL);
+			XtVaGetValues(navbox, XtNbackground, &ui->color, NULL);
+			int numtools = 4;
+			w->priv.inspector_window = ats_gridbar_set(navbox, (ui->width - (38 * numtools)), 28, "95%");
+			XtVaSetValues(w->priv.inspector_window, XtNborderColor, ui->color, NULL);
 
-	ui->statusLine = XtVaCreateManagedWidget("",
-		labelWidgetClass, statbar,
-		XtNshadowWidth, 0,
-		XtNgridx, 1,
-		XtNgridy, 1,
-		XtNjustify, XtJustifyLeft,
-		NULL);
+			Widget addressfield = ats_field_set(w->priv.inspector_window, toolcmd, "https://",
+				0, 0, 100, field_url, NULL);
+			XtAddCallback(addressfield, XtNactivateCallback, cb_goto, ui);
+			w->userdata = (void *)addressfield;
 
-	XtVaGetValues(ui->statusLine, XtNbackground, &color, NULL);
-	if (w->showtoolbar) {
-		Widget navbar = XtVaCreateManagedWidget("navbar",
-			mwRudegridWidgetClass, w->priv.window,
-			XtNgridy, 0,
-			XtNresizable, True,
-			XtNxLayout, "0 100%",
-			NULL);
-
-		Widget navframe = XtVaCreateManagedWidget("navframe",
-			mwFrameWidgetClass, navbar,
-			XtNgridx, 1,
-			NULL);
-
-		Widget navbox = XtVaCreateManagedWidget("navbox",
-			boxWidgetClass, navframe,
-			XtNvSpace, 0,
-			XtNhSpace, 0,
-			NULL);
-
-		toolcmd = add_command(navbox, cb_home, ui, "home.xpm");
-	//	MwTooltipAdd(tooltip, toolcmd, _("Home"));
-
-		toolcmd = add_command(navbox, cb_back, ui, "back.xpm");
-	//	MwTooltipAdd(tooltip, toolcmd, _("Back"));
-
-		toolcmd = add_command(navbox, cb_forward, ui, "forward.xpm");
-	//	MwTooltipAdd(tooltip, toolcmd, _("Forward"));
-
-	//	toolcmd = add_command(navbox, cb_reload, ui, "reload.xpm");
-	//	MwTooltipAdd(tooltip, toolcmd, _("Reload"));
-
-	//	toolcmd = add_command(navbox, cb_cancel, ui, "cancel.xpm");
-	//	MwTooltipAdd(tooltip, toolcmd, _("Cancel"));
-
-	//	toolcmd = add_command(navbox, cb_open, ui, "fld_open.xpm");
-	//	MwTooltipAdd(tooltip, toolcmd, _("Open"));
-
-	//	toolcmd = add_command(navbox, cb_save, ui, "save.xpm");
-	//	MwTooltipAdd(tooltip, toolcmd, _("Save"));
-
-		int numtools = 4;
-		XtVaGetValues(navbox, XtNbackground, &color, NULL);
-		w->priv.inspector_window = XtVaCreateManagedWidget("persbar",
-			mwRudegridWidgetClass, navbox,
-			XtNbackground, color,
-			XtNwidth, (ui->width - (33 * numtools)),
-			XtNheight, 30,
-			XtNresizable, True,
-			XtNborder, 0,
-			XtNborderWidth, 0,
-			XtNxLayout, "100%", NULL);
-		Widget addressfield = ats_field_set(w->priv.inspector_window, navbox, "https://", (33 * numtools), 0, 100, field_url, NULL);
-		XtAddCallback(addressfield, XtNactivateCallback, cb_goto, ui);
-		toolcmd = add_command(navbox, cb_goto, ui, "preview.xpm");
-		ui->user_data = (void *)toolcmd;
-		//MwTooltipAdd(tooltip, toolcmd, _("Go"));
-		w->userdata = (void *)addressfield;
-	}
-
-	Widget viewport = XtVaCreateManagedWidget("viewport",
-		mwRudegridWidgetClass, w->priv.window,
-		XtNbackground, color,
-		XtNgridy, 3,
-		XtNxLayout, "50% 100 50% 17 17",
-		NULL);
-
-	w->priv.webview = XtVaCreateManagedWidget("html",
-		mwHtmlWidgetClass, viewport,
-		XtNtopCol, -10,
-		XtNstatus, ui->statusLine,
-		XtNgridWidth, 4,
-		XtNbackground, 0xffffff,
-		XtNborderWidth, 0,
-		XtNdelay, 10,
-		NULL);
-	XtAddCallback(w->priv.webview, XtNcallback, cb_click, ui);
-	XtAddCallback(w->priv.webview, XtNchangeUrl, cb_url, ui);
-	XtVaSetValues(w->priv.webview, XtNurl, w->url, NULL);
-
-	w->priv.scroller = (void *)XtVaCreateManagedWidget("vscroll",
-		scrollbarWidgetClass, viewport,
-		XtNgridx, 4,
-		XtNorientation, XtorientVertical,
-		NULL);
-
-	main_athena_info->web->priv.window = w->priv.window;
-	main_athena_info->web->priv.webview = w->priv.webview;
-	main_athena_info->web->priv.scroller = w->priv.scroller;
-	XtAddCallback((Widget)w->priv.scroller, XtNjumpProc, cb_vscroll_jump, ui);
-	XtAddCallback((Widget)w->priv.scroller, XtNscrollProc, cb_vscroll_scroll, ui);
-
-	XtVaSetValues(ui->statusLine, XtNbackground, color, NULL);
-	XtVaSetValues(statbar, XtNbackground, color, NULL);
-	ui->app->ats = ui;
-	w->priv.ats = ui;
-	return 1;
-}
-
-FORCEINLINE int webview_loop(webview_t *w, int blocking) {
-	blocking = 1;
-	if (w->priv.ats) {
-		XtAppContext context = XtWidgetToApplicationContext((Widget)w->priv.ats->topLevel);
-		XtRealizeWidget(w->priv.ats->topLevel);
-
-		if (!w->priv.ats->icon_set) {
-			w->priv.ats->icon_set = 1;
-			MwSetIcon(w->priv.ats->topLevel, athena);
+			toolcmd = ats_toolbar_set(ui, navbox, cb_goto, "preview.xpm", "Go", true);
+			ui->user_data = (void *)toolcmd;
+			ats_alignfield(toolcmd, addressfield, false);
 		}
 
-		w->priv.ats->dpy = XtDisplay(w->priv.ats->topLevel);
-		w->priv.ats->win = XtWindow(w->priv.ats->topLevel);
-		Atom wm_protocols = XInternAtom(w->priv.ats->dpy,
-			"WM_PROTOCOLS", False);
-		w->priv.ats->wmDeleteMessage = XInternAtom(w->priv.ats->dpy,
-			"WM_DELETE_WINDOW", False);
-		XtOverrideTranslations(w->priv.ats->topLevel,
-			XtParseTranslationTable(
-				"<Message>WM_PROTOCOLS: quit()"));
-		XSetWMProtocols(w->priv.ats->dpy, w->priv.ats->win, &w->priv.ats->wmDeleteMessage, 1);
-		XStoreName(w->priv.ats->dpy, w->priv.ats->win, w->priv.ats->app->name);
+		Widget viewport = XtVaCreateManagedWidget("viewport",
+			mwRudegridWidgetClass, w->priv.window,
+			XtNgridy, 1,
+			XtNbackground, ui->color,
+			XtNxLayout, "50% 100 50% 17 17",
+			NULL);
 
+		w->priv.webview = XtVaCreateManagedWidget("html",
+			mwHtmlWidgetClass, viewport,
+			XtNtopCol, -10,
+			XtNstatus, ui->statusLine,
+			XtNgridWidth, 4,
+			XtNborderWidth, 0,
+			XtNdelay, 10,
+			NULL);
+		XtAddCallback(w->priv.webview, XtNcallback, cb_click, ui);
+		XtAddCallback(w->priv.webview, XtNchangeUrl, cb_url, ui);
+		XtVaSetValues(w->priv.webview, XtNurl, w->url, NULL);
+
+		w->priv.scroller = (void *)XtVaCreateManagedWidget("vscroll",
+			scrollbarWidgetClass, viewport,
+			XtNgridx, 4,
+			XtNorientation, XtorientVertical,
+			NULL);
+
+		main_athena_info->web->priv.window = w->priv.window;
+		main_athena_info->web->priv.webview = w->priv.webview;
+		main_athena_info->web->priv.scroller = w->priv.scroller;
+		XtAddCallback((Widget)w->priv.scroller, XtNjumpProc, cb_vscroll_jump, ui);
+		XtAddCallback((Widget)w->priv.scroller, XtNscrollProc, cb_vscroll_scroll, ui);
+
+		XtVaSetValues(ui->statusLine, XtNjustify, XtJustifyLeft, XtNbackground, ui->color, NULL);
+		XtVaSetValues(statbar, XtNbackground, ui->color, NULL);
+		ui->app->app_data = (void *)w->priv.window;
+		ui->app->name = w->title;
+		ui->app->wnd = ui->topLevel;
+		ui->app->ats = ui;
+		ui->wnd = ui->topLevel;
+		w->priv.ats = ui;
+		w->priv.ats->win = ui->win;
+		w->priv.ats->dpy = ui->dpy;
+		return 1;
+	}
+
+	return 0;
+}
+
+int webview_loop(webview_t *w, int blocking) {
+	blocking = 1;
+	if (w->priv.ats) {
+		XFlush(w->priv.ats->dpy);
 		for (;;) {
-			XtAppNextEvent(context, &w->priv.ats->xev);
+			XtAppNextEvent(w->priv.ats->app_con, &w->priv.ats->xev);
 			XtDispatchEvent(&w->priv.ats->xev);
 			if (w->priv.ats->xev.xclient.type == ClientMessage
 				&& w->priv.ats->xev.xclient.data.l[0] == w->priv.ats->wmDeleteMessage) {
@@ -556,8 +478,12 @@ FORCEINLINE int webview_loop(webview_t *w, int blocking) {
 				   resized. */
 				if (xce.width != w->width) {
 					int numtools = 4;
-					XtResizeWidget((Widget)w->priv.inspector_window, (xce.width - (33 * numtools)), 30, 0);
-					XtMoveWidget((Widget)w->priv.ats->user_data, xce.width - 34, 0);
+					w->width = xce.width;
+					if (w->priv.inspector_window)
+						XtResizeWidget((Widget)w->priv.inspector_window, (w->width - (38 * numtools)), 28, 1);
+
+					//if (w->priv.ats->user_data)
+					//	XtMoveWidget((Widget)w->priv.ats->user_data, w->width - 38, 0);
 				}
 			}
 		}

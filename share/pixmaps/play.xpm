@@ -1,13 +1,10 @@
 /* XPM */
 static char * play_xpm[] = {
-/**/
 "24 24 4 1",
-/*,S@,Y@,Z@|\@*/
 " 	s None	m None	c None",
 ".	s iconColor2	m white	c white",
 "X	c blue",
 "o	s iconColor1	m black	c black",
-/**/
 "                        ",
 "                        ",
 "                        ",

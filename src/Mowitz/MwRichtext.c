@@ -153,7 +153,7 @@ static XtResource resources[] = {
 		sizeof(XtPointer),
 		offset(data),
 		XtRImmediate,
-		(XtPointer) NULL
+		(XtPointer)NULL
 	}, {
 		XtNrichtextRedisplay,
 		XtCRichtextRedisplay,
@@ -250,7 +250,7 @@ static XtResource resources[] = {
 static void DoLayout(MwRichtextWidget);
 static void Resize(Widget);
 static XtGeometryResult GeometryManager(Widget,
-		XtWidgetGeometry *, XtWidgetGeometry *);
+	XtWidgetGeometry *, XtWidgetGeometry *);
 static void ChangeManaged(Widget);
 static void Redisplay(Widget, XEvent *, Region);
 static void Initialize(Widget, Widget, ArgList, Cardinal *);
@@ -258,41 +258,35 @@ static void Realize(Widget, XtValueMask *, XSetWindowAttributes *);
 static void Destroy(Widget);
 static Boolean SetValues(Widget, Widget, Widget, ArgList, Cardinal *);
 
-static int default_row_height(XtPointer p, int i)
-{
+static int default_row_height(XtPointer p, int i) {
 	MwRichtextWidget rtw = (MwRichtextWidget)p;
 
 	if (rtw->richtext.rc_string == NULL ||
-	    rtw->richtext.rc_string[0].c == '\0')
+		rtw->richtext.rc_string[0].c == '\0')
 		return 20;
 	return MwRcStrheight(rtw->richtext.rc_string, -1);
 }
 
-static int default_adj_horiz(XtPointer p, int i)
-{
+static int default_adj_horiz(XtPointer p, int i) {
 	return MW_HADJ_LEFT;
 }
 
-static int default_style(XtPointer p, int i)
-{
+static int default_style(XtPointer p, int i) {
 	return 0;
 }
 
-static MwRichchar *default_text(XtPointer p, int i)
-{
+static MwRichchar *default_text(XtPointer p, int i) {
 	MwRichtextWidget rw = (MwRichtextWidget)p;
 	if (i != 1) return NULL;
 	return rw->richtext.rc_string;
 }
 
 /* by default, do not display Beginning Of Paragraph marks */
-static Boolean default_bop(XtPointer p, int i)
-{
+static Boolean default_bop(XtPointer p, int i) {
 	return False;
 }
 
-static void plugin_coords(Widget w, XtPointer p, int *x, int *y)
-{
+static void plugin_coords(Widget w, XtPointer p, int *x, int *y) {
 	*x = *y = 0;
 }
 
@@ -357,70 +351,67 @@ static char translations[] =
 
 MwRichtextClassRec mwRichtextClassRec = {
   { /* core fields */
-    /* superclass		*/	(WidgetClass) &compositeClassRec,
-    /* class_name		*/	"MwRichtext",
-    /* widget_size		*/	sizeof(MwRichtextRec),
-    /* class_initialize		*/	NULL,
-    /* class_part_initialize	*/	NULL,
-    /* class_inited		*/	FALSE,
-    /* initialize		*/	Initialize,
-    /* initialize_hook		*/	NULL,
-    /* realize			*/	Realize,
-    /* actions			*/	actions,
-    /* num_actions		*/	XtNumber(actions),
-    /* resources		*/	resources,
-    /* num_resources		*/	XtNumber(resources),
-    /* xrm_class		*/	NULLQUARK,
-    /* compress_motion		*/	TRUE,
-    /* compress_exposure	*/	TRUE,
-    /* compress_enterleave	*/	TRUE,
-    /* visible_interest		*/	FALSE,
-    /* destroy			*/	Destroy,
-    /* resize			*/	Resize,
-    /* expose			*/	Redisplay,
-    /* set_values		*/	SetValues,
-    /* set_values_hook		*/	NULL,
-    /* set_values_almost	*/	XtInheritSetValuesAlmost,
-    /* get_values_hook		*/	NULL,
-    /* accept_focus		*/	NULL,
-    /* version			*/	XtVersion,
-    /* callback_private		*/	NULL,
-    /* tm_table			*/	translations,
-    /* query_geometry		*/	XtInheritQueryGeometry,
-    /* display_accelerator	*/	XtInheritDisplayAccelerator,
-    /* extension		*/	NULL
-  },{
-/* composite_class fields */
-    /* geometry_manager   */    GeometryManager,
-    /* change_managed     */    ChangeManaged,
-    /* insert_child       */    XtInheritInsertChild,
-    /* delete_child       */    XtInheritDeleteChild,
-    /* extension          */    NULL
-  }, { /* richtext fields */
-    /* empty			*/	0
-  }
+		/* superclass		*/	(WidgetClass)&compositeClassRec,
+		/* class_name		*/	"MwRichtext",
+		/* widget_size		*/	sizeof(MwRichtextRec),
+		/* class_initialize		*/	NULL,
+		/* class_part_initialize	*/	NULL,
+		/* class_inited		*/	FALSE,
+		/* initialize		*/	Initialize,
+		/* initialize_hook		*/	NULL,
+		/* realize			*/	Realize,
+		/* actions			*/	actions,
+		/* num_actions		*/	XtNumber(actions),
+		/* resources		*/	resources,
+		/* num_resources		*/	XtNumber(resources),
+		/* xrm_class		*/	NULLQUARK,
+		/* compress_motion		*/	TRUE,
+		/* compress_exposure	*/	TRUE,
+		/* compress_enterleave	*/	TRUE,
+		/* visible_interest		*/	FALSE,
+		/* destroy			*/	Destroy,
+		/* resize			*/	Resize,
+		/* expose			*/	Redisplay,
+		/* set_values		*/	SetValues,
+		/* set_values_hook		*/	NULL,
+		/* set_values_almost	*/	XtInheritSetValuesAlmost,
+		/* get_values_hook		*/	NULL,
+		/* accept_focus		*/	NULL,
+		/* version			*/	XtVersion,
+		/* callback_private		*/	NULL,
+		/* tm_table			*/	translations,
+		/* query_geometry		*/	XtInheritQueryGeometry,
+		/* display_accelerator	*/	XtInheritDisplayAccelerator,
+		/* extension		*/	NULL
+	  }, {
+	/* composite_class fields */
+		  /* geometry_manager   */    GeometryManager,
+		  /* change_managed     */    ChangeManaged,
+		  /* insert_child       */    XtInheritInsertChild,
+		  /* delete_child       */    XtInheritDeleteChild,
+		  /* extension          */    NULL
+		}, { /* richtext fields */
+			/* empty			*/	0
+		  }
 };
 
 WidgetClass mwRichtextWidgetClass = (WidgetClass)&mwRichtextClassRec;
 
 
-static int ret_style(MwRichtextWidget rtw, int row)
-{
+static int ret_style(MwRichtextWidget rtw, int row) {
 	if (rtw->richtext.style)
 		return (*rtw->richtext.style)(rtw->richtext.data, row);
 	return MW_STY_DEFAULT;
 }
 
-static MwRichchar *ret_text(MwRichtextWidget rtw, int row)
-{
+static MwRichchar *ret_text(MwRichtextWidget rtw, int row) {
 	if (rtw->richtext.text)
 		return (*rtw->richtext.text)(rtw->richtext.data, row);
 	return NULL;
 }
 
 
-static void MoveForwardChar(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void MoveForwardChar(Widget w, XEvent *event, String *params, Cardinal *n) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	int i = rw->richtext.point_col;
 	MwRichchar *p = rw->richtext.rc_string;
@@ -430,8 +421,7 @@ static void MoveForwardChar(Widget w, XEvent *event, String *params, Cardinal *n
 	Redisplay(w, NULL, None);
 }
 
-static void MoveBackwardChar(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void MoveBackwardChar(Widget w, XEvent *event, String *params, Cardinal *n) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	int i = rw->richtext.point_col;
 
@@ -440,33 +430,29 @@ static void MoveBackwardChar(Widget w, XEvent *event, String *params, Cardinal *
 	Redisplay(w, NULL, None);
 }
 
-static void MoveToLineStart(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void MoveToLineStart(Widget w, XEvent *event, String *params, Cardinal *n) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	rw->richtext.point_col = 0;
 	Redisplay(w, NULL, None);
 }
 
-static void MoveToLineEnd(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void MoveToLineEnd(Widget w, XEvent *event, String *params, Cardinal *n) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	rw->richtext.point_col = MwRcStrlen(rw->richtext.rc_string);
 	Redisplay(w, NULL, None);
 }
 
-static void DeleteForwardChar(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void DeleteForwardChar(Widget w, XEvent *event, String *params, Cardinal *n) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	int i = rw->richtext.point_col;
 	MwRichchar *p = rw->richtext.rc_string;
 	if (!p[i].c) return;
 
-	MwRcStrcpy(p+i, p+i+1);
+	MwRcStrcpy(p + i, p + i + 1);
 	Redisplay(w, NULL, None);
 }
 
-static void DeleteBackwardChar(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void DeleteBackwardChar(Widget w, XEvent *event, String *params, Cardinal *n) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	int i = rw->richtext.point_col;
 	MwRichchar *p = rw->richtext.rc_string;
@@ -474,13 +460,12 @@ static void DeleteBackwardChar(Widget w, XEvent *event, String *params, Cardinal
 	if (!i) return;
 
 	i--;
-	MwRcStrcpy(p+i, p+i+1);
+	MwRcStrcpy(p + i, p + i + 1);
 	rw->richtext.point_col = i;
 	Redisplay(w, NULL, None);
 }
 
-static void InsertChar(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void InsertChar(Widget w, XEvent *event, String *params, Cardinal *n) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	int count, bufsiz = 100;
 	unsigned char buf[120];
@@ -498,8 +483,7 @@ static void InsertChar(Widget w, XEvent *event, String *params, Cardinal *n)
 	}
 }
 
-static void DeleteToEnd(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void DeleteToEnd(Widget w, XEvent *event, String *params, Cardinal *n) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	int i = rw->richtext.point_col;
 	MwRichchar *p = rw->richtext.rc_string;
@@ -508,78 +492,71 @@ static void DeleteToEnd(Widget w, XEvent *event, String *params, Cardinal *n)
 	Redisplay(w, NULL, None);
 }
 
-static void DeleteHighlighted(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void DeleteHighlighted(Widget w, XEvent *event, String *params, Cardinal *n) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	MwRichchar *p = rw->richtext.rc_string;
 
 	if (rw->richtext.sel_top_col < 0) return;
-	MwRcStrcpy(p+rw->richtext.sel_top_col, p+rw->richtext.sel_bottom_col);
+	MwRcStrcpy(p + rw->richtext.sel_top_col, p + rw->richtext.sel_bottom_col);
 	rw->richtext.point_col = rw->richtext.sel_top_col;
 	rw->richtext.sel_top_col = rw->richtext.sel_bottom_col = -1;
 
 	Redisplay(w, NULL, None);
 }
 
-static void SelectStart(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void SelectStart(Widget w, XEvent *event, String *params, Cardinal *n) {
 	/*RichtextWidget rw = (RichtextWidget)w;*/
 
 	Redisplay(w, NULL, None);
 }
 
-static void ExtendAdjust(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void ExtendAdjust(Widget w, XEvent *event, String *params, Cardinal *n) {
 	/*RichtextWidget rw = (RichtextWidget)w;*/
 
 	Redisplay(w, NULL, None);
 }
 
-static void ExtendEnd(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void ExtendEnd(Widget w, XEvent *event, String *params, Cardinal *n) {
 	/*RichtextWidget rw = (RichtextWidget)w;*/
 
 	Redisplay(w, NULL, None);
 }
 
-static void InsertSelection(Widget w, XEvent *event, String *params, Cardinal *n)
-{
+static void InsertSelection(Widget w, XEvent *event, String *params, Cardinal *n) {
 	/*RichtextWidget rw = (RichtextWidget)w;*/
 
 	Redisplay(w, NULL, None);
 }
 
-static GC get_gc(Widget w, unsigned long fg, unsigned long bg, Font font)
-{
-        unsigned long valuemask = 0;
-        XGCValues values;
-        GC gc = XCreateGC(XtDisplay(w), XtWindow(w), valuemask, &values);
+static GC get_gc(Widget w, unsigned long fg, unsigned long bg, Font font) {
+	unsigned long valuemask = 0;
+	XGCValues values;
+	GC gc = XCreateGC(XtDisplay(w), XtWindow(w), valuemask, &values);
 
-        XSetForeground(XtDisplay(w), gc, fg);
-        XSetBackground(XtDisplay(w), gc, bg);
-        if (font != -1)
-                XSetFont(XtDisplay(w), gc, font);
-        return gc;
+	XSetForeground(XtDisplay(w), gc, fg);
+	XSetBackground(XtDisplay(w), gc, bg);
+	if (font != -1)
+		XSetFont(XtDisplay(w), gc, font);
+	return gc;
 }
 
 static MwFmt fmt0 = {
-        "Helvetica",    /* font family */
-        120,            /* size in decipoints */
-        False,          /* bold */
-        False,          /* italic */
-        False,          /* underline */
-        False,          /* strikethrough */
-        "black",        /* foreground */
-        "white",        /* background */
-        0,              /* borders */
-        MW_VADJ_CENTER, /* vertical adjust */
-        MW_HADJ_LEFT,   /* horizontal adjust */
-        0};             /* style */
+		"Helvetica",    /* font family */
+		120,            /* size in decipoints */
+		False,          /* bold */
+		False,          /* italic */
+		False,          /* underline */
+		False,          /* strikethrough */
+		"black",        /* foreground */
+		"white",        /* background */
+		0,              /* borders */
+		MW_VADJ_CENTER, /* vertical adjust */
+		MW_HADJ_LEFT,   /* horizontal adjust */
+		0};             /* style */
 
 #define superclass (&coreClassRec)
 static void Realize(Widget w, XtValueMask *valueMask,
-		XSetWindowAttributes *attributes)
-{
+	XSetWindowAttributes *attributes) {
 	MwRichtextWidget rtw = (MwRichtextWidget)w;
 	unsigned long fg, bg, blockbg;
 	XColor screen_color, exact_color;
@@ -599,12 +576,12 @@ static void Realize(Widget w, XtValueMask *valueMask,
 	blockbg = screen_color.pixel;
 	rtw->richtext.clear_gc = get_gc(w, bg, fg, -1);
 	rtw->richtext.cell_gc = get_gc(w, fg, blockbg,
-			-1/*get_font(0)*/);
+		-1/*get_font(0)*/);
 	rtw->richtext.block_gc = get_gc(w, blockbg, bg, -1);
-	rtw->richtext.cursor_gc = get_gc(w, fg^bg, 0, -1);
+	rtw->richtext.cursor_gc = get_gc(w, fg ^ bg, 0, -1);
 	XSetFunction(dpy, rtw->richtext.cursor_gc, GXxor);
-        XSetLineAttributes(dpy, rtw->richtext.cursor_gc,
-			1, LineSolid, CapButt, JoinMiter);
+	XSetLineAttributes(dpy, rtw->richtext.cursor_gc,
+		1, LineSolid, CapButt, JoinMiter);
 
 #ifdef HAVE_XCREATEIC
 	/* Set up input methods */
@@ -616,7 +593,7 @@ static void Realize(Widget w, XtValueMask *valueMask,
 			(char *)0);
 		for (i = 0; i < styles->count_styles; i++) {
 			if (styles->supported_styles[i] ==
-			    (XIMPreeditNothing | XIMStatusNothing)) break;
+				(XIMPreeditNothing | XIMStatusNothing)) break;
 		}
 		if (i == styles->count_styles) i = 0;
 		rtw->richtext.xic = XCreateIC(rtw->richtext.xim,
@@ -627,8 +604,7 @@ static void Realize(Widget w, XtValueMask *valueMask,
 #endif
 }
 
-static void Initialize(Widget request, Widget new, ArgList args, Cardinal *n)
-{
+static void Initialize(Widget request, Widget new, ArgList args, Cardinal *n) {
 	MwRichtextWidget rtw = (MwRichtextWidget)new;
 
 	rtw->richtext.timeout = None;
@@ -639,8 +615,7 @@ static void Initialize(Widget request, Widget new, ArgList args, Cardinal *n)
 	if (rtw->core.height == 0) rtw->core.height = 22;
 }
 
-static void Destroy(Widget w)
-{
+static void Destroy(Widget w) {
 	MwRichtextWidget rtw = (MwRichtextWidget)w;
 
 	XFreeGC(XtDisplay(w), rtw->richtext.clear_gc);
@@ -657,8 +632,7 @@ static void Destroy(Widget w)
 		XtRemoveTimeOut(rtw->richtext.timeout);
 }
 
-static Dimension row_height(MwRichtextWidget rtw, int row)
-{
+static Dimension row_height(MwRichtextWidget rtw, int row) {
 	if (rtw->richtext.row_height)
 		return (*rtw->richtext.row_height)(rtw->richtext.data, row);
 	return 20;
@@ -672,18 +646,16 @@ forget about x for now
 Check if we are in the block.
 */
 
-static int inblock(MwRichtextWidget rtw, int r, int c)
-{
+static int inblock(MwRichtextWidget rtw, int r, int c) {
 	return ((r > rtw->richtext.sel_top_row ||
-		 (r == rtw->richtext.sel_top_row &&
-		  c >= rtw->richtext.sel_top_col)) &&
-		 (r < rtw->richtext.sel_bottom_row ||
-		  (r == rtw->richtext.sel_bottom_row &&
-		   c <= rtw->richtext.sel_bottom_col)));
+		(r == rtw->richtext.sel_top_row &&
+			c >= rtw->richtext.sel_top_col)) &&
+		(r < rtw->richtext.sel_bottom_row ||
+			(r == rtw->richtext.sel_bottom_row &&
+				c <= rtw->richtext.sel_bottom_col)));
 }
 
-static int ret_hadj(MwRichtextWidget rtw, int row)
-{
+static int ret_hadj(MwRichtextWidget rtw, int row) {
 	if (rtw->richtext.adj_horiz)
 		return (*rtw->richtext.adj_horiz)(rtw->richtext.data, row);
 	return MW_HADJ_LEFT;
@@ -692,35 +664,34 @@ static int ret_hadj(MwRichtextWidget rtw, int row)
 
 static int segment_char2coords(MwRichtextWidget rtw, float *x,
 	MwRichchar *line, int length, int extra_space, int no_of_blanks,
-	int tabmode, int col)
-{
+	int tabmode, int col) {
 	int i;
 	float tw;
 	MwRichchar c;
 
 	tw = MwRcStrwidth(line, length);
-        switch (tabmode) {
-        case 'r':
-                *x -= tw;
-                break;
-        case 'c':
-                *x -= tw/2;
-		break;
-	default:        /* left or full */
-                break;
-        }
-        for (i = 0; i < length; i++) {
+	switch (tabmode) {
+		case 'r':
+			*x -= tw;
+			break;
+		case 'c':
+			*x -= tw / 2;
+			break;
+		default:        /* left or full */
+			break;
+	}
+	for (i = 0; i < length; i++) {
 		if (i >= col) return 1;
 
-                c = line[i];
-                if (isspace(c.c)) c.c = ' ';
+		c = line[i];
+		if (isspace(c.c)) c.c = ' ';
 
 		if (c.c == ' ' && extra_space > 0 && no_of_blanks > 0) {
-                        float xx = extra_space/no_of_blanks;
-                        *x += xx;
-                        extra_space -= xx;
-                        no_of_blanks--;
-                }
+			float xx = extra_space / no_of_blanks;
+			*x += xx;
+			extra_space -= xx;
+			no_of_blanks--;
+		}
 		*x += MwRcWidth(c);
 	}
 	return 0;
@@ -731,9 +702,8 @@ Function converts character coordinates to screen-ready pixel coordinates.
 That means: zoomed + top added.
 */
 void MwRichtextCharToCoords(MwRichtextWidget rtw,
-		int cell_row, int cell_col,
-		int *cell_x, int *cell_y)
-{
+	int cell_row, int cell_col,
+	int *cell_x, int *cell_y) {
 	int r;
 	MwTabstop mt;
 	int lm = rtw->richtext.left_margin;
@@ -749,7 +719,7 @@ void MwRichtextCharToCoords(MwRichtextWidget rtw,
 	float zoom = rtw->richtext.zoom;
 	float fx = 0;
 
-        *cell_y = 0;
+	*cell_y = 0;
 	for (r = 1; r < cell_row; r++)
 		*cell_y += row_height(rtw, r);
 
@@ -757,40 +727,40 @@ void MwRichtextCharToCoords(MwRichtextWidget rtw,
 	hadj = ret_hadj(rtw, cell_row);
 	if (!line) goto Done;
 	if (hadj == MW_HADJ_CENTER) {
-		fx = lm+(pw-lm-rm)/2;
+		fx = lm + (pw - lm - rm) / 2;
 		segment_char2coords(rtw, &fx, line, MwRcStrlen(line),
-				0, 0, 'c', cell_col);
+			0, 0, 'c', cell_col);
 	} else if (hadj == MW_HADJ_RIGHT) {
-		fx = pw-rm;
+		fx = pw - rm;
 		segment_char2coords(rtw, &fx, line, MwRcStrlen(line),
-				0, 0, 'r', cell_col);
+			0, 0, 'r', cell_col);
 	} else {
 		mt.x = 0;
 		mt.j = 'l';
 		ss = nt = 0;
 		while (line[nt].c && line[nt].c != '\t') nt++;
 		while (line[nt].c == '\t') {
-			n = segment_char2coords(rtw, &fx, line+ss, nt-ss,
-				0, 0, mt.j, cell_col-ss);
+			n = segment_char2coords(rtw, &fx, line + ss, nt - ss,
+				0, 0, mt.j, cell_col - ss);
 			if (n) goto Done;
-			mt = MwTabstopNextStop(rtw->richtext.ruler, fx-lm);
-			fx = mt.x+lm;
+			mt = MwTabstopNextStop(rtw->richtext.ruler, fx - lm);
+			fx = mt.x + lm;
 			ss = ++nt;
 			while (line[nt].c && line[nt].c != '\t') nt++;
 		}
 		tw = 0;
 		nb = 0;
 		if (hadj == MW_HADJ_FULL &&
-		    !rtw->richtext.bop(rtw->richtext.data, cell_row+1)) {
+			!rtw->richtext.bop(rtw->richtext.data, cell_row + 1)) {
 			for (i = 0; line[i].c; i++) {
-                                c = line[i];
-                                if (isspace(c.c)) nb++;
-                                tw += MwRcWidth(c);
-                        }
-			tw = pw-lm-rm-tw;
+				c = line[i];
+				if (isspace(c.c)) nb++;
+				tw += MwRcWidth(c);
+			}
+			tw = pw - lm - rm - tw;
 		}
-		n = segment_char2coords(rtw, &fx, line+ss, nt-ss,
-				tw, nb, mt.j, cell_col-ss);
+		n = segment_char2coords(rtw, &fx, line + ss, nt - ss,
+			tw, nb, mt.j, cell_col - ss);
 	}
 Done:
 
@@ -808,37 +778,36 @@ is relative to the start of the segment.
 */
 static int segment_coords2char(MwRichtextWidget rtw, float *x, int tx,
 	MwRichchar *line, int length, int extra_space, int no_of_blanks,
-	int tabmode, int *col)
-{
+	int tabmode, int *col) {
 	float tw;
 	MwRichchar c;
 
 	*col = 0;
 	tw = MwRcStrwidth(line, length);
-        switch (tabmode) {
-        case 'r':
-                *x -= tw;
-                break;
-        case 'c':
-                *x -= tw/2;
-		break;
-	default:        /* left or full */
-                break;
-        }
-        for (*col = 0; *col < length; (*col)++) {
+	switch (tabmode) {
+		case 'r':
+			*x -= tw;
+			break;
+		case 'c':
+			*x -= tw / 2;
+			break;
+		default:        /* left or full */
+			break;
+	}
+	for (*col = 0; *col < length; (*col)++) {
 		if (*x > tx) {
 			return 1;
 		}
 
-                c = line[*col];
-                if (isspace(c.c)) c.c = ' ';
+		c = line[*col];
+		if (isspace(c.c)) c.c = ' ';
 
 		if (c.c == ' ' && extra_space > 0 && no_of_blanks > 0) {
-                        float xx = extra_space/no_of_blanks;
-                        *x += xx;
-                        extra_space -= xx;
-                        no_of_blanks--;
-                }
+			float xx = extra_space / no_of_blanks;
+			*x += xx;
+			extra_space -= xx;
+			no_of_blanks--;
+		}
 		*x += MwRcWidth(c);
 	}
 	return 0;
@@ -847,9 +816,8 @@ static int segment_coords2char(MwRichtextWidget rtw, float *x, int tx,
 /* ---
 */
 void MwRichtextCoordsToChar(MwRichtextWidget rtw,
-		int *cur_row, int *cur_col,
-		int cur_x, int cur_y)
-{
+	int *cur_row, int *cur_col,
+	int cur_x, int cur_y) {
 	MwTabstop mt;
 	int lm = rtw->richtext.left_margin;
 	int rm = rtw->richtext.right_margin;
@@ -866,7 +834,7 @@ void MwRichtextCoordsToChar(MwRichtextWidget rtw,
 
 	cur_x /= zoom;
 	cur_y /= zoom;
-	cur_x += rtw->richtext.top_col-2;
+	cur_x += rtw->richtext.top_col - 2;
 	cur_y += rtw->richtext.top_row;
 
 	for (*cur_row = 1; cell_y < cur_y; *cur_row += 1)
@@ -880,15 +848,15 @@ void MwRichtextCoordsToChar(MwRichtextWidget rtw,
 	hadj = ret_hadj(rtw, *cur_row);
 	if (!line) return;
 	if (hadj == MW_HADJ_CENTER) {
-		cell_x = lm+(pw-lm-rm)/2;
+		cell_x = lm + (pw - lm - rm) / 2;
 		n = segment_coords2char(rtw, &cell_x, cur_x,
-				line, MwRcStrlen(line),
-				0, 0, 'c', cur_col);
+			line, MwRcStrlen(line),
+			0, 0, 'c', cur_col);
 	} else if (hadj == MW_HADJ_RIGHT) {
-		cell_x = pw-rm;
+		cell_x = pw - rm;
 		n = segment_coords2char(rtw, &cell_x, cur_x,
-				line, MwRcStrlen(line),
-				0, 0, 'r', cur_col);
+			line, MwRcStrlen(line),
+			0, 0, 'r', cur_col);
 	} else {
 		mt.x = 0;
 		mt.j = 'l';
@@ -896,33 +864,32 @@ void MwRichtextCoordsToChar(MwRichtextWidget rtw,
 		while (line[nt].c && line[nt].c != '\t') nt++;
 		while (line[nt].c == '\t') {
 			n = segment_coords2char(rtw, &cell_x, cur_x,
-				line+ss, nt-ss,
+				line + ss, nt - ss,
 				0, 0, mt.j, cur_col);
 			if (n) return;
-			mt = MwTabstopNextStop(rtw->richtext.ruler, cell_x-lm);
-			cell_x = mt.x+lm;
+			mt = MwTabstopNextStop(rtw->richtext.ruler, cell_x - lm);
+			cell_x = mt.x + lm;
 			ss = ++nt;
 			while (line[nt].c && line[nt].c != '\t') nt++;
 		}
 		tw = 0;
 		nb = 0;
 		if (hadj == MW_HADJ_FULL &&
-		    !rtw->richtext.bop(rtw->richtext.data, *cur_row+1)) {
+			!rtw->richtext.bop(rtw->richtext.data, *cur_row + 1)) {
 			for (i = 0; line[i].c; i++) {
-                                c = line[i];
-                                if (isspace(c.c)) nb++;
-                                tw += MwRcWidth(c);
-                        }
-			tw = pw-lm-rm-tw;
+				c = line[i];
+				if (isspace(c.c)) nb++;
+				tw += MwRcWidth(c);
+			}
+			tw = pw - lm - rm - tw;
 		}
 		n = segment_coords2char(rtw, &cell_x, cur_x,
-				line+ss, nt-ss,
-				tw, nb, mt.j, cur_col);
+			line + ss, nt - ss,
+			tw, nb, mt.j, cur_col);
 	}
 }
 
-static void update_ruler(Widget w)
-{
+static void update_ruler(Widget w) {
 	MwRichtextWidget rtw = (MwRichtextWidget)w;
 
 	if (rtw->richtext.ruler) {
@@ -939,8 +906,7 @@ static void update_ruler(Widget w)
 /*
 Change top_row and top_col so that point is visible.
 */
-static Boolean move_top(MwRichtextWidget rtw)
-{
+static Boolean move_top(MwRichtextWidget rtw) {
 	Boolean pr_scr_flag = False;
 	int cur_x, cur_y, h;
 	int width, height;
@@ -959,19 +925,19 @@ static Boolean move_top(MwRichtextWidget rtw)
 		/* must move grid to the right, i.e. make top_col smaller */
 		rtw->richtext.top_col += cur_x;
 		pr_scr_flag = TRUE;
-	} else if (cur_x+1 > width) {
+	} else if (cur_x + 1 > width) {
 		/* move grid to the left, i.e. make top_col larger */
-		rtw->richtext.top_col += cur_x+1-width;
+		rtw->richtext.top_col += cur_x + 1 - width;
 		pr_scr_flag = TRUE;
 	}
-	h = zoom*row_height(rtw, rtw->richtext.point_row)+4;
+	h = zoom * row_height(rtw, rtw->richtext.point_row) + 4;
 	if (cur_y < 0) {
 		rtw->richtext.top_row += cur_y;
 		/* move grid down, i.e. make top_row smaller */
 		pr_scr_flag = TRUE;
-	} else if (cur_y+h > height) {
+	} else if (cur_y + h > height) {
 		/* move grid up, i.e. make top_col larger */
-		rtw->richtext.top_row += cur_y+h-height;
+		rtw->richtext.top_row += cur_y + h - height;
 		pr_scr_flag = TRUE;
 	}
 	if (rtw->richtext.top_row < 0) rtw->richtext.top_row = 0;
@@ -980,8 +946,7 @@ static Boolean move_top(MwRichtextWidget rtw)
 	return pr_scr_flag;
 }
 
-static void toggle_cursor(MwRichtextWidget rtw)
-{
+static void toggle_cursor(MwRichtextWidget rtw) {
 	int cur_x, cur_y;
 	int height = row_height(rtw, rtw->richtext.point_row);
 	float zoom = rtw->richtext.zoom;
@@ -990,16 +955,15 @@ static void toggle_cursor(MwRichtextWidget rtw)
 		rtw->richtext.point_row, rtw->richtext.point_col,
 		&cur_x, &cur_y);
 	XDrawLine(XtDisplay((Widget)rtw), XtWindow((Widget)rtw),
-		rtw->richtext.cursor_gc, cur_x, cur_y+zoom*height/4,
-                cur_x,
-		cur_y+zoom*5*height/4);
+		rtw->richtext.cursor_gc, cur_x, cur_y + zoom * height / 4,
+		cur_x,
+		cur_y + zoom * 5 * height / 4);
 }
 
 
 static void draw_segment(MwRichtextWidget rtw, Drawable cell_win,
-		float *x_base, int y_base, int yo, MwRichchar *line, int length,
-		int extra_space, int no_of_blanks, int tabmode, int row)
-{
+	float *x_base, int y_base, int yo, MwRichchar *line, int length,
+	int extra_space, int no_of_blanks, int tabmode, int row) {
 	int of = -1;
 	MwFmt fmt;
 	XColor color;
@@ -1014,17 +978,17 @@ static void draw_segment(MwRichtextWidget rtw, Drawable cell_win,
 
 	tw = MwRcStrwidth(line, length);
 	switch (tabmode) {
-	case 'r':
-		*x_base -= tw;
-		break;
-	case 'c':
-		*x_base -= tw/2;
-		break;
-	default:	/* left or full */
-		break;
+		case 'r':
+			*x_base -= tw;
+			break;
+		case 'c':
+			*x_base -= tw / 2;
+			break;
+		default:	/* left or full */
+			break;
 	}
-        for (i = 0; i < length; i++) {
-                float width;
+	for (i = 0; i < length; i++) {
+		float width;
 
 		c = line[i];
 		if (isspace(c.c)) c.c = ' ';
@@ -1033,10 +997,10 @@ static void draw_segment(MwRichtextWidget rtw, Drawable cell_win,
 		if (inblock(rtw, row, i)) {
 			XFillRectangle(display, cell_win,
 				rtw->richtext.block_gc,
-				zoom*(*x_base+tc),
-				y_base+zoom*(yo-3*height/4),
-				ceil(zoom*width),
-				zoom*(height));
+				zoom * (*x_base + tc),
+				y_base + zoom * (yo - 3 * height / 4),
+				ceil(zoom * width),
+				zoom * (height));
 		}
 
 		if (c.fmt != of) {
@@ -1045,25 +1009,25 @@ static void draw_segment(MwRichtextWidget rtw, Drawable cell_win,
 			MwAllocNamedColor(display, fmt.fg, &color);
 			XSetForeground(display, gc, color.pixel);
 		}
-		MwRcStrdraw(cell_win, gc, 0, y_base, *x_base+tc, yo, &c, 1, zoom);
+		MwRcStrdraw(cell_win, gc, 0, y_base, *x_base + tc, yo, &c, 1, zoom);
 		if (c.c == ' ' && extra_space > 0 && no_of_blanks > 0) {
-			float x = extra_space/no_of_blanks;
+			float x = extra_space / no_of_blanks;
 			*x_base += x;
 			extra_space -= x;
 			no_of_blanks--;
 		}
-                if (fmt.uline) {
-                        XDrawLine(display, cell_win, gc,
-                                zoom*(*x_base+tc), y_base+zoom*(yo+1),
-                                zoom*(*x_base+tc+width), y_base+zoom*(yo+1));
-                }
-                if (fmt.strike) {
-                        XDrawLine(display, cell_win, gc,
-                                zoom*(*x_base+tc), y_base+zoom*(yo-4),
-                                zoom*(*x_base+tc+width), y_base+zoom*(yo-4));
-                }
-                *x_base += width;
-        }
+		if (fmt.uline) {
+			XDrawLine(display, cell_win, gc,
+				zoom * (*x_base + tc), y_base + zoom * (yo + 1),
+				zoom * (*x_base + tc + width), y_base + zoom * (yo + 1));
+		}
+		if (fmt.strike) {
+			XDrawLine(display, cell_win, gc,
+				zoom * (*x_base + tc), y_base + zoom * (yo - 4),
+				zoom * (*x_base + tc + width), y_base + zoom * (yo - 4));
+		}
+		*x_base += width;
+	}
 }
 
 /*
@@ -1100,12 +1064,11 @@ flush left *and* right edges.
 */
 /* y_base is in zoomed coordinates. yo is unzoomed */
 static void draw_line(MwRichtextWidget rtw, Drawable cell_win,
-		int y_base, int yo, int row, int clr)
-{
-        int height = row_height(rtw, row);
-        float x_base = 0;
+	int y_base, int yo, int row, int clr) {
+	int height = row_height(rtw, row);
+	float x_base = 0;
 	Display *display = XtDisplay(rtw);
-        MwRichchar *line = ret_text(rtw, row);
+	MwRichchar *line = ret_text(rtw, row);
 	float zoom = rtw->richtext.zoom;
 	int ss, nt, hadj;
 	MwTabstop mt;
@@ -1116,72 +1079,71 @@ static void draw_line(MwRichtextWidget rtw, Drawable cell_win,
 	int nb, i = 0;
 	MwRichchar c;
 
-        if (clr) {
-                /* the 4 is from trial and error; should be from font metrics */
-                XClearArea(display, cell_win, 0, y_base+zoom*(yo+4),
-                                rtw->core.width, zoom*height, FALSE);
-        }
+	if (clr) {
+			/* the 4 is from trial and error; should be from font metrics */
+		XClearArea(display, cell_win, 0, y_base + zoom * (yo + 4),
+			rtw->core.width, zoom * height, FALSE);
+	}
 
-        if (!line) return;
-        x_base = lm;
+	if (!line) return;
+	x_base = lm;
 
-        if (ret_style(rtw, row) == MW_STY_EMBED) {
+	if (ret_style(rtw, row) == MW_STY_EMBED) {
 #if 0
-                char *p = (char *)MwRcMakeplain(line);
-                embed_draw(cell_win, x_base, y_base, p);
-                MwFree(p);
+		char *p = (char *)MwRcMakeplain(line);
+		embed_draw(cell_win, x_base, y_base, p);
+		MwFree(p);
 #else
 		fprintf(stderr, "No, no, no.\n"
 			"Nothing should be using this any more\n");
 #endif
-                return;         /* done */
-        }
+		return;         /* done */
+	}
 
 
 	hadj = ret_hadj(rtw, row);
 	if (hadj == MW_HADJ_CENTER) {
-		x_base = lm+(pw-lm-rm)/2;
-		draw_segment(rtw, cell_win, &x_base, y_base, yo+height,
-				line, MwRcStrlen(line), 0, 0, 'c', row);
+		x_base = lm + (pw - lm - rm) / 2;
+		draw_segment(rtw, cell_win, &x_base, y_base, yo + height,
+			line, MwRcStrlen(line), 0, 0, 'c', row);
 	} else if (hadj == MW_HADJ_RIGHT) {
-		x_base = pw-rm;
-		draw_segment(rtw, cell_win, &x_base, y_base, yo+height,
-				line, MwRcStrlen(line), 0, 0, 'r', row);
+		x_base = pw - rm;
+		draw_segment(rtw, cell_win, &x_base, y_base, yo + height,
+			line, MwRcStrlen(line), 0, 0, 'r', row);
 	} else {
 		mt.x = 0;
 		mt.j = 'l';
 		ss = nt = 0;
 		while (line[nt].c && line[nt].c != '\t') nt++;
 		while (line[nt].c == '\t') {
-			draw_segment(rtw, cell_win, &x_base, y_base, yo+height,
-					line+ss, nt-ss, 0, 0, mt.j, row);
-			mt = MwTabstopNextStop(rtw->richtext.ruler, x_base-lm);
-			x_base = mt.x+lm;
+			draw_segment(rtw, cell_win, &x_base, y_base, yo + height,
+				line + ss, nt - ss, 0, 0, mt.j, row);
+			mt = MwTabstopNextStop(rtw->richtext.ruler, x_base - lm);
+			x_base = mt.x + lm;
 			ss = ++nt;
 			while (line[nt].c && line[nt].c != '\t') nt++;
 		}
 		tw = 0;
 		nb = 0;
 		if (hadj == MW_HADJ_FULL &&
-		    !rtw->richtext.bop(rtw->richtext.data, row+1)) {
+			!rtw->richtext.bop(rtw->richtext.data, row + 1)) {
 			for (i = 0; line[i].c; i++) {
 				c = line[i];
 				if (isspace(c.c)) nb++;
 				tw += MwRcWidth(c);
 			}
-			tw = pw-lm-rm-tw;
+			tw = pw - lm - rm - tw;
 		}
 
-		draw_segment(rtw, cell_win, &x_base, y_base, yo+height,
-				line+ss, nt-ss, tw, nb, mt.j, row);
+		draw_segment(rtw, cell_win, &x_base, y_base, yo + height,
+			line + ss, nt - ss, tw, nb, mt.j, row);
 	}
 }
 
-void MwRichtextDrawLine(Widget w, int row)
-{
-        Window cell_win = XtWindow(w);
-        MwRichtextWidget rtw = (MwRichtextWidget)w;
-        int y_base = 0;
+void MwRichtextDrawLine(Widget w, int row) {
+	Window cell_win = XtWindow(w);
+	MwRichtextWidget rtw = (MwRichtextWidget)w;
+	int y_base = 0;
 	int r;
 
 	for (r = 1; r < row; r++)
@@ -1190,15 +1152,14 @@ void MwRichtextDrawLine(Widget w, int row)
 
 	if (rtw->richtext.visible_cursor)
 		toggle_cursor(rtw);
-        draw_line(rtw, cell_win, 0, y_base, row, TRUE);
+	draw_line(rtw, cell_win, 0, y_base, row, TRUE);
 	if (rtw->richtext.visible_cursor)
 		toggle_cursor(rtw);
 }
 
-void MwRichtextDraw(MwRichtextWidget rtw, Drawable d)
-{
-        int i, c0, x_base, y_base, y, h;
-        int height;
+void MwRichtextDraw(MwRichtextWidget rtw, Drawable d) {
+	int i, c0, x_base, y_base, y, h;
+	int height;
 	float zoom = rtw->richtext.zoom;
 
 	/* The following line serves absolutely no purpose,
@@ -1212,7 +1173,7 @@ void MwRichtextDraw(MwRichtextWidget rtw, Drawable d)
 	MwRichtextCharToCoords(rtw, i, 0, &x_base, &y_base);
 	h = row_height(rtw, i);
 	y = 0;
-	while (y_base+zoom*y < height) {
+	while (y_base + zoom * y < height) {
 		draw_line(rtw, d, y_base, y, i, FALSE);
 		y += row_height(rtw, i);
 		i++;
@@ -1223,42 +1184,40 @@ void MwRichtextDraw(MwRichtextWidget rtw, Drawable d)
 Draw onto a pixmap.
 */
 
-Pixmap richtext_pixmap(MwRichtextWidget rtw)
-{
-        int width, height, depth;
-        Pixmap scribble;
-        Widget w = (Widget)rtw;
+Pixmap richtext_pixmap(MwRichtextWidget rtw) {
+	int width, height, depth;
+	Pixmap scribble;
+	Widget w = (Widget)rtw;
 
 	width = rtw->core.width;
 	height = rtw->core.height;
 	depth = rtw->core.depth;
 	if (width > 2000 || height > 2000) return None;
 
-        scribble = XCreatePixmap(XtDisplay(w), XtWindow(w),
-                width, height, depth);
-        XFillRectangle(XtDisplay(w), scribble, rtw->richtext.clear_gc,
-                0, 0, width, height);
-        MwRichtextDraw(rtw, scribble);
-        return scribble;
+	scribble = XCreatePixmap(XtDisplay(w), XtWindow(w),
+		width, height, depth);
+	XFillRectangle(XtDisplay(w), scribble, rtw->richtext.clear_gc,
+		0, 0, width, height);
+	MwRichtextDraw(rtw, scribble);
+	return scribble;
 }
 
-static void do_redisplay(XtPointer client_data, XtIntervalId *id)
-{
+static void do_redisplay(XtPointer client_data, XtIntervalId *id) {
 	Widget w = (Widget)client_data;
-        Pixmap scribble;
-        GC gc;
-        unsigned long valuemask = 0;
-        XGCValues values;
+	Pixmap scribble;
+	GC gc;
+	unsigned long valuemask = 0;
+	XGCValues values;
 	MwRichtextWidget rtw = (MwRichtextWidget)w;
 
 	scribble = richtext_pixmap(rtw);
-        if (scribble == None) return;
-        gc = XCreateGC(XtDisplay(w), XtWindow(w),
-                        valuemask, &values);
-        XCopyArea(XtDisplay(w), scribble, XtWindow(w),
-                gc, 0, 0, rtw->core.width, rtw->core.height, 0, 0);
-        XFreePixmap(XtDisplay(w), scribble);
-        XFreeGC(XtDisplay(w), gc);
+	if (scribble == None) return;
+	gc = XCreateGC(XtDisplay(w), XtWindow(w),
+		valuemask, &values);
+	XCopyArea(XtDisplay(w), scribble, XtWindow(w),
+		gc, 0, 0, rtw->core.width, rtw->core.height, 0, 0);
+	XFreePixmap(XtDisplay(w), scribble);
+	XFreeGC(XtDisplay(w), gc);
 	if (rtw->richtext.visible_cursor) {
 		toggle_cursor(rtw);
 	}
@@ -1270,14 +1229,13 @@ static void do_redisplay(XtPointer client_data, XtIntervalId *id)
 	update_ruler(w);
 }
 
-static void Redisplay(Widget w, XEvent *event, Region r)
-{
+static void Redisplay(Widget w, XEvent *event, Region r) {
 	MwRichtextWidget tw = (MwRichtextWidget)w;
 	if (tw->richtext.timeout) return;	/* already set */
 	if (tw->richtext.delay) {
 		tw->richtext.timeout = XtAppAddTimeOut(
-				XtWidgetToApplicationContext(w),
-				tw->richtext.delay, do_redisplay, (XtPointer)w);
+			XtWidgetToApplicationContext(w),
+			tw->richtext.delay, do_redisplay, (XtPointer)w);
 		update_ruler(w);
 	} else {
 		do_redisplay((XtPointer)w, NULL);
@@ -1285,8 +1243,7 @@ static void Redisplay(Widget w, XEvent *event, Region r)
 }
 
 static Boolean SetValues(Widget current, Widget request, Widget new,
-		ArgList args, Cardinal *nargs)
-{
+	ArgList args, Cardinal *nargs) {
 	MwRichtextWidget currtw = (MwRichtextWidget)current;
 	MwRichtextWidget newrtw = (MwRichtextWidget)new;
 	Boolean do_redisplay = False;
@@ -1299,9 +1256,9 @@ static Boolean SetValues(Widget current, Widget request, Widget new,
 		|| currtw->richtext.top_col != newrtw->richtext.top_col
 		|| currtw->richtext.zoom != newrtw->richtext.zoom);
 	if (newrtw->richtext.visible_cursor &&
-	    (newrtw->richtext.point_row != currtw->richtext.point_row ||
-	     newrtw->richtext.point_col != currtw->richtext.point_col ||
-	     newrtw->richtext.redisplay))
+		(newrtw->richtext.point_row != currtw->richtext.point_row ||
+			newrtw->richtext.point_col != currtw->richtext.point_col ||
+			newrtw->richtext.redisplay))
 		do_redisplay |= move_top(newrtw);
 
 	if (newrtw->richtext.redisplay) {
@@ -1331,29 +1288,27 @@ static Boolean SetValues(Widget current, Widget request, Widget new,
  * richtext_char2coords. See pw/window.c.
  */
 
-static void DoLayout(MwRichtextWidget sw)
-{
-        int i;
-        int x, y, top_x = 0, top_y = 0;
+static void DoLayout(MwRichtextWidget sw) {
+	int i;
+	int x, y, top_x = 0, top_y = 0;
 
-        if (sw->composite.num_children) {
+	if (sw->composite.num_children) {
 		top_x = sw->richtext.top_col;
 		top_y = sw->richtext.top_row;
-        }
-        for (i = 0; i < sw->composite.num_children; i++) {
-                (*sw->richtext.plugin_coords)(sw->composite.children[i],
-                        sw->richtext.data, &x, &y);
-                XtMoveWidget(sw->composite.children[i], x, y);
-        }
+	}
+	for (i = 0; i < sw->composite.num_children; i++) {
+		(*sw->richtext.plugin_coords)(sw->composite.children[i],
+			sw->richtext.data, &x, &y);
+		XtMoveWidget(sw->composite.children[i], x, y);
+	}
 }
 
 /*
  * Actually layout the table
  */
 
-static void Resize(Widget w)
-{
-        DoLayout((MwRichtextWidget)w);
+static void Resize(Widget w) {
+	DoLayout((MwRichtextWidget)w);
 }
 
 /*
@@ -1361,36 +1316,32 @@ static void Resize(Widget w)
  */
 
 static XtGeometryResult GeometryManager(Widget w,
-                XtWidgetGeometry *request, XtWidgetGeometry *reply)
-{
-        return XtGeometryYes;
+	XtWidgetGeometry *request, XtWidgetGeometry *reply) {
+	return XtGeometryYes;
 }
 
-static void ChangeManaged(Widget w)
-{
-    DoLayout((MwRichtextWidget)w);
+static void ChangeManaged(Widget w) {
+	DoLayout((MwRichtextWidget)w);
 }
 
 int MwRichtextLookupString(Widget w, XEvent *event, char *buf,
-			 int bufsiz, KeySym *keysym)
-{
+	int bufsiz, KeySym *keysym) {
 #ifdef HAVE_XCREATEIC
 	Status status;
 	if (((MwRichtextWidget)w)->richtext.xim)
 		return XmbLookupString(((MwRichtextWidget)w)->richtext.xic,
-					(XKeyEvent *)event, (char *)buf, bufsiz,
-					keysym, &status);
+			(XKeyEvent *)event, (char *)buf, bufsiz,
+			keysym, &status);
 	else
-	        return XLookupString((XKeyEvent *)event, (char *)buf, bufsiz,
-					keysym, NULL);
+		return XLookupString((XKeyEvent *)event, (char *)buf, bufsiz,
+			keysym, NULL);
 #else
-        return XLookupString((XKeyEvent *)event, (char *)buf, bufsiz,
-				keysym, NULL);
+	return XLookupString((XKeyEvent *)event, (char *)buf, bufsiz,
+		keysym, NULL);
 #endif
 }
 
-void MwRichtextSetZoom(Widget w, float zoom)
-{
+void MwRichtextSetZoom(Widget w, float zoom) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 
 	if (zoom < .1) zoom = .1;
@@ -1404,34 +1355,31 @@ void MwRichtextSetZoom(Widget w, float zoom)
 /*
 Functions that allow this widget to replace TextField with a minimum of effort.
 */
-void MwRichtextSetString(Widget w, char *p)
-{
+void MwRichtextSetString(Widget w, char *p) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 
 	MwFree(rw->richtext.rc_string);
 	rw->richtext.rc_string = MwRcMakerich((unsigned char *)p,
-						rw->richtext.format);
+		rw->richtext.format);
 	Redisplay(w, NULL, None);
 }
 
-char *MwRichtextGetString(Widget w)
-{
+char *MwRichtextGetString(Widget w) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	MwFree(rw->richtext.plain);
 	rw->richtext.plain = (char *)MwRcMakeplain(rw->richtext.rc_string);
 	return rw->richtext.plain;
 }
 
-void MwRichtextInsertText(Widget w, MwRichchar *buf, int count)
-{
+void MwRichtextInsertText(Widget w, MwRichchar *buf, int count) {
 	MwRichtextWidget rw = (MwRichtextWidget)w;
 	int i = rw->richtext.point_col;
 	MwRichchar *p = rw->richtext.rc_string;
 	int n = MwRcStrlen(p);
-	MwRichchar *q = MwMalloc((n+count+1)*sizeof *q);
+	MwRichchar *q = MwMalloc((n + count + 1) * sizeof * q);
 	MwRcStrncpy(q, p, i);
-	MwRcStrncpy(q+i, buf, count);
-	MwRcStrcpy(q+i+count, p+i);
+	MwRcStrncpy(q + i, buf, count);
+	MwRcStrcpy(q + i + count, p + i);
 	rw->richtext.rc_string = q;
 	MwFree(p);
 	Redisplay(w, NULL, None);

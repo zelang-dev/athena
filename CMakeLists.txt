@@ -74,11 +74,15 @@ else()
 		${CMAKE_CURRENT_SOURCE_DIR}/src/TextField.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/FileSelect.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Gridbox.c)
+	file(GLOB Xaw95_files
+		${CMAKE_CURRENT_SOURCE_DIR}/src/Xaw95/*.c)
 
 	if(BUILD_SHARED_LIBS)
-		add_library(${PROJECT_NAME} SHARED ${athena_files} ${mowitz_files} ${webview_files})
+		add_library(Xaw95 SHARED ${Xaw95_files})
+		add_library(${PROJECT_NAME} SHARED ${athena_files} ${webview_files} ${mowitz_files})
 	else()
-		add_library(${PROJECT_NAME} STATIC ${athena_files} ${mowitz_files} ${webview_files})
+		add_library(Xaw95 STATIC ${Xaw95_files})
+		add_library(${PROJECT_NAME} STATIC ${athena_files} ${webview_files} ${mowitz_files})
 	endif()
 	target_include_directories(${PROJECT_NAME}
 		PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -87,18 +91,12 @@ else()
 	find_package(X11 REQUIRED COMPONENTS Xmu Xt)
 	if(BUILD_NATIVE_XAW)
 		find_library(X11_Xaw_LIB Xaw)
-	else()
-		file(GLOB Xaw95_files
-			${CMAKE_CURRENT_SOURCE_DIR}/src/Xaw95/*.c)
-		if(BUILD_SHARED_LIBS)
-			add_library(Xaw95 SHARED ${Xaw95_files})
-		else()
-			add_library(Xaw95 STATIC ${Xaw95_files})
-		endif()
-		target_include_directories(Xaw95
-			PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-			PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 	endif(BUILD_NATIVE_XAW)
+
+	target_include_directories(Xaw95
+		PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+		PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+
 	target_include_directories(${PROJECT_NAME}
 		PRIVATE $<BUILD_INTERFACE:${TIFF_INCLUDE_DIRS}
 		$<INSTALL_INTERFACE:${TIFF_INCLUDE_DIRS})
@@ -109,8 +107,8 @@ else()
 
 	if(BUILD_NATIVE_XAW)
 		target_compile_definitions(${PROJECT_NAME}
-			PUBLIC MOWITZ_DATA="${CMAKE_INSTALL_FULL_DATAROOTDIR}"
-			PUBLIC DEFAULT_PIXPATH="${CMAKE_INSTALL_FULL_DATAROOTDIR}/pixmaps"
+			PUBLIC MOWITZ_DATA="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena"
+			PUBLIC DEFAULT_PIXPATH="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena/pixmaps"
 			PUBLIC NATIVE_XAW=1)
 		target_link_libraries(${PROJECT_NAME}
 			Xaw X11::Xmu X11::Xt Xpm X11::X11 OpenGL::GL OpenGL::GLU
@@ -118,8 +116,8 @@ else()
 			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m TIFF::TIFF)
 	else()
 		target_compile_definitions(${PROJECT_NAME}
-			PUBLIC MOWITZ_DATA="${CMAKE_INSTALL_FULL_DATAROOTDIR}"
-			PUBLIC DEFAULT_PIXPATH="${CMAKE_INSTALL_FULL_DATAROOTDIR}/pixmaps")
+			PUBLIC MOWITZ_DATA="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena"
+			PUBLIC DEFAULT_PIXPATH="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena/pixmaps")
 		target_link_libraries(${PROJECT_NAME}
 			Xaw95 X11::Xmu X11::Xt Xpm X11::X11 OpenGL::GL OpenGL::GLU
 			#Xaw95 X11::Xmu X11::Xt Xpm X11::X11
@@ -211,7 +209,7 @@ else()
 	set(EXPORTER ${PROJECT_NAME} Xaw95)
 endif(BUILD_NATIVE_XAW)
 
-message("-- Linux: Location for `fonts, xpm` and other required files:\t${CMAKE_INSTALL_FULL_DATAROOTDIR}")
+message("-- Linux: Location for `fonts, xpm` and other required files:\t${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena")
 install(
 	TARGETS ${EXPORTER}
 	EXPORT "${PROJECT_NAME}Targets"

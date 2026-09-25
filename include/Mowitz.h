@@ -10,10 +10,10 @@
 #	define DEFAULT_DATAPATH MOWITZ_DATA
 #else
 #	ifndef MOWITZ_DATA
-#		define MOWITZ_DATA "/usr/local/share"
+#		define MOWITZ_DATA "/usr/local/share/athena"
 #	endif
 #	ifndef DEFAULT_PIXPATH
-#		define DEFAULT_PIXPATH "/usr/local/share/pixmaps"
+#		define DEFAULT_PIXPATH "/usr/local/share/athena/pixmaps"
 #	endif
 #	ifndef DEFAULT_DATAPATH
 #		define DEFAULT_DATAPATH MOWITZ_DATA

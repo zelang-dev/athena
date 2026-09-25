@@ -340,7 +340,7 @@ static struct {
 
 static void indent(html_info *p, int n) {
 	p->h.indent += n;
-	add_object_box(p, MW_HTML_INDENT, (void *)(__intptr_t)(p->h.indent));
+	add_object_box(p, MW_HTML_INDENT, (void *)(intptr_t)(p->h.indent));
 }
 
 /* the indentation level is automatically reset after a list, but we
@@ -531,7 +531,7 @@ static void tag_code(html_info *p) {
 
 /* description in description list */
 static void tag_dd(html_info *p) {
-	add_object_box(p, MW_HTML_INDENT, (void *)(__intptr_t)(p->h.indent));
+	add_object_box(p, MW_HTML_INDENT, (void *)(intptr_t)(p->h.indent));
 	newline(p);
 }
 
@@ -559,7 +559,7 @@ static void tag_dl(html_info *p) {
 
 /* tag in description list */
 static void tag_dt(html_info *p) {
-	add_object_box(p, MW_HTML_INDENT, (void *)(__intptr_t)(p->h.indent - 1));
+	add_object_box(p, MW_HTML_INDENT, (void *)(intptr_t)(p->h.indent - 1));
 	newline(p);
 }
 
@@ -732,7 +732,7 @@ static void tag_li(html_info *p) {
 			add_object_box(p, MW_HTML_UBULLET, (void *)'*');
 			break;
 		case LIST_OL:
-			add_object_box(p, MW_HTML_OBULLET, (void *)(__intptr_t)p->h.ll);
+			add_object_box(p, MW_HTML_OBULLET, (void *)(intptr_t)p->h.ll);
 			break;
 		default:
 			add_object_box(p, MW_HTML_UBULLET, (void *)' ');
