@@ -369,10 +369,7 @@ static void Realize(Widget w, XtValueMask *valueMask,
 
 static void Destroy(Widget w)
 {
-	MwSpinnerWidget cw = (MwSpinnerWidget)w;
-	XtDestroyWidget(cw->spinner.up);
-	XtDestroyWidget(cw->spinner.down);
-	XtDestroyWidget(cw->spinner.text);
+	XtDestroyWidget(w);
 }
 
 static void DoLayout(MwSpinnerWidget sw)

@@ -69,7 +69,7 @@ typedef struct {
 	XtCallbackList change_url;
 	Widget status;
     /* private state */
-	image *fish;
+	web_image *fish;
 	GC clear_gc;
 	GC cell_gc;
 	XtIntervalId timeout;

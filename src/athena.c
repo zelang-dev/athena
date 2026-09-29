@@ -28,7 +28,7 @@ static volatile bool main_athena_shutdown = false;
 
 static char *fallback[] = {
 	"*background: LightGray",
-	"*Frame.shadowType: Raised",
+	"*Frame.shadowType: solid",
 	"*font: -*-helvetica-medium-r-normal-*-12-*-*-*-*-*-iso8859-*",
 	"*variablewidth*font: -adobe-helvetica-medium-r-normal--*-120-*",
 	"*monospaced*font: -*-courier-medium-r-*-*-14-*-*-*-*-*-*",
@@ -351,8 +351,80 @@ void verify_field(Widget self, XtPointer client, XtPointer data) {
 	//	XtSetValues(ui->statusLine, wargs, 1);
 }
 
-ats_wnd ats_field_set(ats_wnd on, ats_wnd alignto, char *initial, float x, float y, float width,
-	ui_field_type kind, ats_t *ui) {
+FORCEINLINE ats_wnd ats_richtext_set(ats_wnd on, int width, int height) {
+	return XtVaCreateManagedWidget("Richtext",
+		mwRichtextWidgetClass, on,
+		XtNborderWidth, 0,
+		XtNwidth, width,
+		XtNheight, height,
+		XtNbackground, 0xffffff,
+		NULL);
+ }
+
+ FORCEINLINE ats_wnd ats_ruler_set(ats_wnd on, int width, int height) {
+	return XtVaCreateManagedWidget("Ruler",
+		mwRulerWidgetClass, on,
+		XtNborderWidth, 0,
+		XtNwidth, width,
+		XtNheight, height,
+		NULL);
+}
+
+ FORCEINLINE ats_wnd ats_vslider_set(ats_wnd on, int width, int height) {
+	 return XtVaCreateManagedWidget("VSlider",
+		 mwVSliderWidgetClass, on,
+		 XtNborderWidth, 0,
+		 XtNwidth, width,
+		 XtNheight, height,
+		 NULL);
+ }
+
+ FORCEINLINE ats_wnd ats_slider_set(ats_wnd on, int width, int height) {
+	 return XtVaCreateManagedWidget("Slider",
+		 mwSliderWidgetClass, on,
+		 XtNborderWidth, 0,
+		 XtNwidth, width,
+		 XtNheight, height,
+		 NULL);
+ }
+
+ FORCEINLINE ats_wnd ats_spinner_set(ats_wnd on, int min, int max, int step,
+	 int initial_value, _platform_cb handler) {
+	 ats_wnd spinner = XtVaCreateManagedWidget("Spinner",
+		 mwSpinnerWidgetClass, on,
+		 XtNborderWidth, 0,
+		 XtNmin, min,
+		 XtNstep, step,
+		 XtNmax, max,
+		 XtNvalue, initial_value,
+		 NULL);
+	 XtAddCallback(spinner, XtNcallback, handler, NULL);
+	 return spinner;
+ }
+
+ FORCEINLINE ats_wnd ats_animator_set(ats_wnd on, MwAniObject *cast, const char *gradient) {
+	 return XtVaCreateManagedWidget("Animator",
+		 mwAnimatorWidgetClass, on,
+		 XtNanimatorCast, cast,
+		 XtNgradient, gradient,
+		 NULL);
+ }
+
+ FORCEINLINE ats_wnd ats_field_reset(ats_wnd field, size_t bgColor, char *initial, int width, bool is_secret) {
+	 XtVaSetValues(field,
+		 XtNbackground, bgColor,
+		 XtNwidth, width,
+		 XtNstring, initial,
+		 XtNinsertPosition, 0,
+		 XtNresizable, True,
+		 XtNdisplayCaret, False,
+		 XtNeditable, True,
+		 XtNecho, is_secret,
+		 NULL);
+ }
+
+ FORCEINLINE ats_wnd ats_field_set(ats_t *ui, ats_wnd on, ats_wnd alignto, char *initial, int x, int y, int width,
+	 ui_field_type kind, _platform_cb activate) {
 	ats_wnd text = XtVaCreateManagedWidget("sans-serif", textfieldWidgetClass, on,
 		XtNwidth, width,
 		XtNstring, initial,
@@ -364,6 +436,7 @@ ats_wnd ats_field_set(ats_wnd on, ats_wnd alignto, char *initial, float x, float
 		XtNeditable, True,
 		XtNecho, (kind == field_secret ? False : True),
 		XtNborderColor, 0xDAA520,
+		XtNbackground, 0xffffff,
 		XtNx, x,
 		XtNy, y,
 		XtNheight, 20,
@@ -375,6 +448,7 @@ ats_wnd ats_field_set(ats_wnd on, ats_wnd alignto, char *initial, float x, float
 		NULL);
 
 	TextFieldAutoFocus(text);
+	XtAddCallback(text, XtNactivateCallback, activate, ui);
 	return text;
 }
 
@@ -390,15 +464,24 @@ ats_wnd ats_image_set(ats_wnd on, char *pixmap) {
 
 	XtVaGetValues(on, XtNbackground, &color, NULL);
 	Pixmap pm = MwLoadPixmap(XtDisplay(on), color, pixmap);
-	return XtVaCreateManagedWidget("image", mwImageWidgetClass, on,
+	return XtVaCreateManagedWidget("Image", mwImageWidgetClass, on,
 		XtNbitmap, pm, XtNborderWidth, 0, NULL);
 }
 
-ats_wnd ats_button_set(ats_t *ats, ats_wnd on, ats_wnd alignto, const char *label,
+ats_wnd ats_anyimage_set(ats_t *ui, ats_wnd on, char *path) {
+	Pixmap pm = img_load_any((ui->grid ? ui->grid : ui->topLevel), ui->dpy, path);
+	if (pm)
+		return XtVaCreateManagedWidget("Anyimage", mwImageWidgetClass, on,
+			XtNbitmap, pm, XtNborderWidth, 0, NULL);
+
+	return NULL;
+}
+
+ats_wnd ats_button_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label,
 	_platform_cb action, int is_vert) {
 	Widget button;
 	if (is_vert == 1) {
-		button = XtVaCreateManagedWidget("command",
+		button = XtVaCreateManagedWidget("button",
 			commandWidgetClass, on,
 			XtNlabel, label,
 			XtNwidth, 80,
@@ -414,7 +497,7 @@ ats_wnd ats_button_set(ats_t *ats, ats_wnd on, ats_wnd alignto, const char *labe
 			XtNfromVert, alignto,
 			NULL);
 	} else {
-		button = XtVaCreateManagedWidget("command",
+		button = XtVaCreateManagedWidget("button",
 			commandWidgetClass, on,
 			XtNlabel, label,
 			XtNwidth, 80,
@@ -431,13 +514,13 @@ ats_wnd ats_button_set(ats_t *ats, ats_wnd on, ats_wnd alignto, const char *labe
 			NULL);
 	}
 
-	XtAddCallback(button, XtNcallback, action, ats);
+	XtAddCallback(button, XtNcallback, action, ui);
 	return button;
 }
 
-ats_wnd ats_buttons_set(ats_t *ats, ats_wnd on, ats_wnd alignto, const char *label,
-	_platform_cb action, int is_vert, int number) {
-	Widget button = XtVaCreateManagedWidget("command",
+ats_wnd ats_buttons_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label,
+	_platform_cb action, int is_vert, int number, int y) {
+	Widget button = XtVaCreateManagedWidget("Buttons",
 		commandWidgetClass, on,
 		XtNlabel, label,
 		XtNwidth, 80,
@@ -445,11 +528,11 @@ ats_wnd ats_buttons_set(ats_t *ats, ats_wnd on, ats_wnd alignto, const char *lab
 		XtNborder, 0,
 		XtNmargin, 1,
 		XtNfont, main_athena_info->font_button,
-		XtNborderColor, (ats->app->code > 2 ? 0x800000 : 0x8FAEC4),
+		XtNborderColor, (ui->app->code > 2 ? 0x800000 : 0x8FAEC4),
 		XtNborderWidth, 1,
 		XtNx, ((number - 1) * 80),
-		XtNy, ats->height - 26,
-		XtNgridy, 2,
+		XtNy, ui->height - 26,
+		XtNgridy, y,
 		XtNgridx, number,
 		XtNleft, XtChainLeft,
 		XtNright, XtChainLeft,
@@ -458,8 +541,8 @@ ats_wnd ats_buttons_set(ats_t *ats, ats_wnd on, ats_wnd alignto, const char *lab
 		XtNfromHoriz, alignto,
 		NULL);
 
-	if (is_vert == 1 && !ats->buttons_vert) {
-		ats->buttons_vert = true;
+	if (is_vert == 1 && !ui->buttons_vert) {
+		ui->buttons_vert = true;
 		XtVaSetValues(button,
 			XtNleft, XtChainRight,
 			XtNright, XtChainRight,
@@ -469,7 +552,7 @@ ats_wnd ats_buttons_set(ats_t *ats, ats_wnd on, ats_wnd alignto, const char *lab
 			NULL);
 	}
 
-	XtAddCallback(button, XtNcallback, action, ats);
+	XtAddCallback(button, XtNcallback, action, ui);
 	return button;
 }
 
@@ -637,7 +720,7 @@ int ats_message_box(const char *title, const char *message,	Button *buttons, int
 	char layout[256] = "100%";
 	size_t width = line_count(message, "\n", &textLines);
 
-	but_w = numButtons == 1 ? 14 : (numButtons * 14);
+	but_w = numButtons == 1 ? 14 : (numButtons * 22);
 	but_h = numButtons == 1 ? 18 : (numButtons * 6);
 	if (numButtons > 2) {
 		ui.use_icon = security;
@@ -657,7 +740,7 @@ int ats_message_box(const char *title, const char *message,	Button *buttons, int
 		strncat(layout, " 0", sizeof(layout) - strlen(layout) - 1);
 		ats_wnd grid = XtVaCreateManagedWidget("topbox",
 			gridboxWidgetClass, ui.wnd,
-			XtNyLayout, "100% 10 20",
+			XtNyLayout, "10 100% 10 20",
 			XtNxLayout, layout,
 			NULL);
 		Widget text = NULL, prompt = ats_boxwindow_set(grid);
@@ -669,13 +752,13 @@ int ats_message_box(const char *title, const char *message,	Button *buttons, int
 			XtNborderWidth, 0,
 			XtNmargin, 0,
 			XtNgridx, 0,
-			XtNgridy, 0,
+			XtNgridy, 1,
 			XtNleft, XawChainLeft,
 			XtNfromVert, text, NULL);
 
 		for (i = 0; i < numButtons; i++) {
 			buttons[i].ID = i + 1;
-			text = ats_buttons_set(&ui, grid, text, buttons[i].label, alert_prompt_cb, true, i + 1);
+			text = ats_buttons_set(&ui, grid, text, buttons[i].label, alert_prompt_cb, true, i + 1, 3);
 			buttons[i].result = text;
 		}
 
@@ -726,8 +809,18 @@ FORCEINLINE ats_wnd ats_labelfull_set(char *tag, ats_wnd on, ats_wnd alignto,
 		(is_vert ? XtNfromVert : XtNfromHoriz), alignto, NULL);
 }
 
-FORCEINLINE ats_wnd ats_tabs_set(ats_wnd on) {
-	return XtVaCreateManagedWidget("tabs", mwTabsWidgetClass, on, XtNgridy, 1, NULL);
+FORCEINLINE ats_wnd ats_tabs_set(ats_t *ui, int y) {
+	return XtVaCreateManagedWidget("tabs", mwTabsWidgetClass, ui->grid,
+		XtNbackground, 0xffffff, XtNgridy, y, NULL);
+}
+
+FORCEINLINE ats_wnd ats_tabsbox_set(char *title, ats_wnd on) {
+	return XtVaCreateManagedWidget(title, boxWidgetClass, on, XtNborderWidth, 0, NULL);
+}
+
+FORCEINLINE ats_wnd ats_tabsgrid_set(char *title, ats_wnd on, const char *yLayout) {
+	return XtVaCreateManagedWidget(title, mwRudegridWidgetClass, on,
+		XtNyLayout, yLayout, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE ats_wnd ats_boxwindow_set(ats_wnd on) {
@@ -945,11 +1038,11 @@ static void ats_menu_cb(Widget self, XtPointer client, XtPointer data) {
 	}
 }
 
-int ats_menu_set(ats_t *ui, int num_menu, menuitem_t *items, int number_items, int menu_id, char *name) {
+int ats_menu_set(ats_t *ui, int num_menu, menuitem_t *items, int numof_items, int menu_id, char *name) {
 	int r = 0;
 	menu_t *menu = &(ui->bar_info->menus[num_menu]);
 
-	menu->num_items = number_items;
+	menu->num_items = numof_items;
 	menu->selected = none_selected;
 	menu->menu_id = menu_id;
 	menu->items = items;
@@ -962,8 +1055,9 @@ int ats_menu_set(ats_t *ui, int num_menu, menuitem_t *items, int number_items, i
 	menu->hMenu = XtVaCreatePopupShell(menu->menu_name, mwMenuWidgetClass,
 		ui->bar_info->hMenubar, NULL, 0);
 	if (menubutton && menu->hMenu) {
+		XtInstallAccelerators(ui->bar_info->hMenubar, menu->hMenu);
 		// add menu items
-		for (r = 0; r < number_items; r++) {
+		for (r = 0; r < numof_items; r++) {
 			if (items[r].item_name == NULL && items[r].action == NULL) {
 				XtVaCreateManagedWidget("-", mwLineMEObjectClass, menu->hMenu, NULL);
 			} else {
@@ -977,7 +1071,7 @@ int ats_menu_set(ats_t *ui, int num_menu, menuitem_t *items, int number_items, i
 						XtNborderWidth, 0,
 						XtNfont, (ui->font == NULL ? main_athena_info->font : ui->font),
 						XtNbackground, 0xf0f0f0,
-						XtNforeground, 0x909090,
+						XtNforeground, 0x724F37,
 						NULL);
 					snprintf(alpha, sizeof(alpha),
 						"<Ctrl>%s:	hotkey(%s)\n", items[r].alphaKey, items[r].item_name);
@@ -990,7 +1084,7 @@ int ats_menu_set(ats_t *ui, int num_menu, menuitem_t *items, int number_items, i
 						XtNborderWidth, 0,
 						XtNfont, (ui->font == NULL ? main_athena_info->font : ui->font),
 						XtNbackground, 0xf0f0f0,
-						XtNforeground, 0x909090,
+						XtNforeground, 0x724F37,
 						NULL);
 				}
 				items[r].index = menubutton;
@@ -1012,7 +1106,8 @@ int ats_font_set(ats_t *ui, const char *font) {
 
 int ats_menubar_set(ats_t *ui, int numof_menus) {
 	if ((ui->bar_info = (menu_bar_t *)calloc(1, sizeof(menu_bar_t)))) {
-		ui->bar_info->menubox = ats_grid_set(ats_windowgrid_set(ui, 26, 10));
+		ui->grid = ats_windowgrid_set(ui, 26, 11);
+		ui->bar_info->menubox = ats_grid_set(ui->grid);
 		ui->bar_info->hMenubar = XtVaCreateManagedWidget("menubox",
 			mwMenuBarWidgetClass, ui->bar_info->menubox,
 			XtNborder, 0,
@@ -1084,8 +1179,8 @@ int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_bu
 	char **argv = NULL;
 
 	ui->title = title;
-	ui->width = (int)width;
-	ui->height = (int)height;
+	ui->width = width;
+	ui->height = height;
 	if (alloc_buffer == true) {
 		ui->buf = malloc(ui->width * ui->height * sizeof(uint32_t));
 		if (!ui->buf)
@@ -1094,7 +1189,7 @@ int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_bu
 
 	if (main_athena_info == NULL) {
 		ui->topLevel = XtVaOpenApplication(&ui->app_con, ui->title, NULL, 0,
-			&argc, argv, fallback, sessionShellWidgetClass,
+			&argc, argv, fallback, mwApplicationShellWidgetClass,
 			XtNwidth, ui->width, XtNheight, ui->height,
 			XtNbeNiceToColormap, True, NULL, 0);
 
@@ -1104,7 +1199,6 @@ int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_bu
 		XawFocusInstallActions(ui->app_con);
 		ui->use_icon = athena;
 		main_athena_info = ui;
-		main_athena_info->wnd = ui->topLevel;
 		main_athena_info->wnd = ui->topLevel;
 	}
 
@@ -1175,9 +1269,12 @@ FORCEINLINE ats_wnd ats_frame_set(ats_wnd on, XtShadowType shadowType, int shado
 		XtNshadowWidth, shadowWidth, XtNshadowType, shadowType, NULL);
 }
 
-FORCEINLINE ats_wnd ats_combo_set(ats_wnd on, char **data, int datasize) {
-	return XtVaCreateManagedWidget("combo", mwComboWidgetClass, on,
+FORCEINLINE ats_wnd ats_combo_set(ats_wnd on, char **data, int datasize, _platform_cb handler) {
+	ats_wnd combo = XtVaCreateManagedWidget("combo", mwComboWidgetClass, on,
 		XtNborderWidth, 0, XtNcomboData, data, XtNcomboNData, datasize, NULL);
+
+	XtAddCallback(combo, XtNlistCallback, handler, NULL);
+	return combo;
 }
 
 FORCEINLINE void ats_combofield_set(ats_wnd on, char *text) {
@@ -1187,7 +1284,7 @@ FORCEINLINE void ats_combofield_set(ats_wnd on, char *text) {
 FORCEINLINE ats_wnd ats_checkradio_set(ats_wnd on, char *label, bool is_radio) {
 	ats_wnd cr;
 	if (is_radio) {
-		cr = XtVaCreateManagedWidget("checkradio",
+		cr = XtVaCreateManagedWidget("Radio",
 			mwCheckWidgetClass, on,
 			XtNlabel, label,
 			XtNborderWidth, 0,
@@ -1196,7 +1293,7 @@ FORCEINLINE ats_wnd ats_checkradio_set(ats_wnd on, char *label, bool is_radio) {
 			XtNradioStart, on,
 			NULL);
 	} else {
-		cr = XtVaCreateManagedWidget("checkradio",
+		cr = XtVaCreateManagedWidget("Checkbox",
 			mwCheckWidgetClass, on,
 			XtNlabel, label,
 			XtNcheckStyle, MwCheckWin,
@@ -1254,12 +1351,12 @@ ats_wnd ats_toolbar_set(ats_t *ui, ats_wnd on, _platform_cb button, char *imagef
 FORCEINLINE ats_wnd ats_gridtwo_set(ats_wnd on, int leftwidth) {
 	snprintf(main_athena_info->layout, sizeof(main_athena_info->layout),
 		"%d %s", leftwidth, "100%");
-	return XtVaCreateManagedWidget("rudegrid", mwRudegridWidgetClass, on,
+	return XtVaCreateManagedWidget("Gridtwo", mwRudegridWidgetClass, on,
 		XtNxLayout, main_athena_info->layout, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE ats_wnd ats_gridlayout_set(ats_wnd on, int x, int y, const char *xLayout, const char *yLayout) {
-	return XtVaCreateManagedWidget("rudegrid", mwRudegridWidgetClass, on,
+	return XtVaCreateManagedWidget("Gridlayout", mwRudegridWidgetClass, on,
 		XtNgridx, x,
 		XtNgridy, y,
 		(xLayout == NULL ? XtNborder : XtNxLayout), (xLayout == NULL ? 0 : xLayout),
@@ -1269,7 +1366,7 @@ FORCEINLINE ats_wnd ats_gridlayout_set(ats_wnd on, int x, int y, const char *xLa
 }
 
 FORCEINLINE ats_wnd ats_gridbar_set(ats_wnd on, int width, int height, const char *xLayout) {
-	return  XtVaCreateManagedWidget("rudegrid",
+	return  XtVaCreateManagedWidget("Gridbar",
 		mwRudegridWidgetClass, on,
 		XtNheight, height,
 		XtNwidth, width,
@@ -1280,28 +1377,28 @@ FORCEINLINE ats_wnd ats_gridbar_set(ats_wnd on, int width, int height, const cha
 }
 
 FORCEINLINE ats_wnd ats_grid_set(ats_wnd on) {
-	return XtVaCreateManagedWidget("rudegrid", mwRudegridWidgetClass, on,
+	return XtVaCreateManagedWidget("Grid", mwRudegridWidgetClass, on,
 		XtNxLayout, "100%", XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE ats_wnd ats_gridfull_set(ats_wnd on, int bottomheight) {
 	snprintf(main_athena_info->layout, sizeof(main_athena_info->layout),
 		"%s %d", "100%", bottomheight);
-	return XtVaCreateManagedWidget("rudegrid", mwRudegridWidgetClass, on,
+	return XtVaCreateManagedWidget("Gridfull", mwRudegridWidgetClass, on,
 		XtNyLayout, main_athena_info->layout, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE ats_wnd ats_gridthree_set(ats_wnd on, int topheight, int bottomheight) {
 	snprintf(main_athena_info->layout, sizeof(main_athena_info->layout),
 		"%d %s %d", topheight, "100%", bottomheight);
-	return XtVaCreateManagedWidget("rudegrid", mwRudegridWidgetClass, on,
+	return XtVaCreateManagedWidget("Gridthree", mwRudegridWidgetClass, on,
 		XtNyLayout, main_athena_info->layout, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE ats_wnd ats_gridfour_set(ats_wnd on, int leftwidth, int rightwidth) {
 	snprintf(main_athena_info->layout, sizeof(main_athena_info->layout),
 		"%d %s %s %d", leftwidth, "50%", "50%", rightwidth);
-	return XtVaCreateManagedWidget("rudegrid", mwRudegridWidgetClass, on,
+	return XtVaCreateManagedWidget("Gridfour", mwRudegridWidgetClass, on,
 		XtNxLayout, main_athena_info->layout, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
@@ -1348,8 +1445,8 @@ void ats_close(ats_t *ui) {
 			ui->buf = NULL;
 		}
 
-		if (ui->wnd)
-			XtDestroyWidget(ui->wnd);
+		if (ui->topLevel)
+			XtDestroyWidget(ui->topLevel);
 
 		if (ui->app_con)
 			XtDestroyApplicationContext(ui->app_con);
@@ -1360,13 +1457,13 @@ void ats_close(ats_t *ui) {
 }
 
 FORCEINLINE void ats_destroy(ats_t *ui) {
-	XtDestroyWidget(ui->app->wnd);
 	if (ui->icon_pixmap)
 		XFreePixmap(ui->dpy, ui->icon_pixmap);
 
 	if (ui->icon_mask)
 		XFreePixmap(ui->dpy, ui->icon_mask);
 
+	XtDestroyWidget(ui->app->wnd);
 	XtDestroyApplicationContext(ui->app_con);
 }
 

@@ -18,7 +18,8 @@ MA 02111-1307, USA.
 */
 
 #include <Athena.h>
-#include "pixmaps/unknown.xpm"
+#include "pixmaps/composer.xpm"
+#include "pixmaps/none.xpm"
 // window icon
 #include "pixmaps/athena.xpm"
 #include "pixmaps/info.xpm"
@@ -99,7 +100,6 @@ listsel_clicked(Widget w, XtPointer client_data, XtPointer call_data) {
 Pops up a list box. Returns the index of the selected item, or
 -1 for none.
 */
-
 int MwListBox(Widget pw, char *text, char *choices[], int nchoices) {
 	Widget form, buttonframe,
 		buttonbox, label, viewport, listframe, list,
@@ -165,6 +165,7 @@ int MwListBox(Widget pw, char *text, char *choices[], int nchoices) {
 	MwCenter(listshell);
 	XtPopup(listshell, XtGrabNonexclusive);
 	XawListChange(list, choices, nchoices, 0, True);
+	MwSetIcon(listshell, none_xpm);
 	wm_del(listshell);
 
 	while (status == MW_WAITING) {
@@ -236,7 +237,7 @@ int MwDialogInputIcon(Widget pw, char *title,
 			NULL);
 		XpmCreatePixmapFromData(XtDisplay(pw),
 			DefaultRootWindow(XtDisplay(pw)),
-			unknown_xpm, &default_icon, NULL, &xpm_attr);
+			composer_xpm, &default_icon, NULL, &xpm_attr);
 
 		XtAppAddActions(app_context, actions, XtNumber(actions));
 		init_done = 1;
@@ -268,6 +269,9 @@ int MwDialogInputIcon(Widget pw, char *title,
 	dialogText = XtVaCreateManagedWidget("dialogText",
 		mwTextfieldWidgetClass, dialog,
 		XtNwidth, 400,
+		XtNborder, 0,
+		XtNborderWidth, 0,
+		XtNbackground, 0xffffff,
 		XtNleft, XtChainLeft,
 		XtNright, XtChainRight,
 		XtNtop, XtChainTop,
@@ -321,10 +325,12 @@ int MwDialogInputIcon(Widget pw, char *title,
 		XtNstring, buffr,
 		XtNinsertPosition, strlen(buffr),
 		NULL);
+
 	MwCenter(pshell);
 	XtPopup(pshell, XtGrabExclusive);
 	XSetWMProtocols(XtDisplay(pshell), XtWindow(pshell),
 		&wm_delete_window, 1);
+	MwSetIcon(pshell, none_xpm);
 	XtSetKeyboardFocus(pshell, dialogText);
 
 	while (status == MW_WAITING) {

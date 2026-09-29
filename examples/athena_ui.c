@@ -1,9 +1,6 @@
 #include <Athena.h>
 
-static Widget animator, canvas, color, image;
-static Widget richtext, rudegrid, ruler, slider, vslider;
-static Widget spinner, tabbing, table, textfield, tooltip;
-
+static Widget color;
 static XColor xcolor;
 
 static String fallback[] = {
@@ -53,7 +50,7 @@ static MwFmt myfmt = {"Courier", 150, 1, 0, 0, 0, "red", "yellow", 0,
 		MW_VADJ_CENTER, MW_HADJ_LEFT, 0};
 
 /* width height colours a z colour1 colour2 */
-static char *mygrad = "100 100 128 0 1 SpringGreen Chartreuse";
+static char *mygrad = "100 100 256 0 1 SpringGreen Chartreuse";
 
 static void cb_drag(Widget w, XtPointer client_data, XtPointer call_data) {
 	DropPosition *where = (DropPosition *)call_data;
@@ -112,24 +109,6 @@ static void set_color(XColor *xcolor) {
 	XtVaSetValues(color, XtNbackground, xcolor->pixel, NULL);
 }
 
-static void cb_red(Widget w, XtPointer client_data, XtPointer call_data) {
-	intptr_t n = (intptr_t)call_data;
-	xcolor.red = n;
-	set_color(&xcolor);
-}
-
-static void cb_green(Widget w, XtPointer client_data, XtPointer call_data) {
-	intptr_t n = (intptr_t)call_data;
-	xcolor.green = n;
-	set_color(&xcolor);
-}
-
-static void cb_blue(Widget w, XtPointer client_data, XtPointer call_data) {
-	intptr_t n = (intptr_t)call_data;
-	xcolor.blue = n;
-	set_color(&xcolor);
-}
-
 static void cb_open(ui_t *self, void *data) {
 	ats_open_dialog(self, (_platform_cb)data);
 }
@@ -178,17 +157,31 @@ static void CommandCB(Widget cmd, XtPointer client, XtPointer data) {
 	}
 }
 
+static void list_cb(Widget w, XtPointer client_data, XtPointer call_data) {
+	printf("list_cb(%s) => %s\n", XtName(w), (String)call_data);
+}
+
+static void return_cb(Widget self, XtPointer client, XtPointer data) {
+	TextFieldReturnStruct *ret = (TextFieldReturnStruct *)data;
+	printf("changed: string = %s\n", ret->string);
+}
+
 int main(int argc, char **argv) {
-	int i, error = -1;
+	ats_wnd animator, canvas;
+	ats_wnd richtext, ruler, slider, vslider;
+	ats_wnd spinner, table, textfield;
 	ats_wnd yesNoFrames[3], yesBut, yesFrame, noFrame;
+	int i, error = -1;
 	ats_t ui = {0};
-	if (ats_window(&ui, "Athena UI", 600, 400, false)
+
+	if (ats_window(&ui, "Athena UI", 320, 400, false)
 		&& ats_menubar_set(&ui, 3)) {
 		ats_dragdrop_set(&ui, "text/plain", 0, cb_drop, cb_drag);
 		ats_dragdrop_update(&ui, "text/uri-list", 1);
 
+		ats_background_set(ui.wnd, "light blue");
 		menuitem_t items[] = {
-			{110, "Open", (_menu_cb)cb_open, "o", NULL},
+			{110, "Open", cb_open, "o", NULL},
 			{__ATS_SEPERATOR__},
 			{111, "Quit", cb_quit, "q", NULL},
 		};
@@ -212,75 +205,91 @@ int main(int argc, char **argv) {
 		}
 
 		if (error == -1) {
-			//ats_gridthree_set(ui.topLevel, 10, 10);
-			/*
-			ats_wnd tabs = ats_tabs_set(ui.topLevel);
+			ats_wnd tabs = ats_tabs_set(&ui, 1);
+			ats_wnd checkbox = ats_tabsbox_set("Check/Radio", tabs);
+			ats_background_set(checkbox, "dark green");
 
-			ats_wnd checkbox = ats_boxwindow_set(tabs);
 			ats_checkradio_set(checkbox, "Check!", false);
 			ats_checkradio_set(checkbox, "Radio!", true);
 			ats_checkradio_set(checkbox, "Radio!", true);
 			ats_checkradio_set(checkbox, "Check!", false);
-			ats_label_set(checkbox, "Check/Radio");
 
-			ats_wnd combobox = ats_boxwindow_set(tabs);
-			ats_wnd combo = ats_combo_set(combobox, years, ats_sizeof(years));
-			combo = ats_combo_set(combobox, days, ats_sizeof(days));
-			combo = ats_combo_set(combobox, months, ats_sizeof(months));
-			ats_label_set(combobox, "Combo");
+			ats_wnd combobox = ats_tabsbox_set("Combo", tabs);
+			ats_combo_set(combobox, years, ats_sizeof(years), list_cb);
+			ats_combo_set(combobox, days, ats_sizeof(days), list_cb);
+			ats_combo_set(combobox, months, ats_sizeof(months), list_cb);
+			ats_wnd combo = ats_combo_set(combobox, NULL, 0, list_cb);
+			ats_combofield_set(combo, "athena");
 
-			ats_wnd frameform = ats_formwindow_set(tabs);
-			ats_wnd frame1 = ats_frame_set(frameform, Blank, 3);
+			ats_wnd boxframe = ats_tabsbox_set("Frames", tabs);
+			ats_wnd frame1 = ats_frame_set(boxframe, Blank, 3);
 			ats_label_set(frame1, "Blank");
-			frame1 = ats_frame_set(frameform, Solid, 3);
+			frame1 = ats_frame_set(boxframe, Solid, 3);
 			ats_label_set(frame1, "Solid");
-			frame1 = ats_frame_set(frameform, Raised, 3);
+			frame1 = ats_frame_set(boxframe, Raised, 3);
 			ats_label_set(frame1, "Raised");
-			frame1 = ats_frame_set(frameform, Lowered, 3);
+			frame1 = ats_frame_set(boxframe, Lowered, 3);
 			ats_label_set(frame1, "Lowered");
-			frame1 = ats_frame_set(frameform, Ridge, 3);
+			frame1 = ats_frame_set(boxframe, Ridge, 3);
 			ats_label_set(frame1, "Ridge");
-			frame1 = ats_frame_set(frameform, Groove, 3);
+			frame1 = ats_frame_set(boxframe, Groove, 3);
 			ats_label_set(frame1, "Groove");
-			frame1 = ats_frame_set(frameform, Plateau, 3);
+			frame1 = ats_frame_set(boxframe, Plateau, 3);
 			ats_label_set(frame1, "Plateau");
-			frame1 = ats_frame_set(frameform, Trough, 3);
+			frame1 = ats_frame_set(boxframe, Trough, 3);
 			ats_label_set(frame1, "Trough");
 
-			frame1 = ats_frame_set(frameform, Ridge, 3);
+			frame1 = ats_frame_set(boxframe, Ridge, 3);
+			ats_background_set(frame1, "maroon");
 			frame1 = ats_label_set(frame1, "color");
 			ats_background_set(frame1, "maroon");
 
-			frame1 = ats_frame_set(frameform, Solid, 3);
-			ats_frame_set(frame1, Plateau, 3);
-			ats_frame_set(frame1, Lowered, 3);
+			frame1 = ats_frame_set(boxframe, Solid, 3);
+			frame1 = ats_frame_set(frame1, Lowered, 3);
+			frame1 = ats_frame_set(frame1, Plateau, 3);
 			ats_label_set(frame1, "Nested");
 
 			ui.app->app_array = (void **)yesNoFrames;
-			yesFrame = ats_frame_set(frameform, Lowered, 1);
+			yesFrame = ats_frame_set(boxframe, Lowered, 1);
 			yesNoFrames[0] = yesFrame;
 			yesNoFrames[1] = ats_button_set(&ui, yesFrame, frame1, "Yes", CommandCB, true);
-			noFrame = ats_frame_set(frameform, Blank, 1);
+			noFrame = ats_frame_set(boxframe, Blank, 1);
 			yesNoFrames[2] = noFrame;
 			ats_button_set(&ui, noFrame, yesFrame, "No", CommandCB, false);
-			ats_label_set(frameform, "Frame");
 
-			ats_wnd box = ats_boxwindow_set(tabs);
+			ats_wnd box = ats_tabsbox_set("Images", tabs);
+			ats_wnd image = ats_anyimage_set(&ui, box, "../examples/control-panel-128px.png");
+			ats_tooltip_set(&ui, image, "control-panel `png` image");
 			image = ats_image_set(box, "netscape.xpm");
-			ats_tooltip_set(&ui, image, "tool tip on image");
-			ats_label_set(box, "Image");
+			ats_tooltip_set(&ui, image, "netscape `xpm` image");
 
-			box = ats_boxwindow_set(tabs);
-			textfield = ats_field_set(box, image, "type something", 0, 8, 300, field_secret, &ui);
-			ats_tooltip_set(&ui, textfield, "tool tip on text field");
-			ats_label_set(box, "Text field");
+			box = ats_tabsbox_set("TextField", tabs);
+			textfield = ats_field_set(&ui, box, image, "Name", 0, 0, 100, field_text, return_cb);
+			//ats_field_reset(textfield, 0xffffff, "Name", 100, true);
+			ats_tooltip_set(&ui, textfield, "username field");
 
-			box = ats_gridfull_set(tabs, 20);
+			textfield = ats_field_set(&ui, box, textfield, "Password", 0, 0, 100, field_secret, return_cb);
+			//ats_field_reset(textfield, 0xffffff, "no echo", 100, false);
+			ats_tooltip_set(&ui, textfield, "password field");
+
+			box = ats_tabsgrid_set("Pages/Tabbing", tabs, "100% 30");
 			frame1 = ats_tabwindow_set(box, "Click tab to rename", select_tab);
 			ats_tabinsert(frame1, "Page 1", 1);
 			ats_tabinsert(frame1, "Page 2", 2);
-			ats_label_set(box, "tabbing");
-*/
+
+			ats_richtext_set(tabs, 310, 300);
+			ats_ruler_set(tabs, 320, 300);
+			ats_animator_set(tabs, cast, mygrad);
+
+			box = ats_tabsbox_set("Sliders", tabs);
+			ats_slider_set(box, 100, 30);
+			ats_vslider_set(box, 100, 30);
+
+			box = ats_tabsbox_set("Spinner", tabs);
+			ats_spinner_set(box, -100, 100, 10, 0, cb_spinner);
+			ats_spinner_set(box, -1000, 0, 20, 0, cb_spinner);
+			ats_spinner_set(box, 0, 1000, 5, 10, cb_spinner);
+
 			error = ats_handler(&ui);
 		}
 

@@ -1,11 +1,25 @@
 /*
- * MwGcs.c - Utility functions to allocate GCs.
+ * Gcs.c - Utility functions to allocate GCs.
  *
  * Author: Edward A. Falk
  *	   falk@falconer.vip.best.com
  *
  * Date: Sept 29, 1998
  *
+ *
+ * $Log: Gcs.c,v $
+ * Revision 1.7  1999/09/08 17:44:12  falk
+ * Added XtAllocateGC
+ * Now requires Ansi C
+ *
+ * Revision 1.6  1999/08/25 17:01:26  falk
+ * now sets Xcolor.flags before allocating color
+ *
+ * Revision 1.5  1999/08/24 16:00:19  falk
+ * removed unused variables
+ *
+ * Revision 1.4  1999/08/24 15:44:10  falk
+ * Added AllocShadeGC(), AllocGreyPixelC()
  *
  * Revision 1.3  1998/12/15 04:55:05  falk
  * now uses Xmu library for stippled bitmap
@@ -16,7 +30,6 @@
  *
  * Revision 1.1  1998/10/12 01:38:14  falk
  * Initial revision
- *
  *
  */
 
@@ -32,12 +45,11 @@
  *	Return a GC with the foreground set to the widget's background color.
  *
  * GC
- * AllocGreyGC(w, fg, font, contrast, gp, be_nice_to_cmap)
+ * AllocGreyGC(w, fg, font, contrast, be_nice_to_cmap)
  *	Widget	w ;
  *	Pixel	fg ;
  *	Font	font ;
  *	int	contrast ;
- *	Pixmap	*gp ;
  *	int	be_nice_to_cmap ;
  *
  *	Return a GC suitable for rendering a widget in its "inactive" color.
@@ -47,11 +59,22 @@
  *	If be_nice_to_cmap is True, the returned GC is created using a 50%
  *	dither instead of a new color.
  *
- *	The 'gp' argument is a pointer to a Pixmap value, used to cache the
- *	50% dither pattern. If *gp points to a Pixmap value, it will be used
- *	as the source of the 50% dither pattern. If *gp is None, then a
- *	dither pattern will be created and stored in gp. If gp is NULL, then
- *	a dither pattern will be created but not returned.
+ *
+ * GC
+ * AllocShadeGC(w, fg, bg, font, contrast, be_nice_to_cmap)
+ *	Widget	w ;
+ *	Pixel	fg, bg ;
+ *	Font	font ;
+ *	int	contrast ;
+ *	int	be_nice_to_cmap ;
+ *
+ *	Return a GC suitable for rendering in a shade somewhere between
+ *	bg and fg, as determined by contrast (0 = bg, 100 = fg)
+ *	If font is None, then the returned GC is allocated with
+ *	font specified as "don't care".  If be_nice_to_cmap
+ *	is True, the returned GC is created using a 50% dither
+ *	instead of a new color.
+ *
  *
  * GC
  * AllocTopShadowGC(w, contrast, be_nice_to_cmap)
@@ -69,14 +92,13 @@
  *	returned GC will use a foreground color of black.
  *
  * GC
- * AllocArmGC(w, contrast, gp, be_nice_to_cmap)
+ * AllocArmGC(w, contrast, be_nice_to_cmap)
  *	Return a GC suitable for rendering the "armed" decorations of a
  *	widget. This GC would typically be used to fill in the widget's
  *	background. Returns a GC with foreground computed from widget's
  *	background color and contrast.  If be_nice_to_cmap is True, the
  *	returned GC will use a foreground color of black and a 50% dither.
  *
- *	The 'gp' argument is as described above.
  *
  * void
  * Draw3dBox(w, x,y,wid,hgt,s, topgc, botgc)
@@ -96,7 +118,6 @@
 
 #include <Mowitz/MwGcs.h>
 #include <Mowitz.h>
-
 
 	/* Color & GC allocation.
 	 *
@@ -151,21 +172,24 @@
 
 #if	XtSpecificationRelease	< 5
 
-static	GC	XtAllocateGC(Widget, int, u_long, XGCValues *, u_long, u_long) ;
+static	GC	XtAllocateGC(Widget, int, unsigned long, XGCValues *, unsigned long, unsigned long) ;
 
 #endif
 
 /* shadowpm_bits put back by Ulric: needed by GetGrey50 */
 static  char    shadowpm_bits[] = {0x02, 0x01};
 
+#if	NeedFunctionPrototypes
+static	Pixmap	getDitherPixmap(Widget, int contrast) ;
+#else
+static	Pixmap	getDitherPixmap() ;
+#endif
+
 
 	/* return a GC with the specified foreground and optional font */
 
 GC
-AllocFgGC(w, fg, font)
-	Widget	w;
-	Pixel	fg ;
-	Font	font ;
+AllocFgGC(Widget w, Pixel fg, Font font)
 {
 	XGCValues	values ;
 	unsigned long		vmask, dcmask ;
@@ -190,32 +214,35 @@ AllocFgGC(w, fg, font)
 	/* return gc with widget background color as the foreground */
 
 GC
-AllocBackgroundGC(w, font)
-	Widget	w;
-	Font	font ;
+AllocBackgroundGC(Widget w, Font font)
 {
 	return AllocFgGC(w, w->core.background_pixel, font) ;
 }
 
 
 	/* Allocate an "inactive" GC.  Color is grey (possibly via
-	 * dither pattern).  This function optionally returns the
-	 * grey pixmap so the caller may cache it.
+	 * dither pattern).
 	 */
 
 GC
-AllocGreyGC(w, fg, font, contrast, be_nice_to_cmap)
-	Widget	w ;
-	Pixel	fg ;
-	Font	font ;
-	int	contrast ;
-	int	be_nice_to_cmap ;
+AllocGreyGC(Widget w, Pixel fg, Font font, int contrast, Bool be_nice_to_cmap)
+{
+	return AllocShadeGC(w, fg, w->core.background_pixel,
+		font, contrast, be_nice_to_cmap) ;
+}
+
+
+	/* Allocate a GC somewhere between two colors.  */
+
+GC
+AllocShadeGC(Widget w, Pixel fg, Pixel bg, Font font,
+	int contrast, Bool be_nice_to_cmap)
 {
 	XGCValues	values ;
 	unsigned long		vmask, dcmask ;
 
 	values.foreground = fg ;
-	values.background = w->core.background_pixel ;
+	values.background = bg ;
 	values.font = font ;
 
 	if( font != None ) {
@@ -230,17 +257,22 @@ AllocGreyGC(w, fg, font, contrast, be_nice_to_cmap)
 
 	if( be_nice_to_cmap || w->core.depth == 1)
 	{
-	  values.fill_style = FillStippled ;
-	  values.stipple = XmuCreateStippledPixmap(XtScreen(w), 1L, 0L, 1) ;
+	  if( contrast <= 5 )
+	    values.foreground = bg ;
+	  else if( contrast >= 95 )
+	    values.foreground = fg ;
+	  else {
+	    vmask |= GCBackground|GCStipple|GCFillStyle ;
+	    values.fill_style = FillOpaqueStippled ;
+	    values.stipple = getDitherPixmap(w, contrast) ;
+	  }
 
-	  vmask |= GCBackground|GCStipple|GCFillStyle ;
 	  return XtAllocateGC(w, w->core.depth, vmask, &values, 0L, dcmask) ;
 	}
 	else
 	{
-	  values.foreground =
-	  	AllocGreyPixel(w, fg, values.background, contrast) ;
 	  dcmask |= GCBackground ;
+	  values.foreground = AllocGreyPixel(w, fg, bg, contrast) ;
 	  return XtAllocateGC(w, w->core.depth, vmask, &values, 0L, dcmask) ;
 	}
 }
@@ -248,10 +280,7 @@ AllocGreyGC(w, fg, font, contrast, be_nice_to_cmap)
 	/* return top-shadow gc. */
 
 GC
-AllocTopShadowGC(w, contrast, be_nice_to_cmap)
-	Widget	w;
-	int	contrast ;
-	int	be_nice_to_cmap ;
+AllocTopShadowGC(Widget w, int contrast, Bool be_nice_to_cmap)
 {
 	Screen		*scr = XtScreen (w);
 	XGCValues	values ;
@@ -273,10 +302,7 @@ AllocTopShadowGC(w, contrast, be_nice_to_cmap)
 	/* return bottom-shadow gc. */
 
 GC
-AllocBotShadowGC(w, contrast, be_nice_to_cmap)
-	Widget	w ;
-	int	contrast ;
-	int	be_nice_to_cmap ;
+AllocBotShadowGC(Widget w, int contrast, Bool be_nice_to_cmap)
 {
 	Screen		*scr = XtScreen (w);
 	XGCValues	values ;
@@ -296,10 +322,7 @@ AllocBotShadowGC(w, contrast, be_nice_to_cmap)
 	/* return arm-shadow gc. */
 
 GC
-AllocArmGC(w, contrast, be_nice_to_cmap)
-	Widget	w;
-	int	contrast ;
-	int	be_nice_to_cmap ;
+AllocArmGC(Widget w, int contrast, Bool be_nice_to_cmap)
 {
 	Screen		*scr = XtScreen (w);
 	XGCValues	values ;
@@ -335,10 +358,7 @@ AllocArmGC(w, contrast, be_nice_to_cmap)
 }
 
 
-Pixel
-AllocShadowPixel(w, scale)
-	Widget	w;
-	int	scale ;
+Pixel AllocShadowPixel(Widget w, int scale)
 {
 	XColor	get_c, set_c ;
 	Display	*dpy = XtDisplay(w) ;
@@ -374,42 +394,78 @@ AllocShadowPixel(w, scale)
 	  set_c.green = scale * get_c.green / 100 ;
 	  set_c.blue = scale * get_c.blue / 100 ;
 	}
-	MwAllocColor(dpy, None, &set_c);
-	return set_c.pixel;
+	set_c.flags = DoRed | DoGreen | DoBlue ;
+	if( XAllocColor(dpy, cmap, &set_c) )
+	  return set_c.pixel ;
+	else if( scale > 100 )
+	  return WhitePixelOfScreen(scr) ;
+	else
+	  return BlackPixelOfScreen(scr) ;
 }
 
 
-	/* Allocate a pixel halfway between foreground and background */
-
-Pixel
-AllocGreyPixel(w, fg, bg, cnt)
-	Widget	w ;
-	Pixel	fg, bg ;
-	int	cnt ;
+	/* Allocate a pixel partway between foreground and background */
+Pixel AllocGreyPixel(Widget w, Pixel fg, Pixel bg, int scale)
 {
-	XColor	get_cf, get_cb, set_c ;
-	Display	*dpy = XtDisplay(w) ;
-	Colormap cmap ;
+  XColor	get_cf, get_cb ;
+  Display	*dpy = XtDisplay(w) ;
+  Colormap cmap ;
 
-	cmap = w->core.colormap ;
+  cmap = w->core.colormap ;
 
-	get_cf.pixel = fg ;
-	get_cb.pixel = bg ;
+  get_cf.pixel = fg ;
+  get_cb.pixel = bg ;
 
-	XQueryColor(dpy, cmap, &get_cf) ;
-	XQueryColor(dpy, cmap, &get_cb) ;
+  XQueryColor(dpy, cmap, &get_cf) ;
+  XQueryColor(dpy, cmap, &get_cb) ;
 
-	set_c.red =   (get_cf.red * cnt +   get_cb.red * (100-cnt)) / 100 ;
-	set_c.green = (get_cf.green * cnt + get_cb.green * (100-cnt)) / 100 ;
-	set_c.blue =  (get_cf.blue * cnt +  get_cb.blue * (100-cnt)) / 100 ;
-
-	MwAllocColor(dpy, None, &set_c) ;
-	return set_c.pixel ;
+  return AllocGreyPixelC(w, &get_cf, &get_cb, scale) ;
 }
+
+
+
+	/* Allocate a pixel partway between foreground and background */
+Pixel AllocGreyPixelC(Widget w, XColor *fg, XColor *bg, int scale)
+{
+  XColor	set_c ;
+  Display	*dpy = XtDisplay(w) ;
+  int		r,g,b ;
+  Colormap	cmap = w->core.colormap ;
+
+  r = (fg->red * scale +   bg->red * (100-scale)) / 100 ;
+  g = (fg->green * scale + bg->green * (100-scale)) / 100 ;
+  b = (fg->blue * scale +  bg->blue * (100-scale)) / 100 ;
+
+  if( scale > 100 || scale < 0 )	/* look out for overflow */
+  {
+    int minc, maxc ;
+    maxc = Max(r, Max(g,b)) ;
+    minc = Min(r, Min(g,b)) ;
+    if( maxc > 65535 )
+    {
+      maxc /= 16 ;
+      r = r*(65535/16) / maxc ;
+      g = g*(65535/16) / maxc ;
+      b = b*(65535/16) / maxc ;
+    }
+    if( minc < 0 )
+    {
+      r = Max(r,0) ;
+      g = Max(g,0) ;
+      b = Max(b,0) ;
+    }
+  }
+
+  set_c.red = r ; set_c.green = g ; set_c.blue = b ;
+  set_c.flags = DoRed | DoGreen | DoBlue ;
+  (void)XAllocColor(dpy, cmap, &set_c) ;
+  return set_c.pixel ;
+}
+
+
 
 /* GetGrey50 put back by Ulric: needed by Gridbox. */
-Pixmap
-GetGrey50(w, gp)
+Pixmap GetGrey50(w, gp)
         Widget  w;
         Pixmap  *gp ;
 {
@@ -426,10 +482,7 @@ GetGrey50(w, gp)
 
 
 	/* draw a 3-d box */
-
-void
-Draw3dBox(Widget w, int x, int y, int wid, int hgt, int s,
-	GC topgc, GC botgc, GC tophalf, GC bothalf)
+void Draw3dBox(Widget w, int x, int y, int wid, int hgt, int s, GC topgc, GC botgc)
 {
 	Display		*dpy = XtDisplay(w) ;
 	Window		win = XtWindow(w) ;
@@ -464,24 +517,36 @@ Draw3dBox(Widget w, int x, int y, int wid, int hgt, int s,
 	  pts[5].x = -s ;	pts[5].y = s ;
 	  XFillPolygon(dpy,win,topgc, pts,6, Nonconvex,CoordModePrevious) ;
 	}
-	/* And now, the outer rectangle */
-	if (s > 1) {
-		XDrawLine(dpy, win, tophalf, x, y, x+wid, y);
-		XDrawLine(dpy, win, tophalf, x, y, x, y+hgt);
-		XDrawLine(dpy, win, bothalf, x+wid, y, x+wid, y+hgt);
-		XDrawLine(dpy, win, bothalf, x, y+hgt, x+wid, y+hgt);
-	}
 }
 
 #if XtSpecificationRelease < 5
 
-static	GC
-XtAllocateGC(w, depth, mask, values, dynamic, dontcare)
-	Widget		w ;
-	int		depth ;
-	unsigned long	mask, dynamic, dontcare ;
-	XGCValues	*values ;
+static	GC XtAllocateGC(Widget w, int depth, unsigned long mask, XGCValues *values,
+	unsigned long dynamic, dunsigned long ontcare)
 {
 	return XtGetGC(w, mask, values) ;
 }
 #endif
+
+
+static	unsigned char	screen0[2] = {0,0} ;
+static	unsigned char	screen25[2] = {0,0xaa} ;
+static	unsigned char	screen75[2] = {0xaa,0xff} ;
+static	unsigned char	screen100[2] = {0xff,0xff} ;
+
+static	Pixmap getDitherPixmap(Widget w, int contrast)
+{
+	Display	*dpy = XtDisplay(w) ;
+	Window	win = XtWindow(w) ;
+
+	if( contrast <= 5 )
+	  return XCreateBitmapFromData(dpy,win, (char *)screen0, 2,2) ;
+	else if( contrast <= 37 )
+	  return XCreateBitmapFromData(dpy,win, (char *)screen25, 2,2) ;
+	else if( contrast <= 62 )
+	  return XmuCreateStippledPixmap(XtScreen(w), 1L, 0L, 1) ;
+	else if( contrast <= 95 )
+	  return XCreateBitmapFromData(dpy,win, (char *)screen75, 2,2) ;
+	else
+	  return XCreateBitmapFromData(dpy,win, (char *)screen100, 2,2) ;
+}

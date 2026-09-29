@@ -331,22 +331,6 @@ static void cb_vscroll_scroll(__ATS_WEBVIEW__) {
 	scroll_updown(self, ui, amount);
 }
 
-static Widget add_command(Widget pw, _platform_cb cb, XtPointer closure, char *pm) {
-	Widget w;
-	Pixmap pm_return;
-	Pixel color;
-	XtVaGetValues(pw, XtNbackground, &color, NULL);
-	w = XtVaCreateManagedWidget("tooltip",
-		commandWidgetClass, pw,
-		XtNshadowWidth, 0,
-		XtNforeground, color,
-		NULL);
-	pm_return = MwLoadPixmap(XtDisplay(pw), color, pm);
-	XtVaSetValues(w, XtNbitmap, pm_return, NULL);
-	XtAddCallback(w, XtNcallback, cb, closure);
-	return w;
-}
-
 static char webview_hishory[10] = {0};
 
 static XtActionsRec web_actions[] = {
@@ -379,7 +363,6 @@ int webview_create(ats_t *ui, webview_t *w) {
 	ui->use_icon = icon_32x32;
 	ui->webview_set = true;
 	if (ats_window(ui, w->title, w->width, w->height, false)) {
-		XtVaSetValues(ui->topLevel, XtNbackground, 0x808080, NULL);
 		XtAppAddActions(ui->app_con, web_actions, XtNumber(web_actions));
 		MwHighlightInit(ui->topLevel);
 		w->priv.window = ats_windowgrid_set(ui, 30, 30);
@@ -404,9 +387,8 @@ int webview_create(ats_t *ui, webview_t *w) {
 			w->priv.inspector_window = ats_gridbar_set(navbox, (ui->width - (38 * numtools)), 28, "95%");
 			XtVaSetValues(w->priv.inspector_window, XtNborderColor, ui->color, NULL);
 
-			Widget addressfield = ats_field_set(w->priv.inspector_window, toolcmd, "https://",
-				0, 0, 100, field_url, NULL);
-			XtAddCallback(addressfield, XtNactivateCallback, cb_goto, ui);
+			Widget addressfield = ats_field_set(ui, w->priv.inspector_window, toolcmd, "https://",
+				0, 0, (ui->width - (38 * numtools)), field_url, cb_goto);
 			w->userdata = (void *)addressfield;
 
 			toolcmd = ats_toolbar_set(ui, navbox, cb_goto, "preview.xpm", "Go", true);

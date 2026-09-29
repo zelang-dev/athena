@@ -23,7 +23,7 @@ static XtResource resources[] = {
          sizeof(Dimension) ,
          XtOffsetOf(RectObjRec,rectangle.height) ,
          XtRImmediate ,
-         (XtPointer) 1
+         (XtPointer) 2
         },
 };
 

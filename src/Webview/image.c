@@ -22,9 +22,46 @@
 #define STBI_SUPPORT_ZLIB
 #include "stb_image.h"	// PNG/JPG/GIF/TGA/BMP/PIC/PNM/PSD/HDR reading
 
+// Convert raw RGB(A) data to X11 Pixmap
+static Pixmap create_pixmap_from_image(Display *dpy, Window win, int width, int height, unsigned char *data, int channels) {
+	int x, y, depth = DefaultDepth(dpy, DefaultScreen(dpy));
+	Visual *visual = DefaultVisual(dpy, DefaultScreen(dpy));
+
+	XImage *ximg = XCreateImage(dpy, visual, depth, ZPixmap, 0, NULL, width, height, 32, 0);
+	if (!ximg) {
+		fprintf(stderr, "Failed to create XImage.\n");
+		return None;
+	}
+
+	ximg->data = malloc(ximg->bytes_per_line * height);
+	if (!ximg->data) {
+		fprintf(stderr, "Memory allocation failed.\n");
+		XDestroyImage(ximg);
+		return None;
+	}
+
+	for (y = 0; y < height; y++) {
+		for (x = 0; x < width; x++) {
+			unsigned char *src = data + (y * width + x) * 3;
+			unsigned long pixel = (src[0] << 16) | (src[1] << 8) | src[2];
+			XPutPixel(ximg, x, y, pixel);
+		}
+	}
+
+	// Create Pixmap and copy XImage into it
+	Pixmap pixmap = XCreatePixmap(dpy, win, width, height, depth);
+	GC gc = XCreateGC(dpy, pixmap, 0, NULL);
+	XPutImage(dpy, pixmap, gc, ximg, 0, 0, 0, 0, width, height);
+	XFreeGC(dpy, gc);
+
+	free(ximg->data);
+	XDestroyImage(ximg);
+	return pixmap;
+}
+
 static int lastc;
 
-static image *img_stack = NULL;
+static web_image *img_stack = NULL;
 
 static pixel bg = {255, 255, 255};	/* white background */
 static pixel fg = {0, 0, 0};		/* black foreground */
@@ -94,22 +131,7 @@ void tiff_rgba_to_bgra(uint32_t *pixels, size_t count) {
 	}
 }
 
-// Convert RGBA to BGRA in-place
-static void rgba_to_bgra_inplace(uint8_t *pixels, size_t pixel_count) {
-	if (!pixels)
-		return;
-
-	size_t i;
-	for (i = 0; i < pixel_count; i++) {
-		uint8_t *p = &pixels[i * 4];
-		uint8_t r = p[0];
-		uint8_t b = p[2];
-		p[0] = b; // Swap R and B
-		p[2] = r;
-	}
-}
-
-static unsigned char *to_pixmap_memory(unsigned char *data, int len) {
+static unsigned char *image_to_pixmap(unsigned char *data, int len) {
 	int x, y, comp, req_comp = 0;
 	NSVGimage *shapes = NULL;
 	NSVGrasterizer *rast = NULL;
@@ -123,7 +145,6 @@ static unsigned char *to_pixmap_memory(unsigned char *data, int len) {
 	stb.size = len;
 	if (stbi_info_from_memory((const stbi_uc *)data, len, &x, &y, &comp)
 		&& (image_data = stbi_load_from_memory(data, len, &x, &y, &comp, req_comp))) {
-		rgba_to_bgra_inplace(image_data, (x * y));
 		return image_data;
 	} else if ((shapes = nsvgParse(data, "px", 96.0f))) {
 		x = (int)shapes->width;
@@ -146,7 +167,6 @@ static unsigned char *to_pixmap_memory(unsigned char *data, int len) {
 		nsvgRasterize(rast, shapes, 0, 0, 1.0f, image_data, x, y, x * 4);
 		nsvgDeleteRasterizer(rast);
 		nsvgDelete(shapes);
-		rgba_to_bgra_inplace(image_data, (x * y));
 		return image_data;
 	} else if ((tif = TIFFClientOpen("MemTIFF", "r", (thandle_t)&stb, mem_read,
 		mem_write, mem_seek, mem_close, mem_size, mem_map, mem_unmap))) {
@@ -161,7 +181,7 @@ static unsigned char *to_pixmap_memory(unsigned char *data, int len) {
 			return NULL;
 		}
 
-		/* Read RGBA image */
+		/* Read RGBA web_image */
 		if (!TIFFReadRGBAImageOriented(tif, width, height, raster, ORIENTATION_TOPLEFT, 0)) {
 			fprintf(stderr, "TIFFReadRGBAImage failed\n");
 			_TIFFfree(raster);
@@ -169,7 +189,6 @@ static unsigned char *to_pixmap_memory(unsigned char *data, int len) {
 			return NULL;
 		}
 
-		tiff_rgba_to_bgra(raster, (width * height));
 		return (unsigned char *)raster;
 	} else {
 		fprintf(stderr, "Failed to load image: %s\n", stbi_failure_reason());
@@ -197,8 +216,8 @@ static void img_warn(char *fmt, ...) {
 	return;
 }
 
-static image *img_new(int npixels) {
-	image *i1 = MwMalloc(sizeof * i1);
+static web_image *img_new(int npixels) {
+	web_image *i1 = MwMalloc(sizeof * i1);
 	if (npixels) {
 		i1->npixels = npixels;
 		/* the extra 7 are for P4; think about it */
@@ -218,13 +237,13 @@ static image *img_new(int npixels) {
 */
 struct img_cache {
 	url_info *ui;
-	image *img;
+	web_image *img;
 	int ref;
 	struct img_cache *next;
 } *ic;
 
-/* free an image */
-void img_free(image *i1) {
+/* free an web_image */
+void img_free(web_image *i1) {
 	struct img_cache *i;
 
 	if (i1 == NULL) return;
@@ -245,7 +264,7 @@ void img_free(image *i1) {
 	MwFree(i1);
 }
 
-image *img_load(char *url) {
+web_image *img_load(char *url) {
 	url_info *ui;
 	struct img_cache *i, *i1;
 	for (i = ic; i; i = i->next) {
@@ -301,8 +320,8 @@ static int read_number(FILE *fpi) {
 	return n;
 }
 
-static image *alloc_pixels(FILE *fpi) {
-	image *i1;
+static web_image *alloc_pixels(FILE *fpi) {
+	web_image *i1;
 	int w, h;
 
 	readchar(fpi);
@@ -512,8 +531,8 @@ static int palette_size(palette *pa) {
 }
 
 /* ascii pbm */
-static image *read_p1(FILE *fpi) {
-	image *i1;
+static web_image *read_p1(FILE *fpi) {
+	web_image *i1;
 	int i, n;
 	pixel *pixels;
 	i1 = alloc_pixels(fpi);
@@ -528,7 +547,7 @@ static image *read_p1(FILE *fpi) {
 }
 
 /* image output */
-static int write_p1(image *i1, FILE *fpo) {
+static int write_p1(web_image *i1, FILE *fpo) {
 	int i, w = i1->width, h = i1->height, m, n = w * h;
 	pixel *pixels = i1->pixels;
 	fprintf(fpo, "P1\n%d\n%d\n", w, h);
@@ -540,8 +559,8 @@ static int write_p1(image *i1, FILE *fpo) {
 }
 
 /* ascii pgm */
-static image *read_p2(FILE *fpi) {
-	image *i1;
+static web_image *read_p2(FILE *fpi) {
+	web_image *i1;
 	int i, n, m;
 	pixel *pixels;
 	i1 = alloc_pixels(fpi);
@@ -556,7 +575,7 @@ static image *read_p2(FILE *fpi) {
 	return i1;
 }
 
-static int write_p2(image *i1, FILE *fpo) {
+static int write_p2(web_image *i1, FILE *fpo) {
 	int i;
 	pixel *pixels = i1->pixels;
 	int n = i1->width * i1->height;
@@ -570,8 +589,8 @@ static int write_p2(image *i1, FILE *fpo) {
 }
 
 /* ascii ppm */
-static image *read_p3(FILE *fpi) {
-	image *i1;
+static web_image *read_p3(FILE *fpi) {
+	web_image *i1;
 	int i, m;
 	pixel *pixels;
 	i1 = alloc_pixels(fpi);
@@ -589,7 +608,7 @@ static image *read_p3(FILE *fpi) {
 	return i1;
 }
 
-static int write_p3(image *i1, FILE *fpo) {
+static int write_p3(web_image *i1, FILE *fpo) {
 	int i;
 	pixel *pixels = i1->pixels;
 	int n = i1->width * i1->height;
@@ -602,8 +621,8 @@ static int write_p3(image *i1, FILE *fpo) {
 }
 
 /* raw pbm */
-static image *read_p4(FILE *fpi) {
-	image *i1;
+static web_image *read_p4(FILE *fpi) {
+	web_image *i1;
 	int i, j;
 	pixel *pixels;
 	i1 = alloc_pixels(fpi);
@@ -625,8 +644,8 @@ static image *read_p4(FILE *fpi) {
 }
 
 /* raw pgm */
-static image *read_p5(FILE *fpi) {
-	image *i1;
+static web_image *read_p5(FILE *fpi) {
+	web_image *i1;
 	int i, m;
 	pixel *pixels;
 	i1 = alloc_pixels(fpi);
@@ -641,8 +660,8 @@ static image *read_p5(FILE *fpi) {
 }
 
 /* raw ppm */
-static image *read_p6(FILE *fpi) {
-	image *i1;
+static web_image *read_p6(FILE *fpi) {
+	web_image *i1;
 	int i, m;
 	pixel *pixels;
 	i1 = alloc_pixels(fpi);
@@ -660,7 +679,7 @@ static image *read_p6(FILE *fpi) {
 	return i1;
 }
 
-static image *read_pnm(FILE *fpi) {
+static web_image *read_pnm(FILE *fpi) {
 	readchar(fpi);
 	if (lastc == 'P') {	/* possible P?M */
 		readchar(fpi);
@@ -686,7 +705,7 @@ static image *read_pnm(FILE *fpi) {
 	return NULL;
 }
 
-static int write_gba(image *i1, FILE *fpo) {
+static int write_gba(web_image *i1, FILE *fpo) {
 	int i;
 	int cm[256];	/* color map */
 	int rcm[32768];	/* reverse color map */
@@ -825,15 +844,15 @@ static unsigned char *read_tiff_rgba(const char *filename, uint32_t *width, uint
 	return img_data;
 }
 
-static image *read_stbi(const char *filename) {
+static web_image *read_stbi(const char *filename) {
 	int x, y, channels_in_file;
 	stbi_uc *data = NULL;
 
 	if ((data = stbi_load(filename, &x, &y, &channels_in_file, 4))) {
-		rgba_to_bgra_inplace(data, (x * y));
-		image *i1 = img_new(0);
+		web_image *i1 = img_new(0);
 		i1->width = x;
 		i1->height = y;
+		i1->channels = channels_in_file;
 		i1->_image = data;
 		return i1;
 	}
@@ -842,7 +861,7 @@ static image *read_stbi(const char *filename) {
 	return NULL;
 }
 
-static image *read_nsvg(const char *filename) {
+static web_image *read_nsvg(const char *filename) {
 	int x, y;
 	NSVGimage *shapes = NULL;
 	NSVGrasterizer *rast = NULL;
@@ -856,10 +875,10 @@ static image *read_nsvg(const char *filename) {
 		nsvgRasterize(rast, shapes, 0, 0, 1.0f, data, x, y, x * 4);
 		nsvgDeleteRasterizer(rast);
 		nsvgDelete(shapes);
-		rgba_to_bgra_inplace(data, (x * y));
-		image *i1 = img_new(0);
+		web_image *i1 = img_new(0);
 		i1->width = x;
 		i1->height = y;
+		i1->channels = 4;
 		i1->_image = data;
 		return i1;
 	}
@@ -868,15 +887,15 @@ static image *read_nsvg(const char *filename) {
 	return NULL;
 }
 
-static image *read_tiff(const char *filename) {
+static web_image *read_tiff(const char *filename) {
 	int x, y;
 	stbi_uc *data = NULL;
 
 	if ((data = read_tiff_rgba(filename, &x, &y))) {
-		rgba_to_bgra_inplace(data, (x * y));
-		image *i1 = img_new(0);
+		web_image *i1 = img_new(0);
 		i1->width = x;
 		i1->height = y;
+		i1->channels = 4;
 		i1->_image = data;
 		return i1;
 	}
@@ -901,8 +920,8 @@ static int read_internal(FILE *fpi) {
 }
 
 /* this format is a bloody mess; someone ought to be shot */
-static image *read_xpm(FILE *fpi) {
-	image *i1;
+static web_image *read_xpm(FILE *fpi) {
+	web_image *i1;
 	pixel p;
 	char b[1024], c[10];
 	char *q;
@@ -1001,7 +1020,7 @@ static image *read_xpm(FILE *fpi) {
 	return i1;
 }
 
-static int write_xpm(image *i1, FILE *fpo) {
+static int write_xpm(web_image *i1, FILE *fpo) {
 	palette *pa = NULL, *pb;
 	int i, j, k, m, n, cpp, w = i1->width, h = i1->height;
 	pixel p, *pixels;
@@ -1070,12 +1089,12 @@ static int write_xpm(image *i1, FILE *fpo) {
 	return 0;
 }
 
-static image *read_xbm(FILE *fpi) {
+static web_image *read_xbm(FILE *fpi) {
 	img_warn("Can't read XBM");
 	return NULL;
 }
 
-static int write_xbm(image *i1, FILE *fpo) {
+static int write_xbm(web_image *i1, FILE *fpo) {
 	int i, j, w = i1->width, h = i1->height, m, n;
 	pixel p;
 	fprintf(fpo,
@@ -1103,49 +1122,49 @@ static int write_xbm(image *i1, FILE *fpo) {
 	return 0;
 }
 
-static image *read_jpeg(FILE *fpi) {
+static web_image *read_jpeg(FILE *fpi) {
 	if (read_internal(fpi))
 		return read_stbi("/tmp/fnord");
 
 	return NULL;
 }
 
-static image *read_gif(FILE *fpi) {
+static web_image *read_gif(FILE *fpi) {
 	if (read_internal(fpi))
 		return read_stbi("/tmp/fnord");
 
 	return NULL;
 }
 
-static image *read_tif(FILE *fpi) {
+static web_image *read_tif(FILE *fpi) {
 	if (read_internal(fpi))
 		return read_tiff("/tmp/fnord");
 
 	return NULL;
 }
 
-static image *read_svg(FILE *fpi) {
+static web_image *read_svg(FILE *fpi) {
 	if (read_internal(fpi))
 		return read_nsvg("/tmp/fnord");
 
 	return NULL;
 }
 
-static image *read_png(FILE *fpi) {
+static web_image *read_png(FILE *fpi) {
 	if (read_internal(fpi))
 		return read_stbi("/tmp/fnord");
 
 	return NULL;
 }
 
-static image *read_bmp(FILE *fpi) {
+static web_image *read_bmp(FILE *fpi) {
 	if (read_internal(fpi))
 		return read_stbi("/tmp/fnord");
 
 	return NULL;
 }
 
-static image *read_unknown(FILE *fpi) {
+static web_image *read_unknown(FILE *fpi) {
 	if (read_internal(fpi))
 		return read_stbi("/tmp/fnord");
 
@@ -1154,8 +1173,8 @@ static image *read_unknown(FILE *fpi) {
 
 struct {
 	char *name;
-	image *(*load)(FILE *);
-	int (*save)(image *, FILE *);
+	web_image *(*load)(FILE *);
+	int (*save)(web_image *, FILE *);
 } img_io[] = {
 	{"P1", read_pnm, write_p1},
 	{"PBM", read_pnm, write_p1},
@@ -1179,7 +1198,7 @@ struct {
 
 int img_alias(void) {
 	pixel p, p1, p2, p3, p4, p5, p6, p7, p8;
-	image *i2;
+	web_image *i2;
 	int i, j, w = img_stack->width, h = img_stack->height;
 
 	i2 = img_new(w * h);
@@ -1236,7 +1255,7 @@ int img_cd(char *p) {
 }
 
 int img_crop(void) {
-	image *i1 = img_stack;
+	web_image *i1 = img_stack;
 	pixel p1, p2;
 	int lc, rc, tr, br, i, w, h, n;
 
@@ -1290,7 +1309,7 @@ L4:	/* rc now contains the rightmost column we want to keep */
 }
 
 int img_cut(int x, int y, int w, int h) {
-	image i2 = *img_stack;
+	web_image i2 = *img_stack;
 	pixel p;
 	int i, j;
 
@@ -1329,7 +1348,7 @@ int img_depth(int n) {
 int img_despeckle(int w, int h) {
 	int w1, h1;
 	int i, j;
-	image *i2;
+	web_image *i2;
 	pixel p;
 
 	if (img_stack == NULL) return -1;
@@ -1356,7 +1375,7 @@ int img_despeckle(int w, int h) {
 }
 
 int img_drop(void) {
-	image *i1 = img_stack;
+	web_image *i1 = img_stack;
 	if (i1 == NULL) return -1;
 	img_stack = img_stack->next;
 	img_free(i1);
@@ -1364,7 +1383,7 @@ int img_drop(void) {
 }
 
 int img_dup(void) {
-	image *i1 = img_new(img_stack->npixels);
+	web_image *i1 = img_new(img_stack->npixels);
 	if (img_stack == NULL) return -1;
 	i1->width = img_stack->width;
 	i1->height = img_stack->height;
@@ -1452,12 +1471,12 @@ int img_lr(void) {
 }
 
 int img_makeicons(int w, int h, char *tndir) {
-	image *i1;
+	web_image *i1;
 	DIR *dp = opendir(".");
 	struct dirent *de;
 	char *q, *fn, b[4096];
 	FILE *fpi;
-	image *(*load)(FILE *);
+	web_image *(*load)(FILE *);
 	int i;
 	if (dp == NULL) {
 		img_warn("Can't open current directory");
@@ -1509,15 +1528,15 @@ int img_pixels(int n) {
 	return -1;
 }
 
-image *img_pop(void) {
-	image *i;
+web_image *img_pop(void) {
+	web_image *i;
 	if (img_stack == NULL) return NULL;
 	i = img_stack;
 	img_stack = img_stack->next;
 	return i;
 }
 
-int img_push(image *i) {
+int img_push(web_image *i) {
 	i->next = img_stack;
 	img_stack = i;
 	return 0;
@@ -1527,7 +1546,7 @@ int img_r90(void) {
 	int i, j;
 	int w1, h1, w2, h2;
 	pixel p1;
-	image *i2;
+	web_image *i2;
 	if (img_stack == NULL) return -1;
 	w1 = img_stack->width, h1 = img_stack->height;
 	i2 = img_new(w1 * h1);
@@ -1549,7 +1568,7 @@ int img_r180(void) {
 	int i, j;
 	int w1 = img_stack->width, h1 = img_stack->height, w2, h2;
 	pixel p1;
-	image *i2 = img_new(w1 * h1);
+	web_image *i2 = img_new(w1 * h1);
 	w2 = i2->width = w1;
 	h2 = i2->height = h1;
 	for (i = 0; i < h1; i++) {
@@ -1568,7 +1587,7 @@ int img_r270(void) {
 	int i, j;
 	int w1 = img_stack->width, h1 = img_stack->height, w2, h2;
 	pixel p1;
-	image *i2 = img_new(w1 * h1);
+	web_image *i2 = img_new(w1 * h1);
 	w2 = i2->width = h1;
 	h2 = i2->height = w1;
 	for (i = 0; i < h1; i++) {
@@ -1586,10 +1605,10 @@ int img_r270(void) {
 /* If format is specified as FMT:filename, trust the FMT. Otherwise guess. */
 int img_read(char *fn) {
 	char *q, b[100];
-	image *i1 = NULL;
+	web_image *i1 = NULL;
 	FILE *fpi;
 	int i, n;
-	image *(*load)(FILE *) = NULL;
+	web_image *(*load)(FILE *) = NULL;
 
 	q = strchr(fn, ':');
 	if (q) {
@@ -1661,7 +1680,7 @@ int img_scroll(int x, int y) {
 	int i, j;
 	int w1 = img_stack->width, h1 = img_stack->height, w2, h2;
 	pixel p1;
-	image *i2 = img_new(w1 * h1);
+	web_image *i2 = img_new(w1 * h1);
 	if (i2 == NULL) return -1;
 	w2 = i2->width = w1;
 	h2 = i2->height = h1;
@@ -1690,7 +1709,7 @@ int img_size(int w, int h) {
 	int w2, h2;
 	int i, j;
 	pixel p1;
-	image *i2;
+	web_image *i2;
 
 	if (w) w2 = w;
 	else w2 = w1;
@@ -1716,7 +1735,7 @@ int img_size(int w, int h) {
 int img_smooth(int w, int h) {
 	int w1 = img_stack->width, h1 = img_stack->height;
 	int i, j;
-	image *i2 = img_new(img_stack->npixels);
+	web_image *i2 = img_new(img_stack->npixels);
 	pixel p;
 
 	if (!(w & h & 1)) {
@@ -1740,7 +1759,7 @@ int img_smooth(int w, int h) {
 }
 
 int img_swap(void) {
-	image *i1 = img_stack;
+	web_image *i1 = img_stack;
 	if (i1 == NULL) return -1;
 	img_stack = i1->next;
 	if (img_stack == NULL) return -1;
@@ -1765,7 +1784,7 @@ int img_tb(void) {
 }
 
 int img_tile(int w, int h) {
-	image *i2 = img_new(w * h);
+	web_image *i2 = img_new(w * h);
 	int i, j;
 	int w1, h1;
 	pixel p;
@@ -1786,7 +1805,7 @@ int img_tile(int w, int h) {
 	return 0;
 }
 
-image *img_top(void) {
+web_image *img_top(void) {
 	return img_stack;
 }
 
@@ -1795,7 +1814,7 @@ int img_write(char *p) {
 	FILE *fpo;
 	char b[1024];
 	char *q = strrchr(p, '.');
-	int (*save)(image *, FILE *) = NULL;
+	int (*save)(web_image *, FILE *) = NULL;
 	int i, n;
 
 	q = strchr(p, ':');
@@ -1950,4 +1969,110 @@ int img_main(int argc, char **argv) {
 		i++;
 	}
 	return 0;
+}
+
+static inline void blend_pixel(unsigned char *dst, const unsigned char *src,
+	unsigned char bg_r, unsigned char bg_g, unsigned char bg_b) {
+	float alpha = src[3] / 255.0f;
+	dst[0] = (unsigned char)(src[0] * alpha + bg_r * (1 - alpha));
+	dst[1] = (unsigned char)(src[1] * alpha + bg_g * (1 - alpha));
+	dst[2] = (unsigned char)(src[2] * alpha + bg_b * (1 - alpha));
+}
+
+static Pixmap create_pixmap_from_rgb(Display *dpy, Drawable drawable, int width, int height, unsigned char *data) {
+	int x, y, depth = DefaultDepth(dpy, DefaultScreen(dpy));
+	Visual *visual = DefaultVisual(dpy, DefaultScreen(dpy));
+
+	XImage *ximg = XCreateImage(dpy, visual, depth, ZPixmap, 0, NULL, width, height, 32, 0);
+	if (!ximg) {
+		fprintf(stderr, "Error: Failed to create XImage.\n");
+		return None;
+	}
+
+	ximg->data = malloc(ximg->bytes_per_line * height);
+	if (!ximg->data) {
+		fprintf(stderr, "Error: Memory allocation failed for XImage data.\n");
+		XDestroyImage(ximg);
+		return None;
+	}
+
+	for (y = 0; y < height; y++) {
+		for (x = 0; x < width; x++) {
+			unsigned char *src = data + (y * width + x) * 3;
+			unsigned long pixel = (src[0] << 16) | (src[1] << 8) | src[2];
+			XPutPixel(ximg, x, y, pixel);
+		}
+	}
+
+	Pixmap pixmap = XCreatePixmap(dpy, DefaultRootWindow(dpy), width, height, depth);
+	if (pixmap == None) {
+		fprintf(stderr, "Error: Failed to create Pixmap.\n");
+		free(ximg->data);
+		XDestroyImage(ximg);
+		return None;
+	}
+
+	GC gc = XCreateGC(dpy, pixmap, 0, NULL);
+	XPutImage(dpy, pixmap, gc, ximg, 0, 0, 0, 0, width, height);
+	XFreeGC(dpy, gc);
+
+	XDestroyImage(ximg);
+	return pixmap;
+}
+
+Pixmap img_load_any(Widget top, Display *dpy, const char *filename) {
+	int i, len, x, y, channels_in_file = 0;
+	unsigned *dp;
+	NSVGimage *shapes = NULL;
+	NSVGrasterizer *rast = NULL;
+	stbi_uc *data = NULL;
+
+	if ((data = stbi_load(filename, &x, &y, &channels_in_file, 4))) {
+		;
+	} else if ((shapes = nsvgParseFromFile(filename, "px", 96.0f))) {
+		x = (int)shapes->width;
+		y = (int)shapes->height;
+		rast = nsvgCreateRasterizer();
+		data = malloc(x * y * 4);
+		nsvgRasterize(rast, shapes, 0, 0, 1.0f, data, x, y, x * 4);
+		nsvgDeleteRasterizer(rast);
+		nsvgDelete(shapes);
+	} else if (data = (stbi_uc *)read_tiff_rgba(filename, &x, &y)) {
+		;
+	} else {
+		return 0;
+	}
+
+	// Determine background color
+	XColor bg;
+	unsigned char bg_r = 255, bg_g = 255, bg_b = 255; // default white
+	Colormap cmap = DefaultColormap(dpy, DefaultScreen(dpy));
+
+	// Get background color of top-level widget
+	XtVaGetValues(top, XtNbackground, &bg.pixel, NULL);
+	XQueryColor(dpy, cmap, &bg);
+	bg_r = bg.red >> 8;
+	bg_g = bg.green >> 8;
+	bg_b = bg.blue >> 8;
+
+	// Blend alpha onto background
+	unsigned char *rgb_data = malloc(x * y * 3);
+	if (!rgb_data) {
+		fprintf(stderr, "Error: Memory allocation failed for RGB buffer.\n");
+		free(data);
+		return 0;
+	}
+
+	for (i = 0; i < x * y; i++)
+		blend_pixel(&rgb_data[i * 3], &data[i * 4], bg_r, bg_g, bg_b);
+	free(data);
+
+	Pixmap pixmap = create_pixmap_from_rgb(dpy, DefaultRootWindow(dpy), x, y, rgb_data);
+	free(rgb_data);
+	if (pixmap == None) {
+		fprintf(stderr, "Failed to create pixmap.\n");
+		return 0;
+	}
+
+	return pixmap;
 }

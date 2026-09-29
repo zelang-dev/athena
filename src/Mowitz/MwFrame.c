@@ -403,33 +403,32 @@ Region	region;
 		case Blank: break;
 		case Solid:
 			Draw3dBox(w, 0, sy, sw, sh,
-				s, fw->frame.foregroundGC, fw->frame.foregroundGC,
-				fw->frame.foregroundGC, fw->frame.foregroundGC);
+				s, fw->frame.foregroundGC, fw->frame.foregroundGC);
 			break;
 
 		case Raised:
-			Draw3dBox(w, 0, sy, sw, sh, s, topGC, botGC, tophalf, bothalf);
+			Draw3dBox(w, 0, sy, sw, sh, s, topGC, botGC);
 			break;
 		case Lowered:
-			Draw3dBox(w, 0, sy, sw, sh, s, botGC, topGC, bothalf, tophalf);
+			Draw3dBox(w, 0, sy, sw, sh, s, botGC, topGC);
 			break;
 
 		case Ridge:
-			Draw3dBox(w, s / 2, sy + s / 2, sw - s, sh - s, s - s / 2, botGC, topGC, bothalf, tophalf);
-			Draw3dBox(w, 0, sy, sw, sh, s / 2, topGC, botGC, tophalf, bothalf);
+			Draw3dBox(w, s / 2, sy + s / 2, sw - s, sh - s, s - s / 2, botGC, topGC);
+			Draw3dBox(w, 0, sy, sw, sh, s / 2, topGC, botGC);
 			break;
 		case Groove:
-			Draw3dBox(w, s / 2, sy + s / 2, sw - s, sh - s, s - s / 2, topGC, botGC, tophalf, bothalf);
-			Draw3dBox(w, 0, sy, sw, sh, s / 2, botGC, topGC, bothalf, tophalf);
+			Draw3dBox(w, s / 2, sy + s / 2, sw - s, sh - s, s - s / 2, topGC, botGC);
+			Draw3dBox(w, 0, sy, sw, sh, s / 2, botGC, topGC);
 			break;
 
 		case Plateau:
-			Draw3dBox(w, 0, sy + 0, sw, sh, 2, topGC, botGC, tophalf, bothalf);
-			Draw3dBox(w, s - 2, sy + s - 2, sw - s * 2 + 4, sh - s * 2 + 4, 2, botGC, topGC, bothalf, tophalf);
+			Draw3dBox(w, 0, sy + 0, sw, sh, 2, topGC, botGC);
+			Draw3dBox(w, s - 2, sy + s - 2, sw - s * 2 + 4, sh - s * 2 + 4, 2, botGC, topGC);
 			break;
 		case Trough:
-			Draw3dBox(w, 0, sy + 0, sw, sh, 2, botGC, topGC, bothalf, tophalf);
-			Draw3dBox(w, s - 2, sy + s - 2, sw - s * 2 + 4, sh - s * 2 + 4, 2, topGC, botGC, tophalf, bothalf);
+			Draw3dBox(w, 0, sy + 0, sw, sh, 2, botGC, topGC);
+			Draw3dBox(w, s - 2, sy + s - 2, sw - s * 2 + 4, sh - s * 2 + 4, 2, topGC, botGC);
 			break;
 	}
 }

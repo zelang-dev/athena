@@ -374,7 +374,7 @@ static void Initialize(Widget req, Widget new, ArgList args, Cardinal *num)
 	}
 	cw->combo.text = XtVaCreateManagedWidget("combo_text",
 		mwTextfieldWidgetClass, new,
-		XtNdisplayCaret, False,
+		XtNdisplayCaret, False, XtNbackground, 0xffffff,
 		(char *)0);
 	XtAddEventHandler(cw->combo.text,
 		ButtonPressMask, False, combo_text_edit, NULL);
@@ -401,6 +401,7 @@ static void Initialize(Widget req, Widget new, ArgList args, Cardinal *num)
 		listWidgetClass, cw->combo.viewport,
 		XtNdefaultColumns, 1,
 		XtNforceColumns, True,
+		XtNbackground, 0xffffff,
 		(char *)0);
 	XtAddCallback(cw->combo.list,
 		XtNcallback, combo_list_select, new);
@@ -408,12 +409,7 @@ static void Initialize(Widget req, Widget new, ArgList args, Cardinal *num)
 
 static void Destroy(Widget w)
 {
-	MwComboWidget cw = (MwComboWidget)w;
-	XtDestroyWidget(cw->combo.list);
-	XtDestroyWidget(cw->combo.viewport);
-	XtDestroyWidget(cw->combo.shell);
-	XtDestroyWidget(cw->combo.cmd);
-	XtDestroyWidget(cw->combo.text);
+	XtDestroyWidget(w);
 }
 
 static void Redisplay(Widget w, XEvent *event, Region region)

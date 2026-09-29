@@ -174,7 +174,7 @@ void message_box(__ATS_MENU__) {
 
 void web_box(__ATS_MENU__) {
 	ats_t ui = {0};
-	if (ats_webview(&ui, "Webview", "http://en.wikipedia.org/wiki/WebView", 800, 400, true)) {
+	if (ats_webview(&ui, "Webview", "https://google.com", 800, 400, true)) {
 		ats_webactive(&ui);
 		ats_webdestroy(&ui);
 	}

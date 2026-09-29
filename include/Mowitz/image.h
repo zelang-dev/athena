@@ -1,6 +1,11 @@
 #ifndef IMAGE_H
 #define IMAGE_H
 
+#include <X11/X.h>
+#include <X11/Xlib.h>
+#include <X11/Intrinsic.h>
+#include <X11/StringDefs.h>
+
 #define GET_PIXEL_IMAGE(i,x,y) \
         ((i)->_image[(y)*(i)->width+(x)])
 
@@ -10,18 +15,18 @@
         ((i)->pixels[(y)*(i)->width+(x)]=(p))
 
 typedef struct pixel {
-        unsigned char r, g, b;
+	unsigned char r, g, b;
 } pixel;
 
-typedef struct image {
-        int width, height, npixels;
-		pixel *pixels;
-		struct image *next;
-		unsigned char *_image;
-} image;
+typedef struct web_image_s {
+	int width, height, npixels, channels;
+	pixel *pixels;
+	struct web_image_s *next;
+	unsigned char *_image;
+} web_image;
 
-void img_free(image *);
-image *img_load(char *);
+void img_free(web_image *);
+web_image *img_load(char *);
 int img_eq_pixel(pixel p, pixel q);
 pixel img_average_pixel(int x, int y, int w, int h);
 pixel img_median_pixel(int x, int y, int w, int h);
@@ -44,8 +49,8 @@ int img_makeicons(int w, int h, char *tndir);
 int img_margin(char *p);
 int img_noop(char *p);
 int img_pixels(int n);
-image *img_pop(void);
-int img_push(image *);
+web_image *img_pop(void);
+int img_push(web_image *);
 int img_r90(void);
 int img_r180(void);
 int img_r270(void);
@@ -60,8 +65,9 @@ int img_smooth(int w, int h);
 int img_swap(void);
 int img_tb(void);
 int img_tile(int w, int h);
-image *img_top(void);
+web_image *img_top(void);
 int img_write(char *p);
 int img_main(int, char **);
+Pixmap img_load_any(Widget top, Display *dpy, const char *filename);
 
 #endif	/* IMAGE_H */

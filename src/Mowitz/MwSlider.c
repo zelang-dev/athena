@@ -917,8 +917,7 @@ static	void
 SliderDrawBorder(MwSliderWidget sw)
 {
 	Draw3dBox((Widget)sw, 0,0, sw->core.width, sw->core.height,
-		sw->slider.shadowWidth, sw->slider.botGC, sw->slider.topGC,
-		sw->slider.botGC, sw->slider.topGC) ;
+		sw->slider.shadowWidth, sw->slider.botGC, sw->slider.topGC) ;
 }
 
 
@@ -1001,7 +1000,7 @@ SliderDrawThumb(MwSliderWidget sw)
 	  XDrawLine(dpy,win, botgc, x, y+hgt/2-1, x+wid-1, y+hgt/2-1) ;
 	  XDrawLine(dpy,win, topgc, x, y+hgt/2, x+wid-1, y+hgt/2) ;
 	}
-	Draw3dBox((Widget)sw, x,y, wid, hgt, s, topgc, botgc, topgc, botgc) ;
+	Draw3dBox((Widget)sw, x,y, wid, hgt, s, topgc, botgc) ;
 }
 
 

@@ -277,6 +277,7 @@
 #	include <Xaw95/Traversal.h>
 #endif
 
+#include <TextField.h>
 #include <FileSelect.h>
 #include <Gridbox.h>
 
@@ -350,18 +351,18 @@ typedef struct Forms_s {
 typedef Form ui_field;
 typedef struct ats_info_s ats_t;
 typedef struct {
-	int is_alert;
-	/* App's custom code */
-	unsigned long code;
 	/* `Application` main Window handle */
 	ats_wnd wnd;
 	/* App's custom handle */
 	void *app_data;
-	void **app_array;
 	/* App's custom title */
 	const char *name;
+	void **app_array;
 	ats_t *ats;
+	/* App's custom code */
+	unsigned long code;
 	ats_wnd self;
+	int is_alert;
 } ui_t;
 
 typedef struct hist hist_t;
@@ -414,7 +415,7 @@ typedef struct {
 #if __linux__
 	XWindowAttributes gwa;
 	ats_menu menubox;
-	char trans[512];
+	char trans[256];
 #endif
 	char *font_names;
 	ats_font font_info;
@@ -468,7 +469,7 @@ struct ats_info_s {
 	Pixmap icon_pixmap, icon_mask;
 	Atom code, wmDeleteMessage, dragdrop[MAX_DRAGDROPS + 1];
 	XEvent xev;
-	Widget topLevel, statusLine, tooltip;
+	Widget topLevel, statusLine, grid, tooltip;
 	Display *dpy;
 	XtAppContext app_con;
 	GC gc;
@@ -496,11 +497,20 @@ C_API void ats_active(ats_t *ui);
 C_API void ats_destroy(ats_t *ui);
 C_API void ats_cancel(ats_wnd self);
 C_API void ats_callback_set(ats_wnd on, _platform_cb action, void *with);
+
+C_API ats_wnd ats_field_set(ats_t *ui, ats_wnd on, ats_wnd alignto, char *initial, int x, int y, int width,
+	ui_field_type kind, _platform_cb activate);
+C_API ats_wnd ats_field_reset(ats_wnd field, size_t bgColor, char *initial, int width, bool is_secret);
 C_API void ats_alignfield(ats_wnd self, ats_wnd to, bool is_vert);
 
-C_API ats_wnd ats_field_set(ats_wnd on, ats_wnd alignto, char *initial, float x, float y,
-	float width, ui_field_type kind, ats_t *ui);
 C_API int ats_form(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb verify);
+C_API ats_wnd ats_richtext_set(ats_wnd on, int width, int height);
+C_API ats_wnd ats_ruler_set(ats_wnd on, int width, int height);
+C_API ats_wnd ats_slider_set(ats_wnd on, int width, int height);
+C_API ats_wnd ats_vslider_set(ats_wnd on, int width, int height);
+C_API ats_wnd ats_spinner_set(ats_wnd on, int min, int max, int step,
+	int initial_value, _platform_cb handler);
+C_API ats_wnd ats_animator_set(ats_wnd on, MwAniObject *cast, const char *gradient);
 
 C_API int ats_message_box(const char *title, const char *message, Button *buttons, int numButtons);
 C_API void ats_about_box(char *pixmap, char *message);
@@ -525,27 +535,35 @@ C_API ats_wnd ats_label_set(ats_wnd on, char *label);
 C_API ats_wnd ats_labelfull_set(char *tag, ats_wnd on, ats_wnd alignto,
 	char *label, int x, int y, bool is_vert);
 C_API ats_wnd ats_checkradio_set(ats_wnd on, char *label, bool is_radio);
-C_API ats_wnd ats_combo_set(ats_wnd on, char **data, int datasize);
+C_API ats_wnd ats_combo_set(ats_wnd on, char **data, int datasize, _platform_cb handler);
+C_API void ats_combofield_set(ats_wnd on, char *text);
 
 C_API ats_wnd ats_tabwindow_set(ats_wnd on, char *tabmessage, _platform_cb tabfunc);
 C_API void ats_tabinsert(ats_wnd tab, char *title, int slot);
+
 C_API ats_wnd ats_image_set(ats_wnd on, char *pixmap);
+C_API ats_wnd ats_anyimage_set(ats_t *ui, ats_wnd on, char *path);
+
 C_API void ats_background_set(ats_wnd on, char *to_color);
 C_API void ats_foreground_set(ats_wnd on, char *to_color);
 
-C_API ats_wnd ats_button_set(ats_t *ats, ats_wnd on, ats_wnd alignto, const char *label,
+C_API ats_wnd ats_button_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label,
 	_platform_cb action, int is_vert);
+C_API ats_wnd ats_buttons_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label,
+	_platform_cb action, int is_vert, int number, int y);
 
 C_API int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer);
 C_API int ats_menubar_set(ats_t *ui, int numof_menus);
 C_API int ats_font_set(ats_t *ui, const char *font);
-C_API int ats_menu_set(ats_t *ui, int num_menu, menuitem_t *items, int number_items, int menu_id, char *name);
+C_API int ats_menu_set(ats_t *ui, int num_menu, menuitem_t *items, int numof_items, int menu_id, char *name);
 C_API void ats_dragdrop_set(ats_t *ui, const char *mime, int slot, _platform_cb dropfunc, _platform_cb dragfunc);
 C_API void ats_dragdrop_update(ats_t *ui, const char *mime, int slot);
 C_API void ats_title_set(ats_t *ui, const char *title);
 C_API void ats_icon_set(ats_t *ui, const char *filepath);
 C_API ats_wnd ats_windowgrid_set(ats_t *ui, int topheight, int bottomheight);
-C_API ats_wnd ats_tabs_set(ats_wnd on);
+C_API ats_wnd ats_tabs_set(ats_t *ui, int y);
+C_API ats_wnd ats_tabsbox_set(char *title, ats_wnd on);
+C_API ats_wnd ats_tabsgrid_set(char *title, ats_wnd on, const char *yLayout);
 C_API ats_wnd ats_boxwindow_set(ats_wnd on);
 C_API ats_wnd ats_boxspace_set(ats_wnd on, int vertical, int horizontal);
 C_API ats_wnd ats_formwindow_set(ats_wnd on);
@@ -560,6 +578,13 @@ C_API void ats_open_dialog(ui_t *, _platform_cb save_handler);
 C_API void ats_sleep(int64_t ms);
 C_API int64_t ats_time(void);
 
+C_API size_t str_length(ui_form_t field);
+C_API ui_bool str_field_valid(ui_form_t field, ui_field form);
+C_API ui_bool str_is_regex(const char *pattern, ui_str_t match);
+C_API ui_bool is_ValidUrl(ui_str_t text);
+C_API ui_bool is_ValidEmail(ui_str_t text);
+C_API ui_bool is_ValidPassword(ui_form_t field);
+
 #define ats_pixel(w, x, y) ((w)->buf[((y) * (w)->width) + (x)])
 
 C_API int ats_webview(ats_t *ui, const char *title, const char *url,
@@ -567,12 +592,6 @@ C_API int ats_webview(ats_t *ui, const char *title, const char *url,
 C_API void ats_webactive(ats_t *ui);
 C_API void ats_webdestroy(ats_t *ui);
 
-C_API size_t str_length(ui_form_t field);
-C_API ui_bool str_field_valid(ui_form_t field, ui_field form);
-C_API ui_bool str_is_regex(const char *pattern, ui_str_t match);
-C_API ui_bool is_ValidUrl(ui_str_t text);
-C_API ui_bool is_ValidEmail(ui_str_t text);
-C_API ui_bool is_ValidPassword(ui_form_t field);
 
 #define DEFAULT_URL                                                            \
   "data:text/"                                                                 \

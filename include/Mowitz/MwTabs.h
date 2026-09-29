@@ -1,4 +1,5 @@
-/*
+/* $Id: Tabs.h,v 1.7 2000/01/27 19:03:51 falk Exp $
+ *
  * This widget manages one or more child widgets, exactly one of which is
  * visible.  Above the child widgets is a graphic that looks like index
  * tabs from file folders.  Each tab corresponds to one of the child widgets.
@@ -15,7 +16,7 @@
 
 /***********************************************************************
  *
- * MwTabs Widget (subclass of CompositeClass)
+ * Tabs Widget (subclass of CompositeClass)
  *
  ***********************************************************************/
 
@@ -28,11 +29,13 @@
  internalHeight	     Height		Dimension	2	*1
  topWidget	     TopWidget		Widget			*2
  callback	     Callback		XtCallbackList	NULL	*3
- selectInsensitive   SelectInsensitive	Boolean		True	*4
- beNiceToColormap    BeNiceToColormap	Boolean		False	*5
+ popdownCallback     Callback		XtCallbackList	NULL	*4
+ selectInsensitive   SelectInsensitive	Boolean		True	*5
+ beNiceToColormap    BeNiceToColormap	Boolean		False	*6
  topShadowContrast   TopShadowContrast	int		20
  bottomShadowContrast BottomShadowContrast int		40
- insensitiveContrast InsensitiveContrast int		33	*6
+ insensitiveContrast InsensitiveContrast int		33	*7
+ traversalOn	     TraversalOn	Boolean		True	*8
 
  background	     Background		Pixel		XtDefaultBackground
  border		     BorderColor	Pixel		XtDefaultForeground
@@ -54,10 +57,14 @@
  2 topWidget identifies the widget which is currently visible.
  3 callbacks are called whenever the user selects a tab.  Call_data is
    the new top widget.
- 4 SelectInsensitive determines whether or not insensitive children may
+ 4 popdownCallbacks are called whenever the user selects a tab.  Call_data is
+   the old (no longer visible) top widget.  Note that popdownCallbacks
+   are called before callbacks.
+ 5 SelectInsensitive determines whether or not insensitive children may
    be selected anyway.
- 5 BeNiceToColormap causes the MwTabs widget to use fewer colors.
- 6 InsensitiveContrast sets the contrast used for labels of insensitive widgets.
+ 6 BeNiceToColormap causes the Tabs widget to use fewer colors.
+ 7 InsensitiveContrast sets the contrast used for labels of insensitive widgets.
+ 8 If True, widget will accept keyboard focus.
 
 */
 
@@ -92,6 +99,11 @@
 #ifndef	XtNselectInsensitive
 #define	XtNselectInsensitive	"selectInsensitive"
 #define	XtCSelectInsensitive	"SelectInsensitive"
+#endif
+
+#ifndef	XtNtraversalOn
+#define	XtNtraversalOn	"traversalOn"
+#define	XtCTraversalOn	"TraversalOn"
 #endif
 
 #ifndef	XtNnlabels
@@ -159,11 +171,20 @@ typedef struct _MwTabsClassRec *MwTabsWidgetClass;
 typedef struct _MwTabsRec      *MwTabsWidget;
 
 _XFUNCPROTOBEGIN
+
 extern	void
 XawTabsSetTop(
 #if NeedFunctionPrototypes
 	Widget	w,
-	int	callCallbacks
+	Bool	callCallbacks
+#endif
+) ;
+
+extern	void
+XawTabsSetHighlight(
+#if NeedFunctionPrototypes
+	Widget	tabs,
+	Widget	w
 #endif
 ) ;
 
