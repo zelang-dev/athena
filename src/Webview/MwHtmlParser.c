@@ -12,7 +12,7 @@ XML and similar as well. It doesn't interpret what it sees at all.
 
 #include <Mowitz/MwUtils.h>
 #include <Mowitz/MwFormat.h>
-#include <Mowitz/MwHtmlParser.h>
+#include <Webview/MwHtmlParser.h>
 
 static MwFmt fmt0 = {
 		"New Century Schoolbook",    /* font family */

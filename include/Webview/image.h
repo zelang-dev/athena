@@ -19,7 +19,7 @@ typedef struct pixel {
 } pixel;
 
 typedef struct web_image_s {
-	int width, height, npixels, channels;
+	int width, height, npixels;
 	pixel *pixels;
 	struct web_image_s *next;
 	unsigned char *_image;
@@ -68,6 +68,5 @@ int img_tile(int w, int h);
 web_image *img_top(void);
 int img_write(char *p);
 int img_main(int, char **);
-Pixmap img_load_any(Widget top, Display *dpy, const char *filename);
 
 #endif	/* IMAGE_H */

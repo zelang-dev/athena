@@ -50,8 +50,9 @@ MA 02111-1307, USA.
 #include <Mowitz.h>
 #include <X11/xpm.h>
 #include <Mowitz/MwCheck.h>
-#include <Mowitz/MwHtmlP.h>
+#include <Webview/MwHtmlP.h>
 
+extern void ats_draw_image(Widget on, Drawable d, GC gc, int x, int y, unsigned char *_image, int width, int height);
 extern char *x_resolve_url(char *, char *);
 
 static float floatOne = 1.0;
@@ -684,19 +685,6 @@ static float breakline(object_box *fob, /*struct hs_out *o,*/ object_box *ob) {
 	return mh;
 }
 
-// Blend RGBA pixel onto white background
-static inline void blend_pixel(unsigned char *dst, unsigned char *src) {
-	unsigned char r = src[0];
-	unsigned char g = src[1];
-	unsigned char b = src[2];
-	unsigned char a = src[3];
-
-	// Alpha blending onto white background
-	dst[0] = (r * a + 255 * (255 - a)) / 255;
-	dst[1] = (g * a + 255 * (255 - a)) / 255;
-	dst[2] = (b * a + 255 * (255 - a)) / 255;
-}
-
 static void draw_pic(MwHtmlWidget hw, Drawable d, web_image *img, int x, int y) {
 	int i, j;
 	XImage *im_out;
@@ -718,36 +706,7 @@ static void draw_pic(MwHtmlWidget hw, Drawable d, web_image *img, int x, int y) 
 	height = img->height;
 	depth = hw->core.depth;
 	if (img->_image) {
-		XImage *ximg = XCreateImage(dpy, visual, depth, format, offset, NULL,
-			width, height, bitmap_pad, bytes_per_line);
-		if (!ximg) {
-			fprintf(stderr, "Failed to create XImage.\n");
-			return;
-		}
-
-		ximg->data = malloc(ximg->bytes_per_line * height);
-		if (!ximg->data) {
-			fprintf(stderr, "Memory allocation failed.\n");
-			XDestroyImage(ximg);
-			return;
-		}
-
-		// Fill XImage pixels
-		for (i = 0; i < height; i++) {
-			for (j = 0; j < width; j++) {
-				unsigned char rgb[3];
-				if (img->channels == 4) {
-					blend_pixel(rgb, img->_image + (i * width + j) * 4);
-				} else {
-					memcpy(rgb, img->_image + (i * width + j) * 3, 3);
-				}
-				unsigned long pixel = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
-				XPutPixel(ximg, j, i, pixel);
-			}
-		}
-
-		XPutImage(dpy, d, gc, ximg, 0, 0, x, y, img->width, img->height);
-		XDestroyImage(ximg);
+		ats_draw_image((Widget)hw, d, gc, x, y, img->_image, width, height);
 	} else {
 		im_out = XCreateImage(dpy, visual, depth, format, offset, data,
 			width, height, bitmap_pad, bytes_per_line);

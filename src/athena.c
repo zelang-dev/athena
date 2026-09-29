@@ -3,6 +3,20 @@
 #include <Gridbox.h>
 #include "libsmallregex.h"
 
+#include <math.h>
+#include <tiffio.h>	// TIFF reading
+
+#define NANOSVG_ALL_COLOR_KEYWORDS	// Include full list of color keywords.
+#define NANOSVG_IMPLEMENTATION
+#include "nanosvg.h"	// SVG parsing
+
+#define NANOSVGRAST_IMPLEMENTATION
+#include "nanosvgrast.h"	// SVG rasterization
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_SUPPORT_ZLIB
+#include "stb_image.h"	// PNG/JPG/GIF/TGA/BMP/PIC/PNM/PSD/HDR reading
+
 static ats_t *main_athena_info = NULL;
 static volatile bool main_athena_shutdown = false;
 
@@ -90,6 +104,213 @@ static char *fallback_webview[] = {
 
 #define left_click Button1
 #define right_click Button3
+
+// Structure to hold streamed data for stb_image
+typedef struct {
+	unsigned char *data;
+	size_t size;
+	size_t offset;
+} MemoryStream;
+
+/* Custom read function for TIFFClientOpen */
+static tsize_t mem_read(thandle_t handle, tdata_t buf, tsize_t size) {
+	MemoryStream *image = (MemoryStream *)handle;
+	if (image->offset + size > image->size)
+		size = image->size - image->offset;
+	memcpy(buf, image->data + image->offset, size);
+	image->offset += size;
+	return size;
+}
+
+/* Dummy write function (read-only) */
+static tsize_t mem_write(thandle_t handle, tdata_t buf, tsize_t size) {
+	return 0; // not supported
+}
+
+/* Seek function */
+static toff_t mem_seek(thandle_t handle, toff_t offset, int whence) {
+	MemoryStream *image = (MemoryStream *)handle;
+	size_t new_offset;
+	switch (whence) {
+		case SEEK_SET: new_offset = offset; break;
+		case SEEK_CUR: new_offset = image->offset + offset; break;
+		case SEEK_END: new_offset = image->size + offset; break;
+		default: return (toff_t)-1;
+	}
+	if (new_offset > image->size) return (toff_t)-1;
+	image->offset = new_offset;
+	return image->offset;
+}
+
+/* Close function */
+static int mem_close(thandle_t handle) {
+	return 0; // nothing to free here
+}
+
+/* Size function */
+static toff_t mem_size(thandle_t handle) {
+	MemoryStream *image = (MemoryStream *)handle;
+	return image->size;
+}
+
+/* Map/unmap functions (optional, not used here) */
+static int mem_map(thandle_t handle, tdata_t *data, toff_t *size) { return 0; }
+static void mem_unmap(thandle_t handle, tdata_t data, toff_t size) {}
+
+// Function to read TIFF into RGBA buffer
+static unsigned char *read_tiff_rgba(const char *filename, uint32_t *width, uint32_t *height) {
+	TIFF *tif = TIFFOpen(filename, "r");
+	if (!tif) {
+		fprintf(stderr, "Could not open TIFF file %s\n", filename);
+		return NULL;
+	}
+
+	TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, width);
+	TIFFGetField(tif, TIFFTAG_IMAGELENGTH, height);
+
+	size_t i, npixels = (*width) * (*height);
+	uint32_t *raster = (uint32_t *)_TIFFmalloc(npixels * sizeof(uint32_t));
+	if (!raster) {
+		fprintf(stderr, "Memory allocation failed\n");
+		TIFFClose(tif);
+		return NULL;
+	}
+
+	if (!TIFFReadRGBAImage(tif, *width, *height, raster, 0)) {
+		fprintf(stderr, "Could not read TIFF image\n");
+		_TIFFfree(raster);
+		TIFFClose(tif);
+		return NULL;
+	}
+
+	// Convert from uint32_t RGBA to unsigned char RGBA
+	unsigned char *img_data = (unsigned char *)malloc(npixels * 4);
+	if (!img_data) {
+		fprintf(stderr, "Memory allocation failed\n");
+		_TIFFfree(raster);
+		TIFFClose(tif);
+		return NULL;
+	}
+
+	for (i = 0; i < npixels; i++) {
+		uint32_t pixel = raster[i];
+		img_data[i * 4 + 0] = TIFFGetR(pixel);
+		img_data[i * 4 + 1] = TIFFGetG(pixel);
+		img_data[i * 4 + 2] = TIFFGetB(pixel);
+		img_data[i * 4 + 3] = TIFFGetA(pixel);
+	}
+
+	_TIFFfree(raster);
+	TIFFClose(tif);
+	return img_data;
+}
+
+static inline void blend_pixel(unsigned char *dst, const unsigned char *src,
+	unsigned char bg_r, unsigned char bg_g, unsigned char bg_b) {
+	float alpha = src[3] / 255.0f;
+	dst[0] = (unsigned char)(src[0] * alpha + bg_r * (1 - alpha));
+	dst[1] = (unsigned char)(src[1] * alpha + bg_g * (1 - alpha));
+	dst[2] = (unsigned char)(src[2] * alpha + bg_b * (1 - alpha));
+}
+
+// Blend RGBA pixel onto white background
+static inline void blend_onwhite(unsigned char *dst, unsigned char *src) {
+	unsigned char r = src[0];
+	unsigned char g = src[1];
+	unsigned char b = src[2];
+	unsigned char a = src[3];
+
+	// Alpha blending onto white background
+	dst[0] = (r * a + 255 * (255 - a)) / 255;
+	dst[1] = (g * a + 255 * (255 - a)) / 255;
+	dst[2] = (b * a + 255 * (255 - a)) / 255;
+}
+
+// Convert raw RGB(A) data to X11 Pixmap
+static Pixmap pixmap_from_rgba(Display *dpy, Drawable drawable, int width, int height, unsigned char *data) {
+	int x, y, depth = DefaultDepth(dpy, DefaultScreen(dpy));
+	Visual *visual = DefaultVisual(dpy, DefaultScreen(dpy));
+
+	XImage *ximg = XCreateImage(dpy, visual, depth, ZPixmap, 0, NULL, width, height, 32, 0);
+	if (!ximg) {
+		fprintf(stderr, "Error: Failed to create XImage.\n");
+		return None;
+	}
+
+	ximg->data = malloc(ximg->bytes_per_line * height);
+	if (!ximg->data) {
+		fprintf(stderr, "Error: Memory allocation failed for XImage data.\n");
+		XDestroyImage(ximg);
+		return None;
+	}
+
+	for (y = 0; y < height; y++) {
+		for (x = 0; x < width; x++) {
+			unsigned char *src = data + (y * width + x) * 3;
+			unsigned long pixel = (src[0] << 16) | (src[1] << 8) | src[2];
+			XPutPixel(ximg, x, y, pixel);
+		}
+	}
+
+	Pixmap pixmap = XCreatePixmap(dpy, DefaultRootWindow(dpy), width, height, depth);
+	if (pixmap == None) {
+		fprintf(stderr, "Error: Failed to create Pixmap.\n");
+		free(ximg->data);
+		XDestroyImage(ximg);
+		return None;
+	}
+
+	GC gc = XCreateGC(dpy, pixmap, 0, NULL);
+	XPutImage(dpy, pixmap, gc, ximg, 0, 0, 0, 0, width, height);
+	XFreeGC(dpy, gc);
+
+	XDestroyImage(ximg);
+	return pixmap;
+}
+
+unsigned char *read_stbi(const char *filename, int *x, int *y) {
+	int channels_in_file;
+	stbi_uc *data = NULL;
+
+	if ((data = stbi_load(filename, x, y, &channels_in_file, 4))) {
+		return data;
+	}
+
+	fprintf(stderr, "Failed to load image: %s\n", stbi_failure_reason());
+	return NULL;
+}
+
+unsigned char *read_nsvg(const char *filename, int *x, int *y) {
+	NSVGimage *shapes = NULL;
+	NSVGrasterizer *rast = NULL;
+	unsigned char *data = NULL;
+
+	if ((shapes = nsvgParseFromFile(filename, "px", 96.0f))) {
+		*x = (int)shapes->width;
+		*y = (int)shapes->height;
+		rast = nsvgCreateRasterizer();
+		data = (unsigned char *)malloc(shapes->width * shapes->height * 4);
+		nsvgRasterize(rast, shapes, 0, 0, 1.0f, data,
+			shapes->width, shapes->height, shapes->width * 4);
+		nsvgDeleteRasterizer(rast);
+		nsvgDelete(shapes);
+		return data;
+	}
+
+	fprintf(stderr, "Failed to load `svg` image\n");
+	return NULL;
+}
+
+unsigned char *read_tiff(const char *filename, int *x, int *y) {
+	unsigned char *data = NULL;
+
+	if ((data = read_tiff_rgba(filename, x, y))) {
+		return data;
+	}
+
+	fprintf(stderr, "Failed to load `tiff` image\n");
+	return NULL;
+}
 
 FORCEINLINE size_t str_length(ui_form_t field) {
 	size_t len = 0;
@@ -459,6 +680,45 @@ FORCEINLINE void ats_alignfield(ats_wnd self, ats_wnd to, bool is_vert) {
 		XtVaSetValues(self,	XtNright, XawRubber, XtNfromHoriz, to, NULL);
 }
 
+void ats_draw_image(ats_wnd on, Drawable d, GC gc, int x, int y,
+	unsigned char *_image, int width, int height) {
+	Display *dpy = XtDisplay(on);
+	int screen = DefaultScreen(dpy);
+	Visual *visual = DefaultVisual(dpy, screen);
+	int i, j, depth = DefaultDepth(dpy, screen);
+	int bitmap_pad = XBitmapPad(dpy);
+	int format = ZPixmap;
+	int offset = 0;
+	int bytes_per_line = 0;
+
+	XImage *ximg = XCreateImage(dpy, visual, depth, format, offset, NULL,
+		width, height, bitmap_pad, bytes_per_line);
+	if (!ximg) {
+		fprintf(stderr, "Failed to create XImage.\n");
+		return;
+	}
+
+	ximg->data = malloc(ximg->bytes_per_line * height);
+	if (!ximg->data) {
+		fprintf(stderr, "Memory allocation failed.\n");
+		XDestroyImage(ximg);
+		return;
+	}
+
+	// Fill XImage pixels
+	for (i = 0; i < height; i++) {
+		for (j = 0; j < width; j++) {
+			unsigned char rgb[3];
+			blend_onwhite(rgb, _image + (i * width + j) * 4);
+			unsigned long pixel = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+			XPutPixel(ximg, j, i, pixel);
+		}
+	}
+
+	XPutImage(dpy, d, gc, ximg, 0, 0, x, y, width, height);
+	XDestroyImage(ximg);
+}
+
 ats_wnd ats_image_set(ats_wnd on, char *pixmap) {
 	Pixel color;
 
@@ -468,8 +728,124 @@ ats_wnd ats_image_set(ats_wnd on, char *pixmap) {
 		XtNbitmap, pm, XtNborderWidth, 0, NULL);
 }
 
+Pixmap ats_image_get(ats_wnd alpha, Display *dpy, const char *filename, unsigned char *memoryimage, int imagelen) {
+	int i, len, x, y, channels = 0;
+	unsigned *dp;
+	NSVGimage *shapes = NULL;
+	NSVGrasterizer *rast = NULL;
+	MemoryStream stb;
+	TIFF *tif = NULL;
+	stbi_uc *data = NULL;
+
+	if (filename) {
+		if ((data = stbi_load(filename, &x, &y, &channels, 4))) {
+			;
+		} else if ((shapes = nsvgParseFromFile(filename, "px", 96.0f))) {
+			x = (int)shapes->width;
+			y = (int)shapes->height;
+			rast = nsvgCreateRasterizer();
+			data = malloc(x * y * 4);
+			nsvgRasterize(rast, shapes, 0, 0, 1.0f, data, x, y, x * 4);
+			nsvgDeleteRasterizer(rast);
+			nsvgDelete(shapes);
+		} else if ((data = (stbi_uc *)read_tiff_rgba(filename, &x, &y))) {
+			;
+		} else {
+			return 0;
+		}
+	} else if (memoryimage && imagelen) {
+		stb.data = memoryimage;
+		stb.size = imagelen;
+		if (stbi_info_from_memory((const stbi_uc *)memoryimage, imagelen, &x, &y, &channels)
+			&& (data = stbi_load_from_memory(memoryimage, imagelen, &x, &y, &channels, 4))) {
+		} else if ((shapes = nsvgParse(memoryimage, "px", 96.0f))) {
+			x = (int)shapes->width;
+			y = (int)shapes->height;
+			rast = nsvgCreateRasterizer();
+			if (!rast) {
+				fprintf(stderr, "Raster allocation failed\n");
+				nsvgDelete(shapes);
+				return 0;
+			}
+
+			data = malloc(x * y * 4);
+			if (!data) {
+				fprintf(stderr, "Memory allocation failed\n");
+				nsvgDeleteRasterizer(rast);
+				nsvgDelete(shapes);
+				return 0;
+			}
+
+			nsvgRasterize(rast, shapes, 0, 0, 1.0f, data, x, y, x * 4);
+			nsvgDeleteRasterizer(rast);
+			nsvgDelete(shapes);
+		} else if ((tif = TIFFClientOpen("MemTIFF", "r", (thandle_t)&stb, mem_read,
+			mem_write, mem_seek, mem_close, mem_size, mem_map, mem_unmap))) {
+			uint32_t width, height;
+			TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
+			TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+
+			data = (stbi_uc *)_TIFFmalloc(width * height * sizeof(uint32_t));
+			if (!data) {
+				fprintf(stderr, "Raster allocation failed\n");
+				TIFFClose(tif);
+				return 0;
+			}
+
+			/* Read RGBA web_image */
+			if (!TIFFReadRGBAImageOriented(tif, width, height, (uint32_t *)data, ORIENTATION_TOPLEFT, 0)) {
+				fprintf(stderr, "TIFFReadRGBAImage failed\n");
+				_TIFFfree(data);
+				TIFFClose(tif);
+				return 0;
+			}
+			x = width;
+			y = height;
+		} else {
+			fprintf(stderr, "Failed to load image: %s\n", stbi_failure_reason());
+			return 0;
+		}
+	} else {
+		fprintf(stderr, "Failed to load image\n");
+		return 0;
+	}
+
+	// Determine background color
+	XColor bg;
+	unsigned char bg_r = 255, bg_g = 255, bg_b = 255; // default white
+	Colormap cmap = DefaultColormap(dpy, DefaultScreen(dpy));
+
+	// Get `alpha` background color of top-level widget
+	XtVaGetValues(alpha, XtNbackground, &bg.pixel, NULL);
+	XQueryColor(dpy, cmap, &bg);
+	bg_r = bg.red >> 8;
+	bg_g = bg.green >> 8;
+	bg_b = bg.blue >> 8;
+
+	// Blend alpha onto background
+	unsigned char *rgb_data = malloc(x * y * 3);
+	if (!rgb_data) {
+		fprintf(stderr, "Error: Memory allocation failed for RGB buffer.\n");
+		free(data);
+		return 0;
+	}
+
+	for (i = 0; i < x * y; i++)
+		blend_pixel(&rgb_data[i * 3], &data[i * 4], bg_r, bg_g, bg_b);
+	free(data);
+
+	Pixmap pixmap = pixmap_from_rgba(dpy, DefaultRootWindow(dpy), x, y, rgb_data);
+	free(rgb_data);
+	if (pixmap == None) {
+		fprintf(stderr, "Failed to create pixmap.\n");
+		return 0;
+	}
+
+	return pixmap;
+}
+
 ats_wnd ats_anyimage_set(ats_t *ui, ats_wnd on, char *path) {
-	Pixmap pm = img_load_any((ui->grid ? ui->grid : ui->topLevel), ui->dpy, path);
+	Pixmap pm = ats_image_get((ui->grid ? ui->grid : ui->topLevel), ui->dpy, path, NULL, 0);
 	if (pm)
 		return XtVaCreateManagedWidget("Anyimage", mwImageWidgetClass, on,
 			XtNbitmap, pm, XtNborderWidth, 0, NULL);

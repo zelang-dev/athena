@@ -6,7 +6,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <Mowitz/MwUtils.h>
-#include <Mowitz/http.h>
+#include <Webview/MwHtml.h>
 
 /* Parse url into components. Returns allocated memory which must be freed */
 char *parse_url(char *url, struct url_components *c)

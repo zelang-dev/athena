@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 
 #include <Mowitz/MwUtils.h>
-#include <Mowitz/MwHtmlParser.h>
+#include <Webview/MwHtml.h>
 
 struct loader {
 	char *prot;

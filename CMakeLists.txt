@@ -79,10 +79,10 @@ else()
 
 	if(BUILD_SHARED_LIBS)
 		add_library(Xaw95 SHARED ${Xaw95_files})
-		add_library(${PROJECT_NAME} SHARED ${athena_files} ${webview_files} ${mowitz_files})
+		add_library(${PROJECT_NAME} SHARED ${athena_files} ${mowitz_files} ${webview_files})
 	else()
 		add_library(Xaw95 STATIC ${Xaw95_files})
-		add_library(${PROJECT_NAME} STATIC ${athena_files} ${webview_files} ${mowitz_files})
+		add_library(${PROJECT_NAME} STATIC ${athena_files} ${mowitz_files} ${webview_files})
 	endif()
 	target_include_directories(${PROJECT_NAME}
 		PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

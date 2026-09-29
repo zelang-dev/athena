@@ -541,7 +541,11 @@ C_API void ats_combofield_set(ats_wnd on, char *text);
 C_API ats_wnd ats_tabwindow_set(ats_wnd on, char *tabmessage, _platform_cb tabfunc);
 C_API void ats_tabinsert(ats_wnd tab, char *title, int slot);
 
+C_API void ats_draw_image(ats_wnd on, Drawable d, GC gc, int x, int y,
+	unsigned char *_image, int width, int height);
 C_API ats_wnd ats_image_set(ats_wnd on, char *pixmap);
+C_API Pixmap ats_image_get(ats_wnd alpha, Display *dpy, const char *filename,
+	unsigned char *memoryimage, int imagelen);
 C_API ats_wnd ats_anyimage_set(ats_t *ui, ats_wnd on, char *path);
 
 C_API void ats_background_set(ats_wnd on, char *to_color);

@@ -4,7 +4,7 @@
 #include <sys/types.h>
 #include <stdlib.h>
 #include <Mowitz/MwUtils.h>
-#include <Mowitz/http.h>
+#include <Webview/MwHtml.h>
 
 #ifdef USE_DEBUG
 #	undef MOWITZ_DATA

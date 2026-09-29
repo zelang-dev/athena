@@ -17,7 +17,7 @@
 
 #include <features.h>
 #include <Mowitz/MwUtils.h>
-#include <Mowitz/http.h>
+#include <Webview/MwHtml.h>
 
 #define BUF_SIZE 1024 * 16
 #define HEADER_MAXBUF 512 * 4
