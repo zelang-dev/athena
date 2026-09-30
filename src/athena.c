@@ -1,4 +1,4 @@
-#include <Athena.h>
+#include <athena.h>
 #include <TextField.h>
 #include <Gridbox.h>
 #include "libsmallregex.h"

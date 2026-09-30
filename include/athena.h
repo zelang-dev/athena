@@ -240,6 +240,7 @@
 #include <Mowitz.h>
 
 #ifdef NATIVE_XAW
+#	include <X11/Xaw/XawInit.h>
 #	include <X11/Xaw/Box.h>
 #	include <X11/Xaw/Paned.h>
 #	include <X11/Xaw/Dialog.h>
@@ -257,7 +258,10 @@
 #	include <X11/Xaw/SmeLine.h>
 #	include <X11/Xaw/Repeater.h>
 #	include <X11/Xaw/Traversal.h>
+#	include <X11/Xaw/Toggle.h>
+#	include <X11/Xaw/Cardinals.h>
 #else
+#	include <Xaw95/XawInit.h>
 #	include <Xaw95/Box.h>
 #	include <Xaw95/Paned.h>
 #	include <Xaw95/Dialog.h>
@@ -275,6 +279,8 @@
 #	include <Xaw95/SmeLine.h>
 #	include <Xaw95/Repeater.h>
 #	include <Xaw95/Traversal.h>
+#	include <Xaw95/Toggle.h>
+#	include <Xaw95/Cardinals.h>
 #endif
 
 #include <TextField.h>

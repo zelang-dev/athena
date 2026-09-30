@@ -44,7 +44,7 @@ mark_as_advanced(athena_LIBRARY)
 
 # Find Include Path
 find_path(athena_INCLUDE_DIR
-    NAMES Athena.h
+    NAMES athena.h
 )
 mark_as_advanced(athena_INCLUDE_DIR)
 

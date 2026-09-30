@@ -1,6 +1,6 @@
 
 
-#include <Athena.h>
+#include <athena.h>
 
 #define W 400
 #define H 400

@@ -1,4 +1,4 @@
-#include <Athena.h>
+#include <athena.h>
 
 static Widget color;
 static XColor xcolor;

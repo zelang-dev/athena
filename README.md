@@ -36,7 +36,7 @@ target_link_libraries(your_project PUBLIC ATHENA::WIDGETS)
 ### Usage
 
 ```c
-#include <Athena.h>
+#include <athena.h>
 
 #define IDC_FIELD1 10
 #define IDC_FIELD2  20

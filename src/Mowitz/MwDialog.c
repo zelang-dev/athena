@@ -17,7 +17,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston,
 MA 02111-1307, USA.
 */
 
-#include <Athena.h>
+#include <athena.h>
 #include "pixmaps/composer.xpm"
 #include "pixmaps/none.xpm"
 // window icon
