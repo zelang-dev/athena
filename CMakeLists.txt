@@ -66,8 +66,8 @@ else()
 	find_package(TIFF REQUIRED)
 	file(GLOB mowitz_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Mowitz/*.c)
-	file(GLOB webview_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/Webview/*.c)
+	#file(GLOB webview_files
+	#	${CMAKE_CURRENT_SOURCE_DIR}/src/Webview/*.c)
 	set(athena_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/athena.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/libsmallregex.c
@@ -79,10 +79,12 @@ else()
 
 	if(BUILD_SHARED_LIBS)
 		add_library(Xaw95 SHARED ${Xaw95_files})
-		add_library(${PROJECT_NAME} SHARED ${athena_files} ${mowitz_files} ${webview_files})
+		add_library(${PROJECT_NAME} SHARED ${athena_files} ${mowitz_files})
+		#add_library(${PROJECT_NAME} SHARED ${athena_files} ${mowitz_files} ${webview_files})
 	else()
 		add_library(Xaw95 STATIC ${Xaw95_files})
-		add_library(${PROJECT_NAME} STATIC ${athena_files} ${mowitz_files} ${webview_files})
+		add_library(${PROJECT_NAME} STATIC ${athena_files} ${mowitz_files})
+		#add_library(${PROJECT_NAME} STATIC ${athena_files} ${mowitz_files} ${webview_files})
 	endif()
 	target_include_directories(${PROJECT_NAME}
 		PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -235,10 +237,10 @@ install(DIRECTORY include DESTINATION include)
 install(DIRECTORY share DESTINATION share)
 set(CPACK_INSTALL_CMAKE_CONFIGURATIONS Release)
 
-#if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     option(BUILD_EXAMPLES "whether or not examples should be built" ON)
 
     if(BUILD_EXAMPLES)
         add_subdirectory(examples)
     endif()
-#endif()
+endif()

@@ -171,14 +171,14 @@ void message_box(__ATS_MENU__) {
 		}
 	}
 }
-
+/*
 void web_box(__ATS_MENU__) {
 	ats_t ui = {0};
 	if (ats_webview(&ui, "Webview", "http://en.wikipedia.org/wiki/WebView", 800, 400, true)) {
 		ats_webactive(&ui);
 		ats_webdestroy(&ui);
 	}
-}
+}*/
 
 #define ID_FILE_OPEN	1
 #define ID_FILE_FORM 	2
@@ -204,13 +204,13 @@ int main(int argc, char **argv) {
 			{ID_MODE_ALERT, "Alert Box", message_box, "A", NULL},
 			{ID_MODE_ARCADE, "Arcade Box", color_box, "B", NULL},
 			{ID_MODE_KEY, "Key Box", key_box, "K", NULL},
-			{__ATS_SEPERATOR__},
-			{ID_WEB_BOX, "Webview Box", web_box, "W", NULL},
+		//	{__ATS_SEPERATOR__},
+		//	{ID_WEB_BOX, "Webview Box", web_box, "W", NULL},
 		};
 
 		if (!ats_font_set(&ui, helvetica)
 			|| !ats_menu_set(&ui, 0, items, 4, 1, "File")
-			|| !ats_menu_set(&ui, 1, items_two, 5, 2, "Mode")) {
+			|| !ats_menu_set(&ui, 1, items_two, 3, 2, "Mode")) {
 			error = -2;
 		}
 
