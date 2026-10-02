@@ -38,6 +38,7 @@
 
 #include <Mowitz/MwFrameP.h>
 #include <Mowitz/MwGcs.h>
+#include <Xaw95/TraversalP.h>
 
 
 #define	MIN_SIZE	2	/* make sure we don't have zero-size widget */
@@ -193,7 +194,7 @@ MwFrameClassRec mwFrameClassRec = {
 		/* set_values_hook    */	NULL,
 		/* set_values_almost  */    XtInheritSetValuesAlmost,
 		/* get_values_hook    */	NULL,
-		/* accept_focus       */    NULL,
+		/* accept_focus       */    XawAcceptFocus,
 		/* version            */	XtVersion,
 		/* callback_private   */    NULL,
 		/* tm_table           */    XtInheritTranslations,

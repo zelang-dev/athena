@@ -79,6 +79,7 @@ SOFTWARE.
 #include <Xaw95/MultiSrc.h>
 #include <Xaw95/MultiSinkP.h>
 #include <Xaw95/XawImP.h>
+#include <Xaw95/TraversalP.h>
 
 #define TAB_COUNT 32
 
@@ -111,7 +112,7 @@ AsciiTextClassRec asciiTextClassRec = {
     /* set_values_hook  */	NULL,
     /* set_values_almost*/	XtInheritSetValuesAlmost,
     /* get_values_hook  */	NULL,
-    /* accept_focus     */      XtInheritAcceptFocus,
+	/* accept_focus     */      XawAcceptFocus,
     /* version          */	XtVersion,
     /* callback_private */      NULL,
     /* tm_table         */      XtInheritTranslations,
@@ -245,7 +246,7 @@ AsciiStringClassRec asciiStringClassRec = {
     /* set_values_hook  */	NULL,
     /* set_values_almost*/	XtInheritSetValuesAlmost,
     /* get_values_hook  */	NULL,
-    /* accept_focus     */      XtInheritAcceptFocus,
+	/* accept_focus     */      XawAcceptFocus,
     /* version          */	XtVersion,
     /* callback_private */      NULL,
     /* tm_table         */      XtInheritTranslations,
@@ -301,7 +302,7 @@ AsciiDiskClassRec asciiDiskClassRec = {
     /* set_values_hook  */	NULL,
     /* set_values_almost*/	XtInheritSetValuesAlmost,
     /* get_values_hook  */	NULL,
-    /* accept_focus     */      XtInheritAcceptFocus,
+	/* accept_focus     */      XawAcceptFocus,
     /* version          */	XtVersion,
     /* callback_private */      NULL,
     /* tm_table         */      XtInheritTranslations,

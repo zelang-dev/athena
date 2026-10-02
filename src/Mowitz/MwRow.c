@@ -12,6 +12,7 @@
 
 #include <Mowitz/MwNws.h>
 #include <Mowitz/MwTraverse.h>
+#include <Xaw95/TraversalP.h>
 
 static XtResource rowConstraintsResources [] = {
 	{
@@ -123,7 +124,7 @@ MwRowClassRec mwRowClassRec = {
     /* set_values_hook       */ NULL,
     /* set_values_almost     */ XtInheritSetValuesAlmost,
     /* get_values_hook       */ NULL,
-    /* accept_focus          */ XtInheritAcceptFocus,
+	/* accept_focus          */ XawAcceptFocus,
     /* version               */ XtVersion,
     /* callback_private      */ NULL,
     /* tm_table              */ XtInheritTranslations,

@@ -11,6 +11,7 @@
 
 #include <Mowitz/MwPopTextP.h>
 #include <Mowitz/MwNws.h>
+#include <Xaw95/TraversalP.h>
 
 
 #define offset(field) XtOffsetOf(MwPopTextRec, popText.field)

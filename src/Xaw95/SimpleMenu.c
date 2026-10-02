@@ -45,6 +45,7 @@ in this Software without prior written authorization from the X Consortium.
 #include <Xaw95/Cardinals.h>
 #include <Xaw95/ThreeDP.h>
 #include <Xaw95/ThreeD.h>
+#include <Xaw95/TraversalP.h>
 
 #include <X11/Xmu/Initer.h>
 #include <X11/Xmu/CharSet.h>
@@ -176,7 +177,7 @@ SimpleMenuClassRec simpleMenuClassRec = {
     /* set_values_hook    */	SetValuesHook,
     /* set_values_almost  */	XtInheritSetValuesAlmost,
     /* get_values_hook    */	NULL,
-    /* accept_focus       */    NULL,
+	/* accept_focus       */    XawAcceptFocus,
     /* intrinsics version */	XtVersion,
     /* callback offsets   */    NULL,
     /* tm_table		  */    defaultTranslations,

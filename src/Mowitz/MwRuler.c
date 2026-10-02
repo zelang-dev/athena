@@ -111,6 +111,7 @@
 
 #include <Mowitz/MwRulerP.h>
 #include 	<Mowitz/MwGcs.h>
+#include <Xaw95/TraversalP.h>
 
 
 #define	RULER_MIN	4	/* min space between tic marks */
@@ -369,7 +370,7 @@ MwRulerClassRec mwRulerClassRec = {
     /* set_values_hook    */	NULL,
     /* set_values_almost  */    XtInheritSetValuesAlmost,
     /* get_values_hook    */	NULL,
-    /* accept_focus       */    NULL,
+	/* accept_focus       */    XawAcceptFocus,
     /* version            */	XtVersion,
     /* callback_private   */    NULL,
     /* tm_table           */    defaultTranslations,

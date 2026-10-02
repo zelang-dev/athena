@@ -34,6 +34,7 @@ SOFTWARE.
 #include <X11/IntrinsicP.h>
 #include <Xaw95/XawInit.h>
 #include <Xaw95/ThreeDP.h>
+#include <Xaw95/TraversalP.h>
 #include <X11/Xosdefs.h>
 
 /* Initialization of defaults */
@@ -108,7 +109,7 @@ ThreeDClassRec threeDClassRec = {
     /* set_values_hook		*/	NULL,
     /* set_values_almost	*/	XtInheritSetValuesAlmost,
     /* get_values_hook		*/	NULL,
-    /* accept_focus		*/	NULL,
+	/* accept_focus		*/	XawAcceptFocus,
     /* version			*/	XtVersion,
     /* callback_private		*/	NULL,
     /* tm_table			*/	NULL,

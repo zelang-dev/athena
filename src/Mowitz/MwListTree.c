@@ -35,6 +35,7 @@
 #ifdef USE_RDD
 #include "rdd.h"
 #endif
+#include <Xaw95/TraversalP.h>
 
 #define folder_width 16
 #define folder_height 12
@@ -179,7 +180,7 @@ MwListTreeClassRec listtreeClassRec =
 	/* set_values_hook       */ NULL,
 	/* set_values_almost     */ XtInheritSetValuesAlmost,
 	/* get_values_hook       */ NULL,
-	/* accept_focus          */ NULL,
+	/* accept_focus          */ XawAcceptFocus,
 	/* version               */ XtVersion,
 	/* callback_private      */ NULL,
 	/* tm_table              */ defaultTranslations,

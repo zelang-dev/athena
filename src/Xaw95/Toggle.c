@@ -46,6 +46,7 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/Xmu/Converters.h>
 #include <X11/Xmu/Misc.h>
 #include <Xaw95/ToggleP.h>
+#include <Xaw95/TraversalP.h>
 
 /****************************************************************
  *

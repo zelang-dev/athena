@@ -52,6 +52,7 @@ in this Software without prior written authorization from the X Consortium.
 
 #include <Xaw95/XawInit.h>
 #include <Xaw95/MenuButtoP.h>
+#include <Xaw95/TraversalP.h>
 
 static void ClassInitialize();
 static void PopupMenu();
@@ -119,7 +120,7 @@ MenuButtonClassRec menuButtonClassRec = {
     NULL,				/* set_values_hook	  */
     XtInheritSetValuesAlmost,		/* set_values_almost	  */
     NULL,				/* get_values_hook	  */
-    NULL,				/* accept_focus		  */
+	XawAcceptFocus,				/* accept_focus		  */
     XtVersion,				/* version		  */
     NULL,				/* callback_private	  */
     defaultTranslations,               	/* tm_table		  */

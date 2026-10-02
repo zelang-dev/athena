@@ -7,6 +7,7 @@
 #include <X11/StringDefs.h>
 #include <Mowitz.h>
 #include <Mowitz/MwApplicationShellP.h>
+#include <Xaw95/TraversalP.h>
 
 #undef TESTING
 #ifdef TESTING
@@ -132,7 +133,7 @@ MwApplicationShellClassRec mwApplicationShellClassRec = {
 	NULL,				/* set_values_hook */
 	XtInheritSetValuesAlmost,	/* set_values_almost */
 	NULL,				/* get_values_hook */
-	NULL,				/* accept_focus */
+	XawAcceptFocus,				/* accept_focus */
 	XtVersion,			/* intrinsics version */
 	NULL,				/* callback offsets */
 	XtInheritTranslations,		/* tm_table */

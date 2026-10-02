@@ -13,6 +13,7 @@
 #include <Mowitz/MwNws.h>
 
 #include <Mowitz/MwButtonP.h>
+#include <Xaw95/TraversalP.h>
 
 #define offset(field) XtOffsetOf(MwButtonRec,button.field)
 
@@ -132,7 +133,7 @@ MwButtonClassRec mwButtonClassRec = {
     /* set_values_hook       */ NULL,
     /* set_values_almost     */ XtInheritSetValuesAlmost,
     /* get_values_hook       */ NULL,
-    /* accept_focus          */ XtInheritAcceptFocus,
+	/* accept_focus          */ XawAcceptFocus,
     /* version               */ XtVersion,
     /* callback_private      */ NULL,
     /* tm_table              */ trans_tab,

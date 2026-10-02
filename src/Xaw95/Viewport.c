@@ -56,6 +56,7 @@ SOFTWARE.
 #include <Xaw95/Scrollbar.h>
 #include <Xaw95/ViewportP.h>
 #include <Xaw95/ThreeD.h>
+#include <Xaw95/TraversalP.h>
 
 static void ScrollUpDownProc(), ThumbProc();
 static Boolean GetGeometry();
@@ -116,7 +117,7 @@ ViewportClassRec viewportClassRec = {
     /* set_values_hook    */    NULL,
     /* set_values_almost  */    XtInheritSetValuesAlmost,
     /* get_values_hook    */	NULL,
-    /* accept_focus	  */	NULL,
+	/* accept_focus	  */	XawAcceptFocus,
     /* version            */    XtVersion,
     /* callback_private	  */	NULL,
     /* tm_table    	  */	NULL,

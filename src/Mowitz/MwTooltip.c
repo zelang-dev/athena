@@ -18,6 +18,7 @@
 #endif
 
 #include <Mowitz/MwUtils.h>
+#include <Xaw95/TraversalP.h>
 
 #define offset(field) XtOffsetOf(MwTooltipRec, tooltip.field)
 
@@ -101,7 +102,7 @@ MwTooltipClassRec mwTooltipClassRec = {
     /* set_values_hook    */	NULL,
     /* set_values_almost  */	XtInheritSetValuesAlmost,
     /* get_values_hook    */	NULL,
-    /* accept_focus       */    NULL,
+	/* accept_focus       */    XawAcceptFocus,
     /* intrinsics version */	XtVersion,
     /* callback offsets   */    NULL,
     /* tm_table		  */    NULL,

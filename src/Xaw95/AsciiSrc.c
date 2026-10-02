@@ -52,6 +52,7 @@ in this Software without prior written authorization from the X Consortium.
 #if (defined(ASCII_STRING) || defined(ASCII_DISK))
 #  include <Xaw95/AsciiText.h> /* for Widget Classes. */
 #endif
+#include <Xaw95/TraversalP.h>
 
 
 /****************************************************************
@@ -139,7 +140,7 @@ AsciiSrcClassRec asciiSrcClassRec = {
     /* set_values_hook		*/	NULL,
     /* set_values_almost	*/	NULL,
     /* get_values_hook		*/	GetValuesHook,
-    /* accept_focus	 	*/	NULL,
+	/* accept_focus	 	*/	XawAcceptFocus,
     /* version			*/	XtVersion,
     /* callback_private   	*/	NULL,
     /* tm_table		   	*/	NULL,

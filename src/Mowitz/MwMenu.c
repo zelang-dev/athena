@@ -18,6 +18,7 @@
 #define HIDE_PROTO 1
 #include <Mowitz/MwBaseMEP.h>
 #undef HIDE_PROTO
+#include <Xaw95/TraversalP.h>
 
 #define PDTIME 500
 
@@ -184,7 +185,7 @@ MwMenuClassRec mwMenuClassRec = {
     /* set_values_hook       */ NULL,
     /* set_values_almost     */ XtInheritSetValuesAlmost,
     /* get_values_hook       */ NULL,
-    /* accept_focus          */ XtInheritAcceptFocus,
+	/* accept_focus          */ XawAcceptFocus,
     /* version               */ XtVersion,
     /* callback_private      */ NULL,
     /* tm_table              */ trans_tab,

@@ -66,6 +66,7 @@ MA 02111-1307, USA.
 
 #include <Mowitz/MwUtils.h>
 #include <Mowitz/MwRudegridP.h>
+#include <Xaw95/TraversalP.h>
 
 #define DEFAULT_HEIGHT 100
 #define DEFAULT_WIDTH 100
@@ -174,7 +175,7 @@ MwRudegridClassRec	mwRudegridClassRec = {
     /* set_values_hook    */    NULL,
     /* set_values_almost  */    XtInheritSetValuesAlmost,
     /* get_values_hook    */    NULL,
-    /* accept_focus       */    NULL,
+	/* accept_focus       */    XawAcceptFocus,
     /* version            */    XtVersion,
     /* callback_private   */    NULL,
     /* tm_table           */    NULL,

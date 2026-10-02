@@ -55,6 +55,7 @@ in this Software without prior written authorization from the X Consortium.
 #include <Xaw95/XawInit.h>
 #include <Xaw95/Cardinals.h>
 #include <Xaw95/TreeP.h>
+#include <Xaw95/TraversalP.h>
 
 #define IsHorizontal(tw) ((tw)->tree.gravity == WestGravity || \
 			  (tw)->tree.gravity == EastGravity)

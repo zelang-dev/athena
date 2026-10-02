@@ -30,6 +30,7 @@
 
 #include <X11/xpm.h>
 #include <Mowitz/MwAnimatorP.h>
+#include <Xaw95/TraversalP.h>
 
 typedef struct s_ani_image {
 	char *filename;
@@ -174,7 +175,7 @@ MwAnimatorClassRec mwAnimatorClassRec = {
     /* set_values_hook		*/	NULL,
     /* set_values_almost	*/	XtInheritSetValuesAlmost,
     /* get_values_hook		*/	NULL,
-    /* accept_focus		*/	NULL,
+	/* accept_focus		*/	XawAcceptFocus,
     /* version			*/	XtVersion,
     /* callback_private		*/	NULL,
     /* tm_table			*/	translations,

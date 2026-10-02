@@ -11,6 +11,7 @@
 #include <Mowitz/MwXutils.h>
 #include <Mowitz/MwHandleP.h>
 #include <X11/Shell.h>
+#include <Xaw95/TraversalP.h>
 
 
 #define MULTI_CLICK_TIME 500
@@ -132,7 +133,7 @@ MwHandleClassRec mwHandleClassRec = {
     NULL,				/* set_values_hook	  */
     XtInheritSetValuesAlmost,		/* set_values_almost	  */
     NULL,				/* get_values_hook	  */
-    NULL,				/* accept_focus		  */
+	XawAcceptFocus,				/* accept_focus		  */
     XtVersion,				/* version		  */
     NULL,				/* callback_private	  */
     translations,			/* tm_table		  */

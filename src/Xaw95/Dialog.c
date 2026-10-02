@@ -64,6 +64,7 @@ SOFTWARE.
 #include <Xaw95/Label.h>
 #include <Xaw95/DialogP.h>
 #include <Xaw95/Cardinals.h>
+#include <Xaw95/TraversalP.h>
 
 /*
  * After we have set the string in the value widget we set the
@@ -116,7 +117,7 @@ DialogClassRec dialogClassRec = {
     /* set_values_hook    */    NULL,
     /* set_values_almost  */    XtInheritSetValuesAlmost,
     /* get_values_hook    */    GetValuesHook,
-    /* accept_focus       */    NULL,
+	/* accept_focus       */    XawAcceptFocus,
     /* version            */    XtVersion,
     /* callback_private   */    NULL,
     /* tm_table           */    NULL,

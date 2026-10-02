@@ -71,6 +71,7 @@ SOFTWARE.
 
 #include <Xaw95/VendorEP.h>
 #include <Xaw95/XawImP.h>
+#include <Xaw95/TraversalP.h>
 
 
 static XtResource resources[] = {
@@ -130,7 +131,7 @@ externaldef(vendorshellclassrec) VendorShellClassRec vendorShellClassRec = {
     /* set_values_hook	  */	NULL,
     /* set_values_almost  */	XtInheritSetValuesAlmost,
     /* get_values_hook	  */	NULL,
-    /* accept_focus	  */	NULL,
+	/* accept_focus	  */	XawAcceptFocus,
     /* intrinsics version */	XtVersion,
     /* callback offsets	  */	NULL,
     /* tm_table		  */	NULL,

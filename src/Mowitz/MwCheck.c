@@ -30,6 +30,7 @@ MA 02111-1307, USA.
 #include <Mowitz/MwCheck.h>
 #include <Mowitz/MwUtils.h>
 #include <Mowitz/MwCheckP.h>
+#include <Xaw95/TraversalP.h>
 
 #include "pixmaps/check_motif_off.xpm"
 #include "pixmaps/check_motif_on.xpm"
@@ -149,7 +150,7 @@ MwCheckClassRec mwCheckClassRec = {
     /* set_values_hook		*/	NULL,
     /* set_values_almost	*/	XtInheritSetValuesAlmost,
     /* get_values_hook		*/	NULL,
-    /* accept_focus		*/	NULL,
+	/* accept_focus		*/	XawAcceptFocus,
     /* version			*/	XtVersion,
     /* callback_private		*/	NULL,
     /* tm_table			*/	translations,

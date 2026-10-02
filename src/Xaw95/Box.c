@@ -59,6 +59,7 @@ SOFTWARE.
 #include	<X11/Xmu/Misc.h>
 #include	<Xaw95/XawInit.h>
 #include	<Xaw95/BoxP.h>
+#include <Xaw95/TraversalP.h>
 
 /****************************************************************
  *
@@ -127,7 +128,7 @@ BoxClassRec boxClassRec = {
     /* set_values_hook    */	NULL,
     /* set_values_almost  */    XtInheritSetValuesAlmost,
     /* get_values_hook    */	NULL,
-    /* accept_focus       */    NULL,
+	/* accept_focus       */    XawAcceptFocus,
     /* version            */	XtVersion,
     /* callback_private   */    NULL,
     /* tm_table           */    NULL,
