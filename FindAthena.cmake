@@ -37,7 +37,6 @@ Set ATHENA_ROOT_DIR to the root directory of an Athena installation.
 # Find TLS Library
 find_library(athena_LIBRARY
     NAMES
-        athena
         libathena
 )
 mark_as_advanced(athena_LIBRARY)

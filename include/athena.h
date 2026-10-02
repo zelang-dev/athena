@@ -469,6 +469,7 @@ struct ats_info_s {
 	bool dragdrop_set;
 	bool buttons_vert;
 	int screen;
+	int toolheight;
 	Pixel color;
 	Colormap cmap;
 	Window win, root;
@@ -508,6 +509,7 @@ C_API ats_wnd ats_field_set(ats_t *ui, ats_wnd on, ats_wnd alignto, char *initia
 	ui_field_type kind, _platform_cb activate);
 C_API ats_wnd ats_field_reset(ats_wnd field, size_t bgColor, char *initial, int width, bool is_secret);
 C_API void ats_alignfield(ats_wnd self, ats_wnd to, bool is_vert);
+C_API ats_wnd ats_textfield_set(ats_wnd on, char *initial, int x, int y, int height);
 
 C_API int ats_form(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb verify);
 C_API ats_wnd ats_richtext_set(ats_wnd on, int width, int height);
@@ -525,6 +527,7 @@ C_API void ats_center(ats_wnd window);
 C_API ats_wnd ats_tooltip_set(ats_t *ui, ats_wnd on, char *tip);
 C_API ats_wnd ats_toolbar_set(ats_t *ui, ats_wnd on, _platform_cb button,
 	char *imagefile, char *tip, bool showtip);
+C_API ats_wnd ats_navigation_set(ats_wnd on, int row);
 
 C_API ats_wnd ats_grid_set(ats_wnd on);
 C_API ats_wnd ats_gridtwo_set(ats_wnd on, int leftwidth);
@@ -535,6 +538,9 @@ C_API ats_wnd ats_gridbar_set(ats_wnd on, int width, int height, const char *xLa
 C_API ats_wnd ats_gridlayout_set(ats_wnd on, int x, int y, const char *xLayout, const char *yLayout);
 
 C_API ats_wnd ats_statusline_set(ats_wnd on, ats_wnd alignto, const char *initial, int x, int y, int width);
+C_API ats_wnd ats_status_set(ats_wnd on, const char *initial, int row, int width, int height);
+C_API ats_wnd ats_viewport_set(ats_wnd on, bool force_bars, bool allow_horizontal);
+C_API ats_wnd ats_mainarea_set(ats_t *ui, ats_wnd on, int row);
 
 C_API ats_wnd ats_frame_set(ats_wnd on, XtShadowType shadowType, int shadowWidth);
 C_API ats_wnd ats_label_set(ats_wnd on, char *label);
@@ -570,8 +576,8 @@ C_API void ats_dragdrop_set(ats_t *ui, const char *mime, int slot, _platform_cb 
 C_API void ats_dragdrop_update(ats_t *ui, const char *mime, int slot);
 C_API void ats_title_set(ats_t *ui, const char *title);
 C_API void ats_icon_set(ats_t *ui, const char *filepath);
-C_API ats_wnd ats_windowgrid_set(ats_t *ui, int topheight, int bottomheight);
-C_API ats_wnd ats_tabs_set(ats_t *ui, int y);
+C_API ats_wnd ats_windowgrid_set(ats_t *ui, int menuheight, int topheight, int bottomheight);
+C_API ats_wnd ats_tabs_set(ats_t *ui, int row);
 C_API ats_wnd ats_tabsbox_set(char *title, ats_wnd on);
 C_API ats_wnd ats_tabsgrid_set(char *title, ats_wnd on, const char *yLayout);
 C_API ats_wnd ats_boxwindow_set(ats_wnd on);

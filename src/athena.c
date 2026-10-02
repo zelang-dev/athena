@@ -673,11 +673,61 @@ FORCEINLINE ats_wnd ats_richtext_set(ats_wnd on, int width, int height) {
 	return text;
 }
 
+ FORCEINLINE ats_wnd ats_textfield_set(ats_wnd on, char *initial, int x, int y, int height) {
+	ats_wnd text = XtVaCreateManagedWidget("textfield", textfieldWidgetClass, on,
+		XtNstring, initial,
+		XtNborder, 0,
+		XtNdisplayCaret, False,
+		XtNallowSelection, True,
+		XtNresizable, True,
+		XtNeditable, True,
+		XtNecho, True,
+		XtNborderColor, 0xDAA520,
+		XtNbackground, 0xffffff,
+		XtNx, x,
+		XtNgridy, y,
+		XtNheight, height,
+		XtNleft, XtChainLeft,
+		XtNright, XtChainRight,
+		NULL);
+
+	TextFieldAutoFocus(text);
+	return text;
+}
+
 FORCEINLINE void ats_alignfield(ats_wnd self, ats_wnd to, bool is_vert) {
 	if (is_vert)
 		XtVaSetValues(self, XtNleft, XawRubber, XtNfromVert, to, NULL);
 	else
 		XtVaSetValues(self,	XtNright, XawRubber, XtNfromHoriz, to, NULL);
+}
+
+FORCEINLINE ats_wnd ats_viewport_set(ats_wnd on, bool force_bars, bool allow_horizontal) {
+	return XtVaCreateManagedWidget("viewport",
+		viewportWidgetClass, on,
+		XtNallowHoriz, allow_horizontal,
+		XtNallowVert, True,
+		XtNuseBottom, True,
+		XtNuseRight, True,
+		XtNforceBars, force_bars,
+		XtNborder, 0,
+		XtNborderWidth, 0,
+		XtNbackground, 0xffffff,
+		NULL, 0);
+}
+
+ats_wnd ats_mainarea_set(ats_t *ui, ats_wnd on, int row) {
+	ats_wnd form = XtVaCreateManagedWidget("form", formWidgetClass, on,
+		XtNgridy, row, XtNborder, 0, XtNborderWidth, 0, NULL);
+	XtResizeWidget(ui->topLevel, ui->width, ui->height + 80, 0);
+	return XtVaCreateManagedWidget("mainarea",
+		mwRudegridWidgetClass, form,
+		XtNgridy, row,
+		XtNx, 0,
+		XtNborder, 0,
+		XtNborderWidth, 0,
+		XtNxLayout, "100%",
+		NULL);
 }
 
 void ats_draw_image(ats_wnd on, Drawable d, GC gc, int x, int y,
@@ -1185,9 +1235,9 @@ FORCEINLINE ats_wnd ats_labelfull_set(char *tag, ats_wnd on, ats_wnd alignto,
 		(is_vert ? XtNfromVert : XtNfromHoriz), alignto, NULL);
 }
 
-FORCEINLINE ats_wnd ats_tabs_set(ats_t *ui, int y) {
+FORCEINLINE ats_wnd ats_tabs_set(ats_t *ui, int row) {
 	return XtVaCreateManagedWidget("tabs", mwTabsWidgetClass, ui->grid,
-		XtNbackground, 0xffffff, XtNgridy, y, NULL);
+		XtNbackground, 0xffffff, XtNgridy, row, NULL);
 }
 
 FORCEINLINE ats_wnd ats_tabsbox_set(char *title, ats_wnd on) {
@@ -1219,7 +1269,7 @@ FORCEINLINE void ats_callback_set(ats_wnd on, _platform_cb action, void *with) {
 }
 
 FORCEINLINE ats_wnd ats_statusline_set(ats_wnd on, ats_wnd alignto, const char *initial, int x, int y, int width) {
-	return XtVaCreateManagedWidget("status", labelWidgetClass, on,
+	return XtVaCreateManagedWidget("statusline", labelWidgetClass, on,
 		XtNwidth, width,
 		XtNlabel, initial,
 		XtNfont, main_athena_info->font,
@@ -1230,6 +1280,21 @@ FORCEINLINE ats_wnd ats_statusline_set(ats_wnd on, ats_wnd alignto, const char *
 		XtNy, y,
 		XtNgridy, y,
 		XtNfromVert, alignto, NULL);
+}
+
+FORCEINLINE ats_wnd ats_status_set(ats_wnd on, const char *initial, int row, int width, int height) {
+	return XtVaCreateManagedWidget("status", textfieldWidgetClass, on,
+		XtNwidth, width,
+		XtNstring, initial,
+		XtNheight, height,
+		XtNy, row,
+		XtNgridy, row,
+		XtNborder, 0,
+		XtNborderWidth, 0,
+		XtNdisplayCaret, False,
+		XtNallowSelection, False,
+		XtNresizable, True,
+		XtNeditable, False, NULL);
 }
 
 static Boolean source_changed = FALSE;
@@ -1482,7 +1547,9 @@ int ats_font_set(ats_t *ui, const char *font) {
 
 int ats_menubar_set(ats_t *ui, int numof_menus) {
 	if ((ui->bar_info = (menu_bar_t *)calloc(1, sizeof(menu_bar_t)))) {
-		ui->grid = ats_windowgrid_set(ui, 26, 11);
+		ui->grid = (ui->toolheight)
+			? ats_windowgrid_set(ui, 26, ui->toolheight, 12)
+			: ats_gridthree_set(ui->topLevel, 26, 12);
 		ui->bar_info->menubox = ats_grid_set(ui->grid);
 		ui->bar_info->hMenubar = XtVaCreateManagedWidget("menubox",
 			mwMenuBarWidgetClass, ui->bar_info->menubox,
@@ -1724,6 +1791,10 @@ ats_wnd ats_toolbar_set(ats_t *ui, ats_wnd on, _platform_cb button, char *imagef
 	return w;
 }
 
+FORCEINLINE ats_wnd ats_navigation_set(ats_wnd on, int row) {
+	return ats_boxspace_set(ats_gridlayout_set(on, 0, row, "100%", NULL), 0, 0);
+}
+
 FORCEINLINE ats_wnd ats_gridtwo_set(ats_wnd on, int leftwidth) {
 	snprintf(main_athena_info->layout, sizeof(main_athena_info->layout),
 		"%d %s", leftwidth, "100%");
@@ -1778,8 +1849,11 @@ FORCEINLINE ats_wnd ats_gridfour_set(ats_wnd on, int leftwidth, int rightwidth) 
 		XtNxLayout, main_athena_info->layout, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
-FORCEINLINE ats_wnd ats_windowgrid_set(ats_t *ui, int topheight, int bottomheight) {
-	return ats_gridthree_set(ui->topLevel, topheight, bottomheight);
+FORCEINLINE ats_wnd ats_windowgrid_set(ats_t *ui, int menuheight, int topheight, int bottomheight) {
+	snprintf(main_athena_info->layout, sizeof(main_athena_info->layout),
+		"%d %d %s %d", menuheight, topheight, "100%", bottomheight);
+	return XtVaCreateManagedWidget("Windowgrid", mwRudegridWidgetClass, ui->topLevel,
+		XtNyLayout, main_athena_info->layout, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE ats_wnd ats_tabwindow_set(ats_wnd on, char *tabmessage, _platform_cb tabfunc) {

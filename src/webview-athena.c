@@ -1,5 +1,6 @@
 #if defined(__linux__)
 #include "ats_internal.h"
+#include <Webview/MwHtml.h>
 
 struct hist {
 	char *url;
@@ -365,15 +366,13 @@ int webview_create(ats_t *ui, webview_t *w) {
 	if (ats_window(ui, w->title, w->width, w->height, false)) {
 		XtAppAddActions(ui->app_con, web_actions, XtNumber(web_actions));
 		MwHighlightInit(ui->topLevel);
-		w->priv.window = ats_windowgrid_set(ui, 30, 30);
+		w->priv.window = ats_gridthree_set(ui, 30, 30);
 		Widget statbar = ats_gridlayout_set(w->priv.window, 0, 2, "100%", "100%");
 
 		ui->statusLine = ats_statusline_set(statbar, w->priv.window, "", 0, 0, w->width - 20);
 		XtVaGetValues(ui->statusLine, XtNbackground, &ui->color, NULL);
 		if (w->showtoolbar) {
-			Widget navbar = ats_gridlayout_set(w->priv.window, 0, 0, "100%", NULL);
-			Widget navbox = ats_boxspace_set(navbar, 0, 0);
-
+			Widget navbox = ats_navigation_set(w->priv.window, 0);
 			ats_toolbar_set(ui, navbox, cb_home, "home.xpm", "Home", true);
 			ats_toolbar_set(ui, navbox, cb_back, "back.xpm", "Back", true);
 			toolcmd = ats_toolbar_set(ui, navbox, cb_forward, "forward.xpm", "Forward", true);

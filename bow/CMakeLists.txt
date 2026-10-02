@@ -5,9 +5,9 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
 	cmake_policy(SET CMP0091 NEW)
 endif()
 
-project(athena
-	VERSION 0.6.0
-	DESCRIPTION "X11/Athena `More` Widget Toolset for rapid GUI Applications"
+project(bow
+	VERSION 3.0.0
+	DESCRIPTION "X11/Athena World-Wide Web Browser"
     LANGUAGES C
 )
 
@@ -22,112 +22,60 @@ include(GNUInstallDirs)
 set(BUILD_DIR ${CMAKE_SOURCE_DIR}/build)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUILD_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/built")
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(BUILD_SHARED_LIBS "Build the library as a shared (dynamically-linked) " OFF)
-option(BUILD_NATIVE_XAW "Linux: Build using Native X11 Athena Widget Toolkit " OFF)
+option(BUILD_NATIVE_XAW "Build using Native X11 Athena Widget Toolkit " OFF)
+option(BUILD_APP "Build standalone `Browser` App" OFF)
 
 if (WIN32 OR APPLE)
     message(FATAL_ERROR "Linux Only!")
 else()
-    execute_process(
-      COMMAND ${CMAKE_C_COMPILER} -dumpmachine
-      RESULT_VARIABLE RESULT
-      OUTPUT_VARIABLE PROJECT__ARCH
-      ERROR_QUIET
-    )
-    if (RESULT)
-      message(FATAL_ERROR "Failed to determine target architecture triplet: ${RESULT}")
-    endif()
+	include_directories(${CMAKE_SOURCE_DIR}/include)
+	if(BUILD_APP)
+		file(GLOB app_files
+			${CMAKE_CURRENT_SOURCE_DIR}/src/bow/*.c)
+	else()
+		file(GLOB app_files #widget_files
+			${CMAKE_CURRENT_SOURCE_DIR}/src/bow/*.c)
+	endif(BUILD_APP)
 
-    string(REGEX MATCH "([^-]+).*" ARCH_MATCH ${PROJECT__ARCH})
-    if (NOT CMAKE_MATCH_1 OR NOT ARCH_MATCH)
-      message(FATAL_ERROR "Failed to match the target architecture triplet: ${PROJECT__ARCH}")
-    endif()
+	file(GLOB proto_files
+		${CMAKE_CURRENT_SOURCE_DIR}/src/proto/*.c)
+	file(GLOB plain_files
+		${CMAKE_CURRENT_SOURCE_DIR}/src/plain/*.c)
+	file(GLOB mxw_files
+		${CMAKE_CURRENT_SOURCE_DIR}/src/mxw/*.c)
+	file(GLOB image_files
+		${CMAKE_CURRENT_SOURCE_DIR}/src/image/*.c)
+	file(GLOB html_files
+		${CMAKE_CURRENT_SOURCE_DIR}/src/html/*.c)
+	file(GLOB ext_files
+		${CMAKE_CURRENT_SOURCE_DIR}/src/ext/*.c)
+	file(GLOB common_files
+		${CMAKE_CURRENT_SOURCE_DIR}/src/common/*.c)
 
-    set(PROJECT__ARCH ${CMAKE_MATCH_1})
-	message(STATUS "Target architecture - ${PROJECT__ARCH}")
-
-	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -rdynamic -no-pie -D USE_DEBUG")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-format -fno-strict-aliasing -D NeedFunctionPrototypes")
-
-	find_package(opentls QUIET)
-	if(NOT opentls_FOUND)
-		FetchContent_Declare(opentls
-			URL https://github.com/zelang-dev/opentls/archive/refs/heads/main.zip
-			URL_MD5 b670326e488f0911aabd7dec311a4ceb
-		)
-		FetchContent_MakeAvailable(opentls)
+	if(BUILD_NATIVE_XAW)
+		target_compile_definitions(${PROJECT_NAME} PUBLIC NATIVE_XAW=1)
 	endif()
-
-	find_package(OpenGL QUIET COMPONENTS GLX)
-	find_package(TIFF REQUIRED)
-	file(GLOB mowitz_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/Mowitz/*.c)
-	#file(GLOB webview_files
-	#	${CMAKE_CURRENT_SOURCE_DIR}/src/Webview/*.c)
-	set(athena_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/athena.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/libsmallregex.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/TextField.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/FileSelect.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/Gridbox.c)
-	file(GLOB Xaw95_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/Xaw95/*.c)
 
 	if(BUILD_SHARED_LIBS)
-		add_library(Xaw95 SHARED ${Xaw95_files})
-		add_library(${PROJECT_NAME} SHARED ${athena_files} ${mowitz_files})
-		#add_library(${PROJECT_NAME} SHARED ${athena_files} ${mowitz_files} ${webview_files})
+		add_library(${PROJECT_NAME} SHARED
+		${proto_files} ${plain_files} ${mxw_files} ${image_files}
+		${html_files} ${ext_files} ${common_files})
 	else()
-		add_library(Xaw95 STATIC ${Xaw95_files})
-		add_library(${PROJECT_NAME} STATIC ${athena_files} ${mowitz_files})
-		#add_library(${PROJECT_NAME} STATIC ${athena_files} ${mowitz_files} ${webview_files})
+		add_library(${PROJECT_NAME} STATIC
+		${proto_files} ${plain_files} ${mxw_files} ${image_files}
+		${html_files} ${ext_files} ${common_files})
 	endif()
 	target_include_directories(${PROJECT_NAME}
 		PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 		PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-
-	find_package(X11 REQUIRED COMPONENTS Xmu Xt)
-	if(BUILD_NATIVE_XAW)
-		find_library(X11_Xaw_LIB Xaw)
-	endif(BUILD_NATIVE_XAW)
-
-	target_include_directories(Xaw95
-		PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-		PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-
-	target_include_directories(${PROJECT_NAME}
-		PRIVATE $<BUILD_INTERFACE:${TIFF_INCLUDE_DIRS}
-		$<INSTALL_INTERFACE:${TIFF_INCLUDE_DIRS})
-
-	target_include_directories(${PROJECT_NAME}
-		PRIVATE $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}
-		$<INSTALL_INTERFACE:${OPENSSL_INCLUDE_DIR})
-
-	if(BUILD_NATIVE_XAW)
-		target_compile_definitions(${PROJECT_NAME}
-			PUBLIC MOWITZ_DATA="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena"
-			PUBLIC DEFAULT_PIXPATH="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena/pixmaps"
-			PUBLIC NATIVE_XAW=1)
-		target_link_libraries(${PROJECT_NAME}
-			Xaw X11::Xmu X11::Xt Xpm X11::X11 OpenGL::GL OpenGL::GLU
-			#Xaw X11::Xmu X11::Xt Xpm X11::X11
-			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m TIFF::TIFF)
-	else()
-		target_compile_definitions(${PROJECT_NAME}
-			PUBLIC MOWITZ_DATA="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena"
-			PUBLIC DEFAULT_PIXPATH="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena/pixmaps")
-		target_link_libraries(${PROJECT_NAME}
-			Xaw95 X11::Xmu X11::Xt Xpm X11::X11 OpenGL::GL OpenGL::GLU
-			#Xaw95 X11::Xmu X11::Xt Xpm X11::X11
-			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m TIFF::TIFF)
-	endif(BUILD_NATIVE_XAW)
+	target_link_libraries(${PROJECT_NAME} PUBLIC ATHENA::WIDGETS)
 endif()
 
-add_library(ATHENA::WIDGETS ALIAS ${PROJECT_NAME})
+add_library(BOW::WEB ALIAS ${PROJECT_NAME})
 set_target_properties(${PROJECT_NAME} PROPERTIES
 	OUTPUT_NAME ${PROJECT_NAME}
 	ARCHIVE_OUTPUT_NAME ${PROJECT_NAME}
@@ -140,7 +88,18 @@ if(NOT CMAKE_VERSION VERSION_LESS 3.27.0)
 	set_target_properties(${PROJECT_NAME} PROPERTIES DLL_NAME_WITH_SOVERSION TRUE)
 endif()
 
-#add_subdirectory(bow)
+if(BUILD_APP)
+	add_executable(${PROJECT_NAME}.app ${app_files})
+	target_include_directories(${PROJECT_NAME}.app
+		PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/bow>
+		PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+	target_link_libraries(${PROJECT_NAME}.app ${PROJECT_NAME})
+	set_target_properties(${PROJECT_NAME}.app PROPERTIES
+		EXPORT_NAME ${PROJECT_NAME}.app
+		OUTPUT_NAME ${PROJECT_NAME}.app
+		VERSION ${PROJECT_VERSION}
+		SOVERSION ${PROJECT_VERSION_MAJOR})
+endif(BUILD_APP)
 
 set(_fmt TGZ)
 if(WIN32)
@@ -207,13 +166,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
 	${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
 	DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}" )
 
-if(BUILD_NATIVE_XAW)
-	set(EXPORTER ${PROJECT_NAME})
-else()
-	set(EXPORTER ${PROJECT_NAME} Xaw95)
-endif(BUILD_NATIVE_XAW)
-
-message("-- Linux: Location for `fonts, xpm` and other required files:\t${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena")
+set(EXPORTER ${PROJECT_NAME})
 install(
 	TARGETS ${EXPORTER}
 	EXPORT "${PROJECT_NAME}Targets"
@@ -226,23 +179,14 @@ install(
 install(
 	EXPORT "${PROJECT_NAME}Targets"
 	FILE "${PROJECT_NAME}Targets.cmake"
-	NAMESPACE ATHENA::
+	NAMESPACE BOW::
 	DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
 )
 
-if(NOT EXISTS "${BUILD_DIR}/share")
-	file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/share DESTINATION ${BUILD_DIR})
-endif()
-
 install(TARGETS ${PROJECT_NAME} DESTINATION lib)
+if(BUILD_APP)
+	install(TARGETS ${PROJECT_NAME}.app DESTINATION bin)
+endif(BUILD_APP)
+
 install(DIRECTORY include DESTINATION include)
-install(DIRECTORY share DESTINATION share)
 set(CPACK_INSTALL_CMAKE_CONFIGURATIONS Release)
-
-if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    option(BUILD_EXAMPLES "whether or not examples should be built" ON)
-
-    if(BUILD_EXAMPLES)
-        add_subdirectory(examples)
-    endif()
-endif()
