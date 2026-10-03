@@ -22,7 +22,7 @@
 #	define ats_sizeof(data) (sizeof(data)/sizeof(data[0]))
 #endif
 
-//#ifdef __linux__
+#ifdef __linux__
 #define lucida "lucidasans-bold-8"
 #define helvetica "-*-helvetica-medium-r-normal-*-12-*-*-*-*-*-iso8859-*"
 #define times "-*-times-medium-r-*-*-12-*-*-*-*-*-*"
@@ -582,7 +582,7 @@ C_API ats_wnd ats_tabsbox_set(char *title, ats_wnd on);
 C_API ats_wnd ats_tabsgrid_set(char *title, ats_wnd on, const char *yLayout);
 C_API ats_wnd ats_boxwindow_set(ats_wnd on);
 C_API ats_wnd ats_boxspace_set(ats_wnd on, int vertical, int horizontal);
-C_API ats_wnd ats_formwindow_set(ats_wnd on);
+C_API ats_wnd ats_formwindow_set(ats_wnd on, int row);
 C_API int ats_graphics_loop(ats_t *ui);
 C_API int ats_handler(ats_t *ui);
 C_API void ats_close(ats_t *ui);
@@ -600,6 +600,13 @@ C_API ui_bool str_is_regex(const char *pattern, ui_str_t match);
 C_API ui_bool is_ValidUrl(ui_str_t text);
 C_API ui_bool is_ValidEmail(ui_str_t text);
 C_API ui_bool is_ValidPassword(ui_form_t field);
+
+unsigned char *read_nsvg(const char *filename, int *x, int *y);
+unsigned char *read_stbi(const char *filename, int *x, int *y);
+unsigned char *read_tiff(const char *filename, int *x, int *y);
+unsigned char *memory_stbi(const unsigned char *buffer, int len, int *x, int *y);
+unsigned char *memory_nsvg(const unsigned char *buffer, int len, int *x, int *y);
+unsigned char *memory_tiff(const unsigned char *buffer, int len, int *x, int *y);
 
 #define ats_pixel(w, x, y) ((w)->buf[((y) * (w)->width) + (x)])
 
@@ -755,12 +762,11 @@ WEBVIEW_API char *webview_get_title(webview_t *w);
 
 // Get current page URL
 WEBVIEW_API char *webview_get_url(webview_t *w);
-//#endif /* _ATS_H */
 
 #ifdef __cplusplus
 }
 #endif
-//#endif
+#endif /* __linux__ */
 
 #include <tls.h>
 #endif /* _ATHENA_H */

@@ -1,5 +1,5 @@
 #if defined(__linux__)
-#include "ats_internal.h"
+#include <athena.h>
 #include <Webview/MwHtml.h>
 
 struct hist {
