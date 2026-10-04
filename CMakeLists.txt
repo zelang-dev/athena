@@ -140,7 +140,7 @@ if(NOT CMAKE_VERSION VERSION_LESS 3.27.0)
 	set_target_properties(${PROJECT_NAME} PROPERTIES DLL_NAME_WITH_SOVERSION TRUE)
 endif()
 
-#add_subdirectory(bow)
+add_subdirectory(bow)
 
 set(_fmt TGZ)
 if(WIN32)
