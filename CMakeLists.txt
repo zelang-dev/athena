@@ -6,7 +6,7 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
 endif()
 
 project(athena
-	VERSION 0.6.0
+	VERSION 0.5.5
 	DESCRIPTION "X11/Athena `More` Widget Toolset for rapid GUI Applications"
     LANGUAGES C
 )
@@ -66,8 +66,6 @@ else()
 	find_package(TIFF REQUIRED)
 	file(GLOB mowitz_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Mowitz/*.c)
-	#file(GLOB webview_files
-	#	${CMAKE_CURRENT_SOURCE_DIR}/src/Webview/*.c)
 	set(athena_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/athena.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/libsmallregex.c
@@ -80,11 +78,9 @@ else()
 	if(BUILD_SHARED_LIBS)
 		add_library(Xaw95 SHARED ${Xaw95_files})
 		add_library(${PROJECT_NAME} SHARED ${athena_files} ${mowitz_files})
-		#add_library(${PROJECT_NAME} SHARED ${athena_files} ${mowitz_files} ${webview_files})
 	else()
 		add_library(Xaw95 STATIC ${Xaw95_files})
 		add_library(${PROJECT_NAME} STATIC ${athena_files} ${mowitz_files})
-		#add_library(${PROJECT_NAME} STATIC ${athena_files} ${mowitz_files} ${webview_files})
 	endif()
 	target_include_directories(${PROJECT_NAME}
 		PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -139,8 +135,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 if(NOT CMAKE_VERSION VERSION_LESS 3.27.0)
 	set_target_properties(${PROJECT_NAME} PROPERTIES DLL_NAME_WITH_SOVERSION TRUE)
 endif()
-
-#add_subdirectory(bow)
 
 set(_fmt TGZ)
 if(WIN32)

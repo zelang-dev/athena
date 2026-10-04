@@ -67,5 +67,4 @@
 #include <Mowitz/MwTraverse.h>
 #include <Mowitz/MwVSlider.h>
 #include <Mowitz/MwXCC.h>
-//#include <Webview/MwHtml.h>
 #endif	/* MW_MOWITZ_H */

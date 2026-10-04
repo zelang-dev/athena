@@ -1803,5 +1803,3 @@ int64_t ats_time(void) {
 	clock_gettime(CLOCK_REALTIME, &time);
 	return time.tv_sec * 1000 + (time.tv_nsec / 1000000);
 }
-
-//#include "webview-athena.c"
