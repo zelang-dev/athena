@@ -233,8 +233,13 @@ static void hotkey_action(Widget w, XEvent *event, String *params, Cardinal *num
 		for (i = 0; i < number_items; i++) {
 			if (strcmp(params[0], items[i].alphaKey) == 0) {
 				ui->self = items[i].index;
-				if (items[i].action)
-					items[i].action(ui, items[i].data);
+				if (items[i].action) {
+					if (menubar->override)
+						((_platform_cb)items[i].action)(w,
+							(menubar->override_data ? menubar->override_data : items[i].data), NULL);
+					else
+						items[i].action(ui, items[i].data);
+				}
 				return;
 			}
 		}
@@ -260,8 +265,13 @@ static void _hotkey(ats_t *ats, int k) {
 					|| k == toupper(items[i].alphaKey[0])) {
 					ui->self = items[i].index;
 					ui->ats = ats;
-					if (items[i].action)
-						items[i].action(ui, items[i].data);
+					if (items[i].action) {
+						if (menubar->override)
+							((_platform_cb)items[i].action)(ui->self,
+								(menubar->override_data ? menubar->override_data : items[i].data), NULL);
+						else
+							items[i].action(ui, items[i].data);
+					}
 					return;
 				}
 			}
@@ -272,7 +282,7 @@ static void _hotkey(ats_t *ats, int k) {
 void ats_icon_set(ats_t *ui, const char *filepath) {
 	XpmAttributes xpm_attr;
 	XWMHints wm_hints;
-	int status;
+	int status = -1;
 
 	if (ui->use_icon) {
 		/* Create the pixmaps accordingly
@@ -285,7 +295,7 @@ void ats_icon_set(ats_t *ui, const char *filepath) {
 			&ui->icon_mask,
 			&xpm_attr
 		);
-	} else {
+	} else if (filepath) {
 		// Load XPM icon
 		xpm_attr.valuemask = 0; // No special attributes
 		status = XpmReadFileToPixmap(ui->dpy, ui->win,
@@ -515,7 +525,7 @@ FORCEINLINE ats_wnd ats_richtext_set(ats_wnd on, int width, int height) {
 	return text;
 }
 
- FORCEINLINE ats_wnd ats_textfield_set(ats_wnd on, char *initial, int x, int y, int height) {
+FORCEINLINE ats_wnd ats_textfield_set(ats_wnd on, char *initial, int x, int y, int width, int height) {
 	ats_wnd text = XtVaCreateManagedWidget("textfield", textfieldWidgetClass, on,
 		XtNstring, initial,
 		XtNborder, 0,
@@ -528,9 +538,10 @@ FORCEINLINE ats_wnd ats_richtext_set(ats_wnd on, int width, int height) {
 		XtNbackground, 0xffffff,
 		XtNx, x,
 		XtNgridy, y,
+		XtNwidth, width,
 		XtNheight, height,
 		XtNleft, XtChainLeft,
-		XtNright, XtChainRight,
+		XtNright, XawRubber,
 		NULL);
 
 	TextFieldAutoFocus(text);
@@ -956,7 +967,7 @@ int ats_message_box(const char *title, const char *message,	Button *buttons, int
 			XtNyLayout, "10 100% 10 20",
 			XtNxLayout, layout,
 			NULL);
-		Widget text = NULL, prompt = ats_boxwindow_set(grid);
+		Widget text = NULL, prompt = ats_boxwindow_set(grid, 1);
 		text = XtVaCreateManagedWidget("label", labelWidgetClass, prompt,
 			XtNlabel, _((String)message),
 			XtNgridWidth, ui.app->code + 1,
@@ -1005,7 +1016,15 @@ FORCEINLINE void ats_foreground_set(ats_wnd on, char *to_color) {
 }
 
 FORCEINLINE ats_wnd ats_label_set(ats_wnd on, char *label) {
-	return XtVaCreateManagedWidget("label", labelWidgetClass, on, XtNlabel, label, NULL);
+	return XtVaCreateManagedWidget("label", labelWidgetClass, on,
+		XtNlabel, label, NULL);
+}
+
+FORCEINLINE ats_wnd ats_labelalign_set(ats_wnd on, char *label, XawEdgeType left, XawEdgeType right) {
+	return XtVaCreateManagedWidget("labelalign", labelWidgetClass, on,
+		XtNlabel, label,
+		XtNleft, left,
+		XtNright, right, NULL);
 }
 
 FORCEINLINE ats_wnd ats_labelfull_set(char *tag, ats_wnd on, ats_wnd alignto,
@@ -1036,20 +1055,21 @@ FORCEINLINE ats_wnd ats_tabsgrid_set(char *title, ats_wnd on, const char *yLayou
 		XtNyLayout, yLayout, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
-FORCEINLINE ats_wnd ats_boxwindow_set(ats_wnd on) {
-	return XtVaCreateManagedWidget("box", boxWidgetClass, on, XtNborderWidth, 0, NULL);
+FORCEINLINE ats_wnd ats_boxwindow_set(ats_wnd on, int row) {
+	return XtVaCreateManagedWidget("boxwindow", boxWidgetClass, on,
+		XtNgridy, row, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE ats_wnd ats_boxspace_set(ats_wnd on, int vertical, int horizontal) {
-	return XtVaCreateManagedWidget("box", boxWidgetClass, on,
+	return XtVaCreateManagedWidget("boxspace", boxWidgetClass, on,
 		XtNborderWidth, 0,
 		XtNvSpace, vertical,
 		XtNhSpace, horizontal, NULL);
 }
 
 FORCEINLINE ats_wnd ats_formwindow_set(ats_wnd on, int row) {
-	return XtVaCreateManagedWidget("form", formWidgetClass, on, XtNgridy, row,
-		XtNborder, 0, XtNborderWidth, 0, NULL);
+	return XtVaCreateManagedWidget("formwindow", formWidgetClass, on,
+		XtNgridy, row, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE void ats_callback_set(ats_wnd on, _platform_cb action, void *with) {
@@ -1259,8 +1279,13 @@ static void ats_menu_cb(Widget self, XtPointer client, XtPointer data) {
 				ui->app->ats = ui;
 				ui->app->wnd = ui->topLevel;
 				ui->app->self = self;
-				if (items[i].action)
-					items[i].action(ui->app, items[i].data);
+				if (items[i].action) {
+					if (menubar->override)
+						((_platform_cb)items[i].action)(self,
+							(menubar->override_data ? menubar->override_data : items[i].data), data);
+					else
+						items[i].action(ui->app, items[i].data);
+				}
 				return;
 			}
 		}
@@ -1336,8 +1361,8 @@ int ats_font_set(ats_t *ui, const char *font) {
 int ats_menubar_set(ats_t *ui, int numof_menus) {
 	if ((ui->bar_info = (menu_bar_t *)calloc(1, sizeof(menu_bar_t)))) {
 		ui->grid = (ui->toolheight)
-			? ats_windowgrid_set(ui, 26, ui->toolheight, 12)
-			: ats_gridthree_set(ui->topLevel, 26, 12);
+			? ats_windowgrid_set(ui, 26, ui->toolheight, 20)
+			: ats_gridthree_set(ui->topLevel, 26, 20);
 		ui->bar_info->menubox = ats_grid_set(ui->grid);
 		ui->bar_info->hMenubar = XtVaCreateManagedWidget("menubox",
 			mwMenuBarWidgetClass, ui->bar_info->menubox,
@@ -1372,7 +1397,11 @@ static int _ATS_KEYCODES[124] = {XK_BackSpace,8,XK_Delete,127,XK_Down,18,XK_End,
 int ats_handler(ats_t *ui) {
 	XFlush(ui->dpy);
 	while (true) {
+		if (!ui->app_con)
+			return 0;
+
 		XtAppNextEvent(ui->app_con, &ui->xev);
+		XtDispatchEvent(&ui->xev);
 		switch (ui->xev.type) {
 			case KeyPress:
 			case KeyRelease:
@@ -1399,10 +1428,27 @@ int ats_handler(ats_t *ui) {
 			default:
 				break;
 		}
-		XtDispatchEvent(&ui->xev);
 	}
 
 	return 0;
+}
+
+void ats_athena_set(ats_t *ui, char **xpm_icon, const char *title, int width, int height) {
+	if (main_athena_info == NULL) {
+		ui->width = width;
+		ui->height = height;
+		ui->title = title;
+		// Register hotkey action
+		XtActionsRec actions[] = {{"hotkey", hotkey_action}};
+		XtAppAddActions(ui->app_con, actions, XtNumber(actions));
+		XawFocusInstallActions(ui->app_con);
+		ui->use_icon = xpm_icon;
+		ui->screen = DefaultScreen(ui->dpy);
+		MwInitFormat(ui->dpy);
+		main_athena_info = ui;
+		main_athena_info->font = XLoadQueryFont(ui->dpy, "lucidasans-8");
+		main_athena_info->font_button = XLoadQueryFont(ui->dpy, lucida);
+	}
 }
 
 int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer) {
@@ -1439,8 +1485,8 @@ int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_bu
 		return 0;
 	}
 
+	ui->screen = DefaultScreen(ui->dpy);
 	if (ui->buf) {
-		ui->screen = DefaultScreen(ui->dpy);
 		ui->root = RootWindow(ui->dpy, ui->screen);
 		ui->win = XCreateSimpleWindow(ui->dpy, ui->root, 0, 0, ui->width, ui->height,
 			0, BlackPixel(ui->dpy, ui->screen), WhitePixel(ui->dpy, ui->screen));
@@ -1572,7 +1618,11 @@ ats_wnd ats_toolbar_set(ats_t *ui, ats_wnd on, _platform_cb button, char *imagef
 		XtNforeground, color, NULL);
 
 	XtVaSetValues(w, XtNbitmap, MwLoadPixmap(XtDisplay(on), color, imagefile), NULL);
-	XtAddCallback(w, XtNcallback, button, (XtPointer)ui);
+	if (ui->bar_info && ui->bar_info->override && ui->app->app_data)
+		XtAddCallback(w, XtNcallback, button, (XtPointer)ui->app->app_data);
+	else
+		XtAddCallback(w, XtNcallback, button, (XtPointer)ui);
+
 	if (tip && showtip)
 		ats_tooltip_set(ui, w, tip);
 
@@ -1638,10 +1688,10 @@ FORCEINLINE ats_wnd ats_gridfour_set(ats_wnd on, int leftwidth, int rightwidth) 
 }
 
 FORCEINLINE ats_wnd ats_windowgrid_set(ats_t *ui, int menuheight, int topheight, int bottomheight) {
-	snprintf(main_athena_info->layout, sizeof(main_athena_info->layout),
+	snprintf(ui->layout, sizeof(ui->layout),
 		"%d %d %s %d", menuheight, topheight, "100%", bottomheight);
 	return XtVaCreateManagedWidget("Windowgrid", mwRudegridWidgetClass, ui->topLevel,
-		XtNyLayout, main_athena_info->layout, XtNborder, 0, XtNborderWidth, 0, NULL);
+		XtNyLayout, ui->layout, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE ats_wnd ats_tabwindow_set(ats_wnd on, char *tabmessage, _platform_cb tabfunc) {

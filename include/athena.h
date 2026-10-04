@@ -419,6 +419,8 @@ typedef struct {
 	/* main menu */
 	menu_t *menus;
 #if __linux__
+	bool override;
+	void *override_data;
 	XWindowAttributes gwa;
 	ats_menu menubox;
 	char trans[256];
@@ -464,12 +466,8 @@ struct ats_info_s {
 	ui_t app[1];
 	webview_t web[1];
 #if __linux__
-	bool webview_set;
-	bool icon_set;
-	bool dragdrop_set;
-	bool buttons_vert;
-	int screen;
-	int toolheight;
+	bool webview_set, icon_set, dragdrop_set, buttons_vert;
+	int screen, toolheight;
 	Pixel color;
 	Colormap cmap;
 	Window win, root;
@@ -500,6 +498,7 @@ extern "C" {
 
 #include X11_WINDOW_ICON
 
+C_API void ats_athena_set(ats_t *ui, char **xpm_icon, const char *title, int width, int height);
 C_API void ats_active(ats_t *ui);
 C_API void ats_destroy(ats_t *ui);
 C_API void ats_cancel(ats_wnd self);
@@ -509,7 +508,8 @@ C_API ats_wnd ats_field_set(ats_t *ui, ats_wnd on, ats_wnd alignto, char *initia
 	ui_field_type kind, _platform_cb activate);
 C_API ats_wnd ats_field_reset(ats_wnd field, size_t bgColor, char *initial, int width, bool is_secret);
 C_API void ats_alignfield(ats_wnd self, ats_wnd to, bool is_vert);
-C_API ats_wnd ats_textfield_set(ats_wnd on, char *initial, int x, int y, int height);
+C_API ats_wnd ats_textfield_set(ats_wnd on, char *initial, int x, int y,
+	int width, int height);
 
 C_API int ats_form(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb verify);
 C_API ats_wnd ats_richtext_set(ats_wnd on, int width, int height);
@@ -544,6 +544,7 @@ C_API ats_wnd ats_mainarea_set(ats_t *ui, ats_wnd on, int row);
 
 C_API ats_wnd ats_frame_set(ats_wnd on, XtShadowType shadowType, int shadowWidth);
 C_API ats_wnd ats_label_set(ats_wnd on, char *label);
+C_API ats_wnd ats_labelalign_set(ats_wnd on, char *label, XawEdgeType left, XawEdgeType right);
 C_API ats_wnd ats_labelfull_set(char *tag, ats_wnd on, ats_wnd alignto,
 	char *label, int x, int y, bool is_vert);
 C_API ats_wnd ats_checkradio_set(ats_wnd on, char *label, bool is_radio);
@@ -580,7 +581,7 @@ C_API ats_wnd ats_windowgrid_set(ats_t *ui, int menuheight, int topheight, int b
 C_API ats_wnd ats_tabs_set(ats_t *ui, int row);
 C_API ats_wnd ats_tabsbox_set(char *title, ats_wnd on);
 C_API ats_wnd ats_tabsgrid_set(char *title, ats_wnd on, const char *yLayout);
-C_API ats_wnd ats_boxwindow_set(ats_wnd on);
+C_API ats_wnd ats_boxwindow_set(ats_wnd on, int row);
 C_API ats_wnd ats_boxspace_set(ats_wnd on, int vertical, int horizontal);
 C_API ats_wnd ats_formwindow_set(ats_wnd on, int row);
 C_API int ats_graphics_loop(ats_t *ui);
