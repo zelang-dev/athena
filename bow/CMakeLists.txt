@@ -6,8 +6,8 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
 endif()
 
 project(bow
-	VERSION 3.0.0
-	DESCRIPTION "X11/Athena World-Wide Web Browser"
+	VERSION 0.6.0
+	DESCRIPTION "Native X11/Athena Webview library, and Web Browser"
     LANGUAGES C
 )
 
