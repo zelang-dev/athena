@@ -284,6 +284,8 @@ void ats_icon_set(ats_t *ui, const char *filepath) {
 	XWMHints wm_hints;
 	int status = -1;
 
+	ui->win = XtWindow(ui->topLevel);
+	ui->screen = DefaultScreen(ui->dpy);
 	if (ui->use_icon) {
 		/* Create the pixmaps accordingly
 	 	 * All the pixmaps MUST have the same height and width */
@@ -632,28 +634,40 @@ ats_wnd ats_image_set(ats_wnd on, char *pixmap) {
 #include "anyimage.c"
 
 Pixmap ats_image_get(ats_wnd alpha, Display *dpy, const char *filename, unsigned char *memoryimage, int imagelen) {
-	int i, len, x= 0, y = 0;
+	int i, len, x = 0, y = 0;
+	bool has_image = false, is_webp = false;
 	unsigned *dp;
-	unsigned char *data = NULL;
+	unsigned char *data = NULL, *file = NULL;
 
 	if (filename) {
-		if ((data = read_stbi(filename, &x, &y))
-			|| (data = read_nsvg(filename, &x, &y))
-			|| (data = read_tiff(filename, &x, &y))) {
-			;
-		} else {
-			return 0;
+		if ((file = read_file(filename, &len))) {
+			if ((data = memory_stbi(file, len, &x, &y))
+				|| (data = memory_nsvg(file, len, &x, &y))
+				|| (data = memory_avif(file, len, &x, &y))) {
+				has_image = true;
+			} else if ((data = memory_webp(file, len, &x, &y))) {
+				is_webp = true;
+				has_image = true;
+			} else if ((data = memory_tiff(file, len, &x, &y))) {
+				has_image = true;
+			}
+
+			free(file);
 		}
 	} else if (memoryimage && imagelen) {
 		if ((data = memory_stbi(memoryimage, imagelen, &x, &y))
 			|| (data = memory_nsvg(memoryimage, imagelen, &x, &y))
-			|| (data = memory_tiff(memoryimage, imagelen, &x, &y))) {
-			;
-		} else {
-			fprintf(stderr, "Failed to load image: %s\n", stbi_failure_reason());
-			return 0;
+			|| (data = memory_avif(memoryimage, imagelen, &x, &y))) {
+			has_image = true;
+		} else if ((data = memory_webp(memoryimage, imagelen, &x, &y))) {
+			is_webp = true;
+			has_image = true;
+		} else if ((data = memory_tiff(memoryimage, imagelen, &x, &y))) {
+			has_image = true;
 		}
-	} else {
+	}
+
+	if (!has_image) {
 		fprintf(stderr, "Failed to load image\n");
 		return 0;
 	}
@@ -674,13 +688,16 @@ Pixmap ats_image_get(ats_wnd alpha, Display *dpy, const char *filename, unsigned
 	unsigned char *rgb_data = malloc(x * y * 3);
 	if (!rgb_data) {
 		fprintf(stderr, "Error: Memory allocation failed for RGB buffer.\n");
-		free(data);
+		if (is_webp) WebPFree(data);
+		else free(data);
+
 		return 0;
 	}
 
 	for (i = 0; i < x * y; i++)
 		blend_pixel(&rgb_data[i * 3], &data[i * 4], bg_r, bg_g, bg_b);
-	free(data);
+	if (is_webp) WebPFree(data);
+	else free(data);
 
 	Pixmap pixmap = pixmap_from_rgba(dpy, DefaultRootWindow(dpy), x, y, rgb_data);
 	free(rgb_data);
@@ -1397,7 +1414,7 @@ static int _ATS_KEYCODES[124] = {XK_BackSpace,8,XK_Delete,127,XK_Down,18,XK_End,
 int ats_handler(ats_t *ui) {
 	XFlush(ui->dpy);
 	while (true) {
-		if (!ui->app_con)
+		if (!ui->app_con || ui->exited)
 			return 0;
 
 		XtAppNextEvent(ui->app_con, &ui->xev);
@@ -1452,6 +1469,7 @@ void ats_athena_set(ats_t *ui, char **xpm_icon, const char *title, int width, in
 }
 
 int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer) {
+	//return ats_window_ex(ui, title, width, height, alloc_buffer, NULL, NULL, 0, false);
 	int argc = 0;
 	char **argv = NULL;
 
@@ -1520,6 +1538,123 @@ int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_bu
 	ats_icon_set(ui, ATHENA_ICON);
 	XStoreName(ui->dpy, ui->win, ui->title);
 	XMapWindow(ui->dpy, ui->win);
+
+	if (!ui->buf) {
+		ui->wnd = ui->topLevel;
+		XSync(ui->dpy, 0);
+	} else {
+		ui->img = XCreateImage(ui->dpy, DefaultVisual(ui->dpy, 0), 24, ZPixmap, 0,
+			(char *)ui->buf, ui->width, ui->height, 32, 0);
+		XSync(ui->dpy, ui->win);
+	}
+
+	if (!main_athena_info->font) {
+		MwInitFormat(ui->dpy);
+		ui->font = XLoadQueryFont(ui->dpy, "lucidasans-8");
+		ui->font_button = XLoadQueryFont(ui->dpy, lucida);
+		main_athena_info->font = ui->font;
+		main_athena_info->font = ui->font_button;
+	}
+
+	return 1;
+}
+
+/* xtErrorHandler */
+static FORCEINLINE void xtErrorHandler(String msg) {
+	fprintf(stderr, "Caught: %s\n", msg);
+}
+
+/* xtWarningHandler */
+static FORCEINLINE void xtWarningHandler(String msg) {
+	fprintf(stderr, "Caught: %s\n", msg);
+}
+
+int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc_buffer,
+	String *resources, XtActionList add_actions, Cardinal num_actions, bool catch_err) {
+	int argc = 0;
+	char **argv = NULL;
+
+	ui->title = title;
+	ui->width = width;
+	ui->height = height;
+	if (alloc_buffer == true) {
+		ui->buf = malloc(ui->width * ui->height * sizeof(uint32_t));
+		if (!ui->buf)
+			return 0;
+	}
+
+	if (main_athena_info == NULL) {
+		ui->topLevel = XtVaOpenApplication(&ui->app_con, ui->title, NULL, 0,
+			&argc, argv, (resources ? resources : fallback), mwApplicationShellWidgetClass,
+			XtNwidth, ui->width, XtNheight, ui->height,
+			XtNbeNiceToColormap, False, NULL, 0);
+
+		// Register hotkey action
+		XtActionsRec actions[] = {{"hotkey", hotkey_action}};
+		XtAppAddActions(ui->app_con, actions, XtNumber(actions));
+		if (add_actions)
+			XtAppAddActions(ui->app_con, add_actions, num_actions);
+
+		if (!ui->use_icon)
+			ui->use_icon = athena;
+
+		main_athena_info = ui;
+		main_athena_info->wnd = ui->topLevel;
+		if (catch_err) {
+			XSetErrorHandler(MwXErrorHandler);
+			XtAppSetErrorHandler(ui->app_con, (_noreturn_cb)xtErrorHandler);
+			XtAppSetWarningHandler(ui->app_con, xtWarningHandler);
+		}
+
+		XawFocusInstallActions(ui->app_con);
+	}
+
+	ui->dpy = XtDisplayOfObject(main_athena_info->wnd);
+	if (ui->dpy == NULL) {
+		XtAppError(ui->app_con, "\n\tCannot connect to X server\n\n");
+		return 0;
+	}
+
+	ui->screen = DefaultScreen(ui->dpy);
+	if (ui->buf) {
+		ui->root = RootWindow(ui->dpy, ui->screen);
+		ui->win = XCreateSimpleWindow(ui->dpy, ui->root, 0, 0, ui->width, ui->height,
+			0, BlackPixel(ui->dpy, ui->screen), WhitePixel(ui->dpy, ui->screen));
+		ui->gc = XCreateGC(ui->dpy, ui->win, 0, 0);
+	} else {
+		if (ui != main_athena_info) {
+			ui->topLevel = XtVaAppInitialize(&ui->app_con, (ui->webview_set ? "webview" : ui->title), NULL, 0,
+				&argc, argv, (ui->webview_set ? fallback_webview : (resources ? resources : fallback)),
+				XtNbeNiceToColormap, False,
+				XtNwidth, ui->width,
+				XtNheight, ui->height, NULL, 0);
+			if (add_actions)
+				XtAppAddActions(ui->app_con, add_actions, num_actions);
+		}
+
+		XtRealizeWidget(ui->topLevel);
+		ui->win = XtWindow(ui->topLevel);
+		if (catch_err)
+			XUnmapWindow(ui->dpy, ui->win);
+	}
+
+	XSelectInput(ui->dpy, ui->win, ExposureMask | KeyPressMask | KeyReleaseMask
+		| ButtonPressMask | ButtonReleaseMask | PointerMotionMask | StructureNotifyMask);
+
+	ui->wmDeleteMessage = XInternAtom(ui->dpy, "WM_DELETE_WINDOW", False);
+	XSetWMProtocols(ui->dpy, ui->win, &ui->wmDeleteMessage, 1);
+	if (alloc_buffer == -1) {
+		XSizeHints hints;
+		hints.flags = PSize | PMinSize | PMaxSize;
+		hints.min_width = hints.max_width = hints.base_width = width;
+		hints.min_height = hints.max_height = hints.base_height = height;
+		XSetWMNormalHints(ui->dpy, ui->win, &hints);
+	}
+
+	ats_icon_set(ui, ATHENA_ICON);
+	XStoreName(ui->dpy, ui->win, ui->title);
+	if (!catch_err)
+		XMapWindow(ui->dpy, ui->win);
 
 	if (!ui->buf) {
 		ui->wnd = ui->topLevel;

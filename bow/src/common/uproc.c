@@ -4,7 +4,6 @@
  * Code grabbed from bow 1.65.
  */
 
-
 #include <unistd.h>
 
 #include <errno.h>
@@ -24,26 +23,22 @@
  * don't care about the status, we just want to keep zombie's from
  * cropping up.
  */
-static void
-ReapChild()
-{
+static void ReapChild(int sig) {
 #if defined(WNOHANG) && !defined(SYSV) && !defined(SVR4)
-  int pid;
+	int pid;
 #endif
-  extern int errno;
-  int old_errno = errno;
+	extern int errno;
+	int old_errno = errno;
 
- /*
-  * It would probably be better to use the POSIX mechanism here,but I have not
-  * checked into it.  This gets us off the ground with SYSV.  RSE@GMI
-  */
-  int st;
+   /*
+	* It would probably be better to use the POSIX mechanism here,but I have not
+	* checked into it.  This gets us off the ground with SYSV.  RSE@GMI
+	*/
+	int st;
 
-  wait(&st);
-  StartReaper();
-  errno = old_errno;
-
-  return;
+	wait(&st);
+	StartReaper();
+	errno = old_errno;
 }
 
 /*
@@ -52,16 +47,14 @@ ReapChild()
  * This code inits the code which reaps child processes that where
  * fork'd off for external viewers.
  */
-void
-StartReaper()
-{
+void StartReaper(void) {
 #ifdef SIGCHLD
-  signal(SIGCHLD, ReapChild);
+	signal(SIGCHLD, ReapChild);
 #else
-  signal(SIGCLD, ReapChild);
+	signal(SIGCLD, ReapChild);
 #endif
 
-  return;
+	return;
 }
 
 /*
@@ -70,59 +63,48 @@ StartReaper()
  * fork and exec to get a program running and supply it with
  * a stdin, stdout, stderr that so we can talk to it.
  */
-int
-PipeCommand(command, fd)
-char *command;
-int *fd;
-{
-  int pout[2];
-  int pin[2];
-  int pid;
+int PipeCommand(char *command, int *fd) {
+	int pout[2];
+	int pin[2];
+	int pid;
 
-/*
-  if (pipe(pout) == -1) return(-1);
-*/
-  if (pipe(pin) == -1)
-  {
-    close(pout[0]);
-    close(pout[1]);
-    return(-1);
-  }
+  /*
+	if (pipe(pout) == -1) return(-1);
+  */
+	if (pipe(pin) == -1) {
+		close(pout[0]);
+		close(pout[1]);
+		return(-1);
+	}
 
-  pid = fork();
-  if (pid == -1)
-  {
-    return(-1);
-  }
-  else if (pid == 0)
-  {
-/*
-    if (pout[1] != 1)
-    {
-      dup2(pout[1], 1);
-      close(pout[1]);
-    }
-*/
-    if (pin[0] != 0)
-    {
-      dup2(pin[0], 0);
-      close(pin[0]);
-    }
+	pid = vfork();
+	if (pid == -1) {
+		return(-1);
+	} else if (pid == 0) {
+  /*
+	  if (pout[1] != 1)
+	  {
+		dup2(pout[1], 1);
+		close(pout[1]);
+	  }
+  */
+		if (pin[0] != 0) {
+			dup2(pin[0], 0);
+			close(pin[0]);
+		}
 
-    signal(SIGPIPE, SIG_DFL);
+		signal(SIGPIPE, SIG_DFL);
 
-    execl(command, command, (char *)0);
-  }
-  else
-  {
-    close(pout[1]);
-    close(pin[0]);
-  }
+		execl(command, command, (char *)0);
+	} else {
+		close(pout[1]);
+		close(pin[0]);
+	}
 
-  fd[0] = pin[1];
-/*
-  fd[1] = pout[0];
-*/
+	fd[0] = pin[1];
+  /*
+	fd[1] = pout[0];
+  */
 
-  return(0);
+	return(0);
 }

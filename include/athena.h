@@ -288,6 +288,7 @@
 #include <Gridbox.h>
 
 #include <stdio.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
@@ -321,6 +322,7 @@ enum {
 	ID_ATS_STATIC = 4000,
 };
 
+typedef __attribute__((noreturn)) void (*_noreturn_cb)(char *);
 /* Platform Window type */
 typedef Widget ats_wnd;
 /* Platform FONT type */
@@ -472,7 +474,7 @@ struct ats_info_s {
 	Colormap cmap;
 	Window win, root;
 	Pixmap icon_pixmap, icon_mask;
-	Atom code, wmDeleteMessage, dragdrop[MAX_DRAGDROPS + 1];
+	Atom exited, code, wmDeleteMessage, dragdrop[MAX_DRAGDROPS + 1];
 	XEvent xev;
 	Widget topLevel, statusLine, grid, tooltip;
 	Display *dpy;
@@ -570,6 +572,8 @@ C_API ats_wnd ats_buttons_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char
 	_platform_cb action, int is_vert, int number, int y);
 
 C_API int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer);
+C_API int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc_buffer,
+	String *resources, XtActionList add_actions, Cardinal num_actions, bool catch_err);
 C_API int ats_menubar_set(ats_t *ui, int numof_menus);
 C_API int ats_font_set(ats_t *ui, const char *font);
 C_API int ats_menu_set(ats_t *ui, int num_menu, menuitem_t *items, int numof_items, int menu_id, char *name);
@@ -602,12 +606,18 @@ C_API ui_bool is_ValidUrl(ui_str_t text);
 C_API ui_bool is_ValidEmail(ui_str_t text);
 C_API ui_bool is_ValidPassword(ui_form_t field);
 
-unsigned char *read_nsvg(const char *filename, int *x, int *y);
+unsigned char *read_file(const char *filename, int *len);
+
 unsigned char *read_stbi(const char *filename, int *x, int *y);
+unsigned char *read_nsvg(const char *filename, int *x, int *y);
 unsigned char *read_tiff(const char *filename, int *x, int *y);
-unsigned char *memory_stbi(const unsigned char *buffer, int len, int *x, int *y);
-unsigned char *memory_nsvg(const unsigned char *buffer, int len, int *x, int *y);
-unsigned char *memory_tiff(const unsigned char *buffer, int len, int *x, int *y);
+unsigned char *read_avif(const char *filename, int *x, int *y);
+
+unsigned char *memory_stbi(const unsigned char *buffer, size_t len, int *x, int *y);
+unsigned char *memory_nsvg(const unsigned char *buffer, size_t len, int *x, int *y);
+unsigned char *memory_tiff(const unsigned char *buffer, size_t len, int *x, int *y);
+unsigned char *memory_avif(const unsigned char *buffer, size_t len, int *x, int *y);
+unsigned char *memory_webp(const unsigned char *buffer, size_t len, int *x, int *y);
 
 #define ats_pixel(w, x, y) ((w)->buf[((y) * (w)->width) + (x)])
 

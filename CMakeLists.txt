@@ -64,6 +64,8 @@ else()
 
 	find_package(OpenGL QUIET COMPONENTS GLX)
 	find_package(TIFF REQUIRED)
+	find_package(LIBAVIF REQUIRED COMPONENTS AOM)
+	find_package(WebP REQUIRED)
 	file(GLOB mowitz_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Mowitz/*.c)
 	#file(GLOB webview_files
@@ -100,6 +102,14 @@ else()
 		PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 	target_include_directories(${PROJECT_NAME}
+		PRIVATE $<BUILD_INTERFACE:${WebP_INCLUDE_DIRS}
+		$<INSTALL_INTERFACE:${WebP_INCLUDE_DIRS})
+
+	target_include_directories(${PROJECT_NAME}
+		PRIVATE $<BUILD_INTERFACE:${libavif_INCLUDE_DIRS}
+		$<INSTALL_INTERFACE:${libavif_INCLUDE_DIRS})
+
+	target_include_directories(${PROJECT_NAME}
 		PRIVATE $<BUILD_INTERFACE:${TIFF_INCLUDE_DIRS}
 		$<INSTALL_INTERFACE:${TIFF_INCLUDE_DIRS})
 
@@ -115,7 +125,8 @@ else()
 		target_link_libraries(${PROJECT_NAME}
 			Xaw X11::Xmu X11::Xt Xpm X11::X11 OpenGL::GL OpenGL::GLU
 			#Xaw X11::Xmu X11::Xt Xpm X11::X11
-			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m TIFF::TIFF)
+			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m
+			TIFF::TIFF avif ${AOM_LIBRARIES} ${WebP_LIBRARY} ${WebP_DECODER_LIBRARY})
 	else()
 		target_compile_definitions(${PROJECT_NAME}
 			PUBLIC MOWITZ_DATA="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena"
@@ -123,7 +134,8 @@ else()
 		target_link_libraries(${PROJECT_NAME}
 			Xaw95 X11::Xmu X11::Xt Xpm X11::X11 OpenGL::GL OpenGL::GLU
 			#Xaw95 X11::Xmu X11::Xt Xpm X11::X11
-			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m TIFF::TIFF)
+			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m
+			TIFF::TIFF avif ${AOM_LIBRARIES} ${WebP_LIBRARY} ${WebP_DECODER_LIBRARY})
 	endif(BUILD_NATIVE_XAW)
 endif()
 

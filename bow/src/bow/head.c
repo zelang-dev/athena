@@ -176,22 +176,22 @@ static XtResource       resource_list[] =
  */
 static void CreateWidgets(BowContext wc) {
 	Widget paned, box, form;
-	Atom delete;
 
 	wc->toplevel = XtAppCreateShell(wc->athena->title, "Bow",
 		mwApplicationShellWidgetClass,
 		wc->cres->dpy,
 		NULL, 0);
 
-	MwInitFormat(wc->cres->dpy);
+	//wc->toplevel = wc->athena->topLevel;
+	wc->athena->topLevel = wc->toplevel;
+	MwHighlightInit(wc->athena->topLevel);
 	XtGetApplicationResources(wc->toplevel, wc,
 		resource_list, XtNumber(resource_list),
 		NULL, 0);
 
-	wc->athena->topLevel = wc->toplevel;
-
 /*
- * Main window, Button and Menu pane
+ * Split `Main window` into grid layout, Menu,
+ * Button & Url field, WWW content, and Status pane
  */
 	wc->athena->toolheight = 30;
 	ats_menubar_set(wc->athena, 2);
@@ -243,9 +243,7 @@ static void CreateWidgets(BowContext wc) {
 
 	form = ats_toolbar_set(wc->athena, box, Go, "preview.xpm", "Go", true);
 	ats_alignfield(form, wc->url, false);
-	XtOverrideTranslations(wc->url,
-		XtParseTranslationTable
-		("<Key>Return: ReturnAction()"));
+	XtOverrideTranslations(wc->url,	XtParseTranslationTable("<Key>Return: ReturnAction()"));
 
 /*
  * WWW widget
@@ -262,21 +260,11 @@ static void CreateWidgets(BowContext wc) {
 	wc->tstack = StackCreateToplevel(wc, paned);
 
 	XtRealizeWidget(wc->toplevel);
-
-	wc->athena->win = XtWindow(wc->athena->topLevel);
-	wc->athena->screen = DefaultScreen(wc->athena->dpy);
 	ats_icon_set(wc->athena, "athena.xpm");
 
 	wc->athena->wmDeleteMessage = XInternAtom(XtDisplay(wc->toplevel), "WM_DELETE_WINDOW", False);
 	XSetWMProtocols(wc->cres->dpy, wc->athena->win, &wc->athena->wmDeleteMessage, 1);
-	XtOverrideTranslations(wc->toplevel,
-		XtParseTranslationTable
-		("<Message>WM_PROTOCOLS: DeleteAction()"));
-
-/*
- * Accelerators
- */
-	InstallAccelerators(paned);
+	XtOverrideTranslations(wc->toplevel, XtParseTranslationTable("<Message>WM_PROTOCOLS: DeleteAction()"));
 }
 
 /*
@@ -287,10 +275,9 @@ void HeadDestroy(BowContext wc) {
 	GListRemoveItem(wc->cres->heads, wc);
 	ats_t *ui = wc->athena;
 	ats_cancel(ui->topLevel);
-	//XtDestroyWidget(wc->toplevel);
 	MPDestroy(wc->mp);
 	BowRemoveReference(wc->cres);
-	ui->app_con = NULL;
+	ui->exited = 1;
 }
 
 /*

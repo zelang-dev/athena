@@ -45,46 +45,36 @@ typedef void(*lt_expansion_fn) _ArgProto((byte *, byte *,
 	Intensity, Intensity,
 	Intensity));
 
-#define IMAGE_GIF	0
-#define IMAGE_XBM 	1
-#define IMAGE_JPEG 	2
-#define IMAGE_PNG 	3
-#define IMAGE_SVG 	4
-#define IMAGE_PNM 	5
-#define IMAGE_TIFF 	6
-#define IMAGE_TGA 	7
-#define IMAGE_BMP 	8
-#define IMAGE_PIC 	9
-#define IMAGE_PSD 	10
-#define IMAGE_HDR 	11
-#define IMAGE_UNKNOWN 	12
-
 static struct content_map {
 	char *name;
-	int id;
+	bow_image_type id;
 } content_map[] =
 {
-  { "image/gif", IMAGE_GIF },
-  { "image/xbm", IMAGE_XBM },
-  { "image/bmp", IMAGE_BMP },
-  { "image/hdr", IMAGE_HDR },
-  { "image/pic", IMAGE_PIC },
-  { "image/tga", IMAGE_TGA },
-  { "image/psd", IMAGE_PSD },
-  { "image/pnm", IMAGE_PNM },
-  { "image/jpeg", IMAGE_JPEG },
-  { "image/x-png", IMAGE_PNG },
-  { "image/png", IMAGE_PNG },
-  { "image/x-svg", IMAGE_SVG},
-  { "image/svg", IMAGE_SVG},
-  { "image/x-tif", IMAGE_TIFF},
-  { "image/tiff", IMAGE_TIFF},
-  { "image/x-xbitmap", IMAGE_XBM },
-  { "image/x-portable-anymap", IMAGE_PNM },
-  { "image/x-portable-bitmap", IMAGE_PNM },
-  { "image/x-portable-graymap", IMAGE_PNM },
-  { "image/x-portable-pixmap", IMAGE_PNM },
-  { NULL, IMAGE_UNKNOWN },
+  {"image/gif", IMAGE_GIF},
+  {"image/xbm", IMAGE_XBM},
+  {"image/bmp", IMAGE_BMP},
+  {"image/hdr", IMAGE_HDR},
+  {"image/pic", IMAGE_PIC},
+  {"image/tga", IMAGE_TGA},
+  {"image/psd", IMAGE_PSD},
+  {"image/pnm", IMAGE_PNM},
+  {"image/jpeg", IMAGE_JPEG},
+  {"image/x-avif", IMAGE_AVIF},
+  {"image/avif", IMAGE_AVIF},
+  {"image/x-webp", IMAGE_WEBP},
+  {"image/webp", IMAGE_WEBP},
+  {"image/x-png", IMAGE_PNG},
+  {"image/png", IMAGE_PNG},
+  {"image/x-svg", IMAGE_SVG},
+  {"image/svg", IMAGE_SVG},
+  {"image/x-tif", IMAGE_TIFF},
+  {"image/tiff", IMAGE_TIFF},
+  {"image/x-xbitmap", IMAGE_XBM},
+  {"image/x-portable-anymap", IMAGE_PNM},
+  {"image/x-portable-bitmap", IMAGE_PNM},
+  {"image/x-portable-graymap", IMAGE_PNM},
+  {"image/x-portable-pixmap", IMAGE_PNM},
+  {NULL, IMAGE_UNKNOWN},
 };
 
 /*
@@ -1022,7 +1012,7 @@ void *closure;
 void *ImageInit(BowRender wn, void *class_closure, void *state) {
 	ImageClass *ic = (ImageClass *)class_closure;
 	ImageState *is;
-	int format;
+	bow_image_type format;
 	XWindowAttributes xwa;
 	int status;
 	char *content;
@@ -1060,18 +1050,10 @@ void *ImageInit(BowRender wn, void *class_closure, void *state) {
 	is->bgcolor.pixel = GUIBackgroundPixel(wd);
 	XQueryColor(is->dpy, is->cmap, &(is->bgcolor));
 
-	if (format == IMAGE_GIF) stbInit(MemoryToXImage, is, &is->if_vector);
-	else if (format == IMAGE_PNM) stbInit(MemoryToXImage, is, &is->if_vector);
-	else if (format == IMAGE_XBM) xbmInit(ImageToXImage, is, &is->if_vector);
-	else if (format == IMAGE_JPEG) stbInit(MemoryToXImage, is, &is->if_vector);
-	else if (format == IMAGE_PNG) stbInit(MemoryToXImage, is, &is->if_vector);
-	else if (format == IMAGE_SVG) stbInit(MemoryToXImage, is, &is->if_vector);
-	else if (format == IMAGE_BMP) stbInit(MemoryToXImage, is, &is->if_vector);
-	else if (format == IMAGE_PIC) stbInit(MemoryToXImage, is, &is->if_vector);
-	else if (format == IMAGE_TGA) stbInit(MemoryToXImage, is, &is->if_vector);
-	else if (format == IMAGE_PSD) stbInit(MemoryToXImage, is, &is->if_vector);
-	else if (format == IMAGE_HDR) stbInit(MemoryToXImage, is, &is->if_vector);
-	else if (format == IMAGE_TIFF) stbInit(MemoryToXImage, is, &is->if_vector);
+	if (format == IMAGE_XBM)
+		xbmInit(ImageToXImage, is, &is->if_vector, format);
+	else if (format != IMAGE_UNKNOWN)
+		stbInit(MemoryToXImage, is, &is->if_vector, format);
 
 	ic->icount++;
 
@@ -1113,11 +1095,8 @@ static void ImageEnd(void *closure) {
 	return;
 }
 
-static bool ImageExpose(closure, ex, ey, ewidth, eheight)
-void *closure;
-int ex, ey;
-unsigned int ewidth, eheight;
-{
+static bool ImageExpose(void *closure, int ex, int ey,
+	unsigned int ewidth, unsigned int eheight) {
 	ImageState *is = (ImageState *)closure;
 	unsigned int height;
 
@@ -1136,8 +1115,7 @@ unsigned int ewidth, eheight;
 	return(true);
 }
 
-static void
-ImageClassDestroy(void *closure) {
+static void ImageClassDestroy(void *closure) {
 	ImageClass *ic = (ImageClass *)closure;
 	int i;
 
@@ -1162,7 +1140,6 @@ ImageClassDestroy(void *closure) {
 }
 
 static void ImageCancel(void *closure) {
-	return;
 }
 
 int InitModule_Image(BowResources cres) {

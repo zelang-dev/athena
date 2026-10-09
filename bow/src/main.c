@@ -18,27 +18,21 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-
-#include <stdio.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <athena.h>
-
 #include "MyDialog.h"
-
-#include "BowP.h"
+#include "bow/BowP.h"
+#include "bow_archer.xpm"
 
 static void sigigh_handler _ArgProto(());
 static void xtWarningHandler _ArgProto((String));
 static int xErrorHandler _ArgProto((Display *, XErrorEvent *));
 static void BowCleanup _ArgProto((BowResources));
-static BowResources ResourcesCreate _ArgProto((int *, char **));
+static BowResources ResourcesCreate _ArgProto((ats_t *, int *, char **));
 static void ResourcesDestroy _ArgProto((BowResources));
 
 extern char *fallback_resources[];
 
-static BowResources globalcres;
+static BowResources globalcres = NULL;
 static char *default_resource = "bookmark.filename: ~/.bow/bookmarks.html\n"
 "cache.directory: ~/.bow/cache\n"
 "cache.persist: true\n"
@@ -57,72 +51,69 @@ int main(int argc, char **argv) {
 
 	StartReaper();
 
-	globalcres = ResourcesCreate(&argc, argv);
-
-	/*
-	 * Default base URL; this allows filenames to be used on the
-	 * command line
-	 */
-	strcpy(base_url, "file:");
-	getcwd(base_url + 5, sizeof(base_url) - 5);
-	strcat(base_url, "/");
-
 	ats_t ui = {0};
-	globalcres->ats = &ui;
-	globalcres->ats->app_con = globalcres->appcon;
-	globalcres->ats->dpy = globalcres->dpy;
-	ats_athena_set(globalcres->ats, icon_32x32, "Browser", 650, 500);
+	ui.use_icon = bow_archer;
+	globalcres = ResourcesCreate(&ui, &argc, argv);
+	if (globalcres) {
+		/*
+		* Default base URL; this allows filenames to be used on the
+		* command line
+		*/
+		strcpy(base_url, "file:");
+		getcwd(base_url + 5, sizeof(base_url) - 5);
+		strcat(base_url, "/");
 
-	if (argc > 1)
-		HeadCreate(globalcres, RequestCreate(globalcres, argv[argc - 1], base_url), NULL);
-	else
-		HeadCreate(globalcres, NULL, NULL);
+		if (argc > 1)
+			HeadCreate(globalcres, RequestCreate(globalcres, argv[argc - 1], base_url), NULL);
+		else
+			HeadCreate(globalcres, NULL, NULL);
 
-	/*
-	 * And away we go...
-	 */
-	ats_handler(globalcres->ats);
-	ats_close(globalcres->ats);
-	return 0;
+		/*
+		 * And away we go...
+		 */
+		ats_handler(globalcres->ats);
+		ats_close(globalcres->ats);
+		return 0;
+	}
+
+	return -1;
 }
 
 /*
  * sigiqh_handler
  */
-static void sigigh_handler() {
+static void sigigh_handler(int sig) {
 }
 
 /*
  * xErrorHandler
  */
- int xErrorHandler(Display *dpy, XErrorEvent *xe) {
-	fprintf(stderr, "X error\n");
-	fflush(stderr);
+static int xErrorHandler(Display *dpy, XErrorEvent *xe) {
+	char buf[256] = {0};
+	XGetErrorText(dpy, xe->error_code, buf, sizeof(buf));
+	fprintf(stderr, "X error: %d\n", buf);
 	return 0;
 }
 
 /*
  * xtErrorHandler
  */
- static _X_NORETURN void xtErrorHandler(String msg) {
+ static FORCEINLINE void xtErrorHandler(String msg) {
 	fprintf(stderr, "%s\n", msg);
-	fflush(stderr);
  }
 
 /*
  * xtWarningHandler
  */
-static void xtWarningHandler(String msg) {
+ static FORCEINLINE void xtWarningHandler(String msg) {
 	fprintf(stderr, "%s\n", msg);
-	fflush(stderr);
 }
 
 /*
  * BowAddReference
  */
-void BowAddReference(BowResources cres) {
+FORCEINLINE void BowAddReference(BowResources cres) {
 	cres->refcount++;
-	return;
 }
 
 /*
@@ -145,13 +136,14 @@ static void BowCleanup(BowResources cres) {
 /*
  * BowRemoveReference
  */
-void BowRemoveReference(BowResources cres) {
+FORCEINLINE void BowRemoveReference(BowResources cres) {
 	cres->refcount--;
 	if (cres->refcount == 0)
 		BowCleanup(cres);
 }
 
-static void DeleteAction(), ReturnAction();
+static void DeleteAction(Widget w, XEvent *xe, String *params, Cardinal *num_params);
+static void ReturnAction(Widget w, XEvent *xe, String *params, Cardinal *num_params);
 
 static XtActionsRec actionsList[] =
 {
@@ -162,8 +154,7 @@ static XtActionsRec actionsList[] =
 /*
  * DeleteAction
  */
-static void
-DeleteAction() {
+static void DeleteAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
 	BowCleanup(globalcres);
 }
 
@@ -187,11 +178,9 @@ static void ReturnAction(Widget w, XEvent *xe, String *params, Cardinal *num_par
 			break;
 		}
 	}
-
-	return;
 }
 
-BowResources ResourcesCreate(int *argcp, char **argv) {
+BowResources ResourcesCreate(ats_t *ats, int *argcp, char **argv) {
 	BowResources cres;
 	MemPool mp, tmp;
 	char *f, *filename;
@@ -201,8 +190,11 @@ BowResources ResourcesCreate(int *argcp, char **argv) {
 	struct stat s;
 
 	mp = MPCreate();
-	cres = (BowResources)MPCGet(mp, sizeof(struct BowResourcesP));
+	if (!(cres = (BowResources)MPCGet(mp, sizeof(struct BowResourcesP))))
+		return NULL;
+
 	cres->mp = mp;
+	cres->ats = ats;
 	cres->sources = GListCreateX(mp);
 	cres->sourcehooks = GListCreateX(mp);
 	cres->renderhooks = GListCreateX(mp);
@@ -215,7 +207,7 @@ BowResources ResourcesCreate(int *argcp, char **argv) {
 	cres->cs = SchedulerCreate();
 
 	ResourceAddString(cres, "cache.Directory: /tmp");
-	ResourceAddString(cres, "http.userAgent: Bow/2.0alpha");
+	ResourceAddString(cres, "http.userAgent: Bow/0.6.0-chimera_webview");
 	ResourceAddString(cres, "mailto.newhead: true");
 
 	if ((dbfiles = getenv("BOW_DBFILES")) == NULL) {
@@ -242,10 +234,10 @@ BowResources ResourcesCreate(int *argcp, char **argv) {
 	}
 
 	cres->cc = CacheCreate(cres);
-
-	if (ResourceGetInt(cres, "bow.maxDownloads", &cres->maxiocnt) == NULL) {
+	if (ResourceGetInt(cres, "bow.maxDownloads", &cres->maxiocnt) == NULL)
 		cres->maxiocnt = 4;
-	} else if (cres->maxiocnt <= 1) cres->maxiocnt = 1;
+	else if (cres->maxiocnt <= 1)
+		cres->maxiocnt = 1;
 
 	if (ResourceGetBool(cres, "bow.printLoadMessages",
 		&cres->printLoadMessages) == NULL) {
@@ -260,39 +252,23 @@ BowResources ResourcesCreate(int *argcp, char **argv) {
 	/*
 	 * Initialize the Xt stuff.
 	 */
-	XtToolkitInitialize();
+	if (ats_window_ex(ats, "Bow", 768, 600, false, fallback_resources, actionsList, XtNumber(actionsList), true)) {
+		cres->appcon = ats->app_con;
+		cres->dpy = ats->dpy;
+		cres->bc = BookmarkCreateContext(cres);
+		InitBowBuiltins(cres);
 
-	cres->appcon = XtCreateApplicationContext();
-	XSetErrorHandler(xErrorHandler);
-	XtAppSetErrorHandler(cres->appcon, xtErrorHandler);
-	XtAppSetWarningHandler(cres->appcon, xtWarningHandler);
+		tmp = MPCreate();
+		if ((logfile = ResourceGetFilename(cres, tmp, "bow.urlLogFile")) != NULL) {
+			cres->logfp = fopen(logfile, "a");
+		}
 
-	XtAppSetFallbackResources(cres->appcon, fallback_resources);
-	cres->dpy = XtOpenDisplay(cres->appcon, NULL,
-		NULL, "Bow",
-		NULL, 0,
-		argcp, argv);
-	if (cres->dpy == NULL) {
-		fprintf(stderr, "Could not open display.\n");
-		exit(1);
+		MPDestroy(tmp);
+		cres->plainhooks = RenderGetHooks(cres, "text/plain");
+		return(cres);
 	}
 
-	XtAppAddActions(cres->appcon, actionsList, XtNumber(actionsList));
-
-	cres->bc = BookmarkCreateContext(cres);
-
-	InitBowBuiltins(cres);
-
-	tmp = MPCreate();
-	if ((logfile = ResourceGetFilename(cres, tmp,
-		"bow.urlLogFile")) != NULL) {
-		cres->logfp = fopen(logfile, "a");
-	}
-	MPDestroy(tmp);
-
-	cres->plainhooks = RenderGetHooks(cres, "text/plain");
-
-	return(cres);
+	return NULL;
 }
 
 static void ResourcesDestroy(BowResources cres) {

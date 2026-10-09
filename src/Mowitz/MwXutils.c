@@ -30,8 +30,7 @@ MA 02111-1307, USA.
 #include <X11/xpm.h>
 #include <Mowitz.h>
 
-static int find_file(const char *path, char *fn, const char *name)
-{
+static int find_file(const char *path, char *fn, const char *name) {
 	int found = 0;
 	struct stat statbuf;
 	char *p = NULL, *q;
@@ -53,8 +52,7 @@ static int find_file(const char *path, char *fn, const char *name)
 	return found;
 }
 
-Pixmap MwLoadPixmap(Display *dpy, Pixel color, const char *pm)
-{
+Pixmap MwLoadPixmap(Display *dpy, Pixel color, const char *pm) {
 	XpmAttributes xa;
 	Pixmap pm_return;
 	int result;
@@ -129,8 +127,7 @@ static Colormap cmap = None;
 
 
 /* compare two XColors */
-static int compare_colors(const void *p, const void *q)
-{
+static int compare_colors(const void *p, const void *q) {
 	int i;
 	XColor *c = (XColor *)p;
 	XColor *d = (XColor *)q;
@@ -141,13 +138,12 @@ static int compare_colors(const void *p, const void *q)
 	return (int)c->blue - d->blue;
 }
 
-static void init_cmap(Display *dpy)
-{
+static void init_cmap(Display *dpy) {
 	XColor c;
 
 	if (cmap == None) {
 		cmap = DefaultColormap(dpy, DefaultScreen(dpy));
-		c.flags = DoRed|DoGreen|DoBlue;
+		c.flags = DoRed | DoGreen | DoBlue;
 		c.red = c.green = c.blue = 0;
 		MwAllocColor(dpy, None, &c);
 		c.red = 0xffff;
@@ -172,8 +168,7 @@ static void init_cmap(Display *dpy)
 	}
 }
 
-void MwAllocColor(Display *dpy, Colormap cm, XColor *color)
-{
+void MwAllocColor(Display *dpy, Colormap cm, XColor *color) {
 	int i, j, lower, upper;
 	int d = 0;
 	XColor c;
@@ -193,18 +188,18 @@ void MwAllocColor(Display *dpy, Colormap cm, XColor *color)
 	}
 
 	lower = 0;
-	upper = nalloc-1;
+	upper = nalloc - 1;
 	while (lower <= upper) {
-		i = (lower+upper)/2;
+		i = (lower + upper) / 2;
 		d = compare_colors(&c, &alloc_cache[i]);
 		if (d == 0) {
 			lastcolor = i;
 			color->pixel = alloc_cache[i].pixel;
 			return;
 		} else if (d > 0) {
-			lower = i+1;
+			lower = i + 1;
 		} else {
-			upper = i-1;
+			upper = i - 1;
 		}
 	}
 	if (nalloc >= MAXCOLORS) {
@@ -213,14 +208,14 @@ void MwAllocColor(Display *dpy, Colormap cm, XColor *color)
 	}
 
 	nalloc++;
-	alloc_cache = MwRealloc(alloc_cache, nalloc * sizeof *alloc_cache);
+	alloc_cache = MwRealloc(alloc_cache, nalloc * sizeof * alloc_cache);
 
 	i = lower;
 
 	if (i < 0) i = 0;
-	if (i >= nalloc) i = nalloc-1;
-	for (j = nalloc-1; j > i; j--) {
-		alloc_cache[j] = alloc_cache[j-1];
+	if (i >= nalloc) i = nalloc - 1;
+	for (j = nalloc - 1; j > i; j--) {
+		alloc_cache[j] = alloc_cache[j - 1];
 	}
 	alloc_cache[i] = c;
 	x = c.red * 0xffff;
@@ -229,7 +224,7 @@ void MwAllocColor(Display *dpy, Colormap cm, XColor *color)
 	c.green = x / 0xf800;
 	x = c.blue * 0xffff;
 	c.blue = x / 0xf800;
-	c.flags = DoRed|DoGreen|DoBlue;
+	c.flags = DoRed | DoGreen | DoBlue;
 	if (XAllocColor(dpy, cmap, &c) == 0) {
 		if (i < 4) {
 			c.pixel = alloc_cache[0].pixel;	/* black */
@@ -241,8 +236,7 @@ void MwAllocColor(Display *dpy, Colormap cm, XColor *color)
 	lastcolor = i;
 }
 
-void MwAllocNamedColor(Display *dpy, char *name, XColor *color)
-{
+void MwAllocNamedColor(Display *dpy, char *name, XColor *color) {
 	MwInitFormat(dpy);
 	init_cmap(dpy);
 	XParseColor(dpy, cmap, name, color);
@@ -250,15 +244,14 @@ void MwAllocNamedColor(Display *dpy, char *name, XColor *color)
 }
 
 /* FIXME: query_cache should be sorted to permit treesort */
-void MwQueryColor(Display *dpy, Colormap cm, XColor *color)
-{
+void MwQueryColor(Display *dpy, Colormap cm, XColor *color) {
 	int i;
 
 	MwInitFormat(dpy);
 	init_cmap(dpy);
 	if (cm != None) cmap = cm;
 
-	color->flags = DoRed|DoGreen|DoBlue;
+	color->flags = DoRed | DoGreen | DoBlue;
 
 	for (i = 0; i < nquery; i++) {
 		if (query_cache[i].pixel == color->pixel) {
@@ -276,7 +269,7 @@ void MwQueryColor(Display *dpy, Colormap cm, XColor *color)
 	}
 	XQueryColor(dpy, cmap, color);
 	nquery++;
-	query_cache = MwRealloc(query_cache, nquery * sizeof *query_cache);
+	query_cache = MwRealloc(query_cache, nquery * sizeof * query_cache);
 	query_cache[i] = *color;
 	nquery++;
 }
@@ -288,8 +281,7 @@ Place the child centered relative to the parent.
 011225: Center relative to screen instead.
 */
 
-void MwCenter(Widget child)
-{
+void MwCenter(Widget child) {
 	Position x, y;
 	Dimension w1, h1;
 	Window root;
@@ -302,22 +294,20 @@ void MwCenter(Widget child)
 		XtNheight, &h1, (char *)0);
 	XGetGeometry(XtDisplay(child), DefaultRootWindow(XtDisplay(child)),
 		&root, &rx, &ry, &rw, &rh, &rb, &rd);
-	x = (rw-w1)/2;
-	y = (rh-h1)/2;
+	x = (rw - w1) / 2;
+	y = (rh - h1) / 2;
 	XtVaSetValues(child,
 		XtNx, x,
 		XtNy, y, (char *)0);
 }
 
-String MwLabelGet(Widget w)
-{
+String MwLabelGet(Widget w) {
 	String p = NULL;
 	XtVaGetValues(w, XtNlabel, &p, (char *)0);
 	return p;
 }
 
-void MwLabelSet(Widget w, String p)
-{
+void MwLabelSet(Widget w, String p) {
 	char *q, *r;
 	int must_set = 0;
 
@@ -339,8 +329,7 @@ void MwLabelSet(Widget w, String p)
 Get the state of a toggle widget
 */
 
-Boolean MwStateGet(Widget w)
-{
+Boolean MwStateGet(Widget w) {
 	Boolean i = False;
 	if (w != None)
 		XtVaGetValues(w, XtNstate, &i, (char *)0);
@@ -359,8 +348,7 @@ If set, use shadow width ssw.
 If unset, use shadow width usw.
 */
 
-void MwStateSet(Widget w, Boolean i, int ssw, int usw)
-{
+void MwStateSet(Widget w, Boolean i, int ssw, int usw) {
 	Boolean set;
 	Dimension osw, nsw;
 	if (w == None) return;
@@ -377,8 +365,7 @@ void MwStateSet(Widget w, Boolean i, int ssw, int usw)
 		(char *)0);
 }
 
-Dimension MwWidthGet(Widget w)
-{
+Dimension MwWidthGet(Widget w) {
 	Dimension x = 80;
 	if (w != None)
 		XtVaGetValues(w, XtNwidth, &x, (char *)0);
@@ -389,8 +376,7 @@ Dimension MwWidthGet(Widget w)
 Get the height of a widget.
 */
 
-Dimension MwHeightGet(Widget w)
-{
+Dimension MwHeightGet(Widget w) {
 	Dimension x = 20;
 	if (w != None)
 		XtVaGetValues(w, XtNheight, &x, (char *)0);
@@ -398,17 +384,14 @@ Dimension MwHeightGet(Widget w)
 }
 
 
-int MwXErrorHandler(Display *dpy, XErrorEvent *event)
-{
+int MwXErrorHandler(Display *dpy, XErrorEvent *event) {
 	char b[1000];
-
 	XGetErrorText(dpy, event->error_code, b, 999);
-	puts(b);
+	fprintf(stderr, "Caught X error: %s\n", b);
 	return 0;
 }
 
-void MwSetIcon(Widget toplevel, char **icon_data)
-{
+void MwSetIcon(Widget toplevel, char **icon_data) {
 	Pixmap icon, mask;
 	XWMHints *hints;
 	Display *dpy = XtDisplay(toplevel);
@@ -423,7 +406,7 @@ void MwSetIcon(Widget toplevel, char **icon_data)
 	xpmattributes.depth = dpth;
 	xpmattributes.valuemask = XpmSize | XpmDepth;
 	XpmCreatePixmapFromData(dpy, win, icon_data, &icon, &mask,
-				&xpmattributes);
+		&xpmattributes);
 	Width = xpmattributes.width;
 	Height = xpmattributes.height;
 
@@ -446,8 +429,7 @@ all, so they won't be highlighted.
 */
 
 static void highlight_action(Widget w, XEvent *event,
-	String *params, Cardinal *num_params)
-{
+	String *params, Cardinal *num_params) {
 	int sw;
 	Boolean set;
 
@@ -474,8 +456,7 @@ Remove the highlighting.
 */
 
 static void unhighlight_action(Widget w, XEvent *event,
-	String *params, Cardinal *num_params)
-{
+	String *params, Cardinal *num_params) {
 	int sw;
 	Boolean set;
 
@@ -507,8 +488,7 @@ static XtActionsRec actions[] =
 Set the highlighting and unhighlighting colours.
 */
 
-void MwHighlightInit(Widget pw)
-{
+void MwHighlightInit(Widget pw) {
 	XtAppAddActions(XtWidgetToApplicationContext(pw),
 		actions, XtNumber(actions));
 }

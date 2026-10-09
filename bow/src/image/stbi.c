@@ -1,16 +1,10 @@
-
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include <tiffio.h>	// TIFF reading
-
+#include <athena.h>
 #include "common.h"
 #include "imagep.h"
 #include "image_format.h"
 
 #include "image_endian.h"
 #include "stbi.h"
-#include <athena.h>
 
 /*
  * stbGetImage
@@ -26,8 +20,12 @@ static Image *stbGetImage(void *pointer) {
 static void stbDestroy(void *pointer) {
 	stbState *stb = (stbState *)pointer;
 	if (stb != NULL) {
-		if (stb->image->data)
-			free(stb->image->data);
+		if (stb->image->data) {
+			if (stb->type == IMAGE_WEBP)
+				WebPFree(stb->image->data);
+			else
+				free(stb->image->data);
+		}
 
 		stb->image->data = NULL;
 		if (stb->image)
@@ -59,27 +57,46 @@ static int lf_read_image(stbState *stb, byte *data, int len) {
 	if (!data)
 		return STB_NEED_DATA;
 
-	if ((image_data = memory_stbi(data, len, &x, &y))
-		|| (image_data = memory_nsvg(data, len, &x, &y))
-		|| (image_data = memory_tiff(data, len, &x, &y))) {
-		stb->image = newImage(image_data, x, y);
-		if (!stb->image) {
-			fprintf(stderr, "Memory allocation failed\n");
-			free(image_data);
-			stb->state = STB_FAILED;
-			return STB_ERROR;
-		}
-
-		if (stb->lineProc != NULL)
-			(stb->lineProc)(stb->closure, stb->xpos, stb->ypos);
-
-		stb->state = STB_FINISHED;
-		return STB_SUCCESS;
+	switch (stb->type) {
+		case IMAGE_SVG:
+			image_data = memory_nsvg(data, len, &x, &y);
+			break;
+		case IMAGE_AVIF:
+			image_data = memory_avif(data, len, &x, &y);
+			break;
+		case IMAGE_WEBP:
+			image_data = memory_webp(data, len, &x, &y);
+			break;
+		case IMAGE_TIFF:
+			image_data = memory_tiff(data, len, &x, &y);
+			break;
+		default:
+			image_data = memory_stbi(data, len, &x, &y);
+			break;
 	}
 
-	fprintf(stderr, "Failed to load image: %s\n", stbi_failure_reason());
-	stb->state = STB_FAILED;
-	return STB_ERROR;
+	if (!image_data) {
+		fprintf(stderr, "Failed to load image: %s\n", stbi_failure_reason());
+		stb->state = STB_FAILED;
+		return STB_ERROR;
+	}
+
+	stb->image = newImage(image_data, x, y);
+	if (!stb->image) {
+		fprintf(stderr, "Memory allocation failed\n");
+		if (stb->type == IMAGE_WEBP)
+			WebPFree(image_data);
+		else
+			free(image_data);
+		stb->state = STB_FAILED;
+		return STB_ERROR;
+	}
+
+	if (stb->lineProc != NULL)
+		(stb->lineProc)(stb->closure, stb->xpos, stb->ypos);
+
+	stb->state = STB_FINISHED;
+	return STB_SUCCESS;
 }
 
 /*
@@ -122,17 +139,17 @@ static int stbAddData(void *pointer, byte *data, int len, bool data_ended) {
  *
  * Initialize STB reader state
  */
-void stbInit(void (*lineProc)(), void *closure, struct ifs_vector *if_vector) {
-	stbState *stb = (stbState *)malloc(sizeof(stbState));
+void stbInit(void (*lineProc)(), void *closure, struct ifs_vector *if_vector, bow_image_type format) {
+	stbState *stb = (stbState *)calloc(1, sizeof(stbState));
 	if (!stb) {
 		fprintf(stderr, "`stbInit` allocation failed\n");
 		return;
 	}
 
-	memset(stb, 0, sizeof(stbState));
 	stb->state = STB_READ_IMAGE;
 	stb->lineProc = lineProc;
 	stb->closure = closure;
+	stb->type = format;
 
 	if_vector->initProc = &stbInit;
 	if_vector->destroyProc = &stbDestroy;

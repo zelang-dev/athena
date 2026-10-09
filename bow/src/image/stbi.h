@@ -3,20 +3,21 @@
 #define __STB_H_INCLUDED 1
 
 #include "image_format.h"
+#include <webp/decode.h>
 
 /*
  * stbState
  */
-typedef struct stb_State
-{
-	int state;				/* state of `stb/tiff/nanosvg` reader */
-  FormatLineProc lineProc; 	/* line callback */
-  void *closure;			/* closure for callback */
+typedef struct stb_State {
+	int state;					/* state of `stb/tiff/nanosvg` reader */
+	FormatLineProc lineProc;	/* line callback */
+	void *closure;				/* closure for callback */
 
-  Image *image;
+	Image *image;
 
-  int   ypos;              /* current line */
-  int   xpos;              /* current pixel */
+	bow_image_type type;		/* image `.ext` type */
+	int ypos;					/* current line */
+	int xpos;					/* current pixel */
 } stbState;
 
 /*

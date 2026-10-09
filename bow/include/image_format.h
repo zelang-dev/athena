@@ -21,32 +21,44 @@
 #ifndef IMAGE_FORMAT_H_INCLUDED
 #define IMAGE_FORMAT_H_INCLUDED
 
+typedef enum {
+	IMAGE_XBM = 0,
+	IMAGE_GIF,
+	IMAGE_JPEG,
+	IMAGE_PNG,
+	IMAGE_SVG,
+	IMAGE_PNM,
+	IMAGE_TIFF,
+	IMAGE_TGA,
+	IMAGE_BMP,
+	IMAGE_PIC,
+	IMAGE_PSD,
+	IMAGE_HDR,
+	IMAGE_AVIF,
+	IMAGE_WEBP,
+	IMAGE_UNKNOWN,
+} bow_image_type;
+
 typedef struct ifs_vector *ift_vector;
-
-typedef void (*FormatLineProc) _ArgProto((void *, int, int));
-
-typedef void (InitProcDecl) _ArgProto((FormatLineProc line_proc,
-                                        void *line_proc_closure,
-                                        ift_vector vector));
+typedef void(*FormatLineProc) _ArgProto((void *, int, int));
+typedef void(InitProcDecl) _ArgProto((FormatLineProc line_proc, void *line_proc_closure,
+	ift_vector vector, bow_image_type format));
 typedef InitProcDecl *InitProc;
-typedef void (*DestroyProc) _ArgProto((void *image_format_closure));
-typedef int (*AddDataProc) _ArgProto((void *image_format_closure,
-                                     byte *data,
-                                     int len,
-                                     bool data_ended));
-
+typedef void(*DestroyProc) _ArgProto((void *image_format_closure));
+typedef int(*AddDataProc) _ArgProto((void *image_format_closure, byte *data,
+	int len, bool data_ended));
 typedef Image *(*GetImageProc) _ArgProto((void *image_format_closure));
 
 InitProcDecl xbmInit;
 InitProcDecl stbInit;
 
 struct ifs_vector {
-  void *image_format_closure;
-  int image_format;
-  InitProc initProc;
-  DestroyProc destroyProc;
-  AddDataProc addDataProc;
-  GetImageProc getImageProc;
+	void *image_format_closure;
+	int image_format;
+	InitProc initProc;
+	DestroyProc destroyProc;
+	AddDataProc addDataProc;
+	GetImageProc getImageProc;
 };
 
 #endif

@@ -34,27 +34,16 @@ if (WIN32 OR APPLE)
 else()
 	include_directories(${CMAKE_SOURCE_DIR}/include)
 	if(BUILD_APP)
-		file(GLOB app_files
-			${CMAKE_CURRENT_SOURCE_DIR}/src/bow/*.c)
-	else()
-		file(GLOB app_files #widget_files
-			${CMAKE_CURRENT_SOURCE_DIR}/src/bow/*.c)
+		set(app_files	${CMAKE_CURRENT_SOURCE_DIR}/src/main.c)
 	endif(BUILD_APP)
-
-	file(GLOB proto_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/proto/*.c)
-	file(GLOB plain_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/plain/*.c)
-	file(GLOB mxw_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/mxw/*.c)
-	file(GLOB image_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/image/*.c)
-	file(GLOB html_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/html/*.c)
-	file(GLOB ext_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/ext/*.c)
-	file(GLOB common_files
-		${CMAKE_CURRENT_SOURCE_DIR}/src/common/*.c)
+	file(GLOB lib_files		${CMAKE_CURRENT_SOURCE_DIR}/src/bow/*.c)
+	file(GLOB proto_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/proto/*.c)
+	file(GLOB plain_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/plain/*.c)
+	file(GLOB mxw_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/mxw/*.c)
+	file(GLOB image_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/image/*.c)
+	file(GLOB html_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/html/*.c)
+	file(GLOB ext_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/ext/*.c)
+	file(GLOB common_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/common/*.c)
 
 	if(BUILD_NATIVE_XAW)
 		target_compile_definitions(${PROJECT_NAME} PUBLIC NATIVE_XAW=1)
@@ -62,11 +51,11 @@ else()
 
 	if(BUILD_SHARED_LIBS)
 		add_library(${PROJECT_NAME} SHARED
-		${proto_files} ${plain_files} ${mxw_files} ${image_files}
+		${lib_files} ${proto_files} ${plain_files} ${mxw_files} ${image_files}
 		${html_files} ${ext_files} ${common_files})
 	else()
 		add_library(${PROJECT_NAME} STATIC
-		${proto_files} ${plain_files} ${mxw_files} ${image_files}
+		${lib_files} ${proto_files} ${plain_files} ${mxw_files} ${image_files}
 		${html_files} ${ext_files} ${common_files})
 	endif()
 	target_include_directories(${PROJECT_NAME}

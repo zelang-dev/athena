@@ -22,11 +22,6 @@
 char *fallback_resources[] =
 {
   "*Command.background:        burlywood2",
-  "*Toggle.background:         burlywood2",
-  "*MenuButton.background:     burlywood2",
-  "*SimpleMenu.background:     burlywood2",
-  "*SmeBSB.background:         burlywood2",
-  "*Label.borderWidth:         0",
 
   /* labels for commands */
   "*open.label:                Open",

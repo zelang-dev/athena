@@ -262,6 +262,10 @@ int main(int argc, char **argv) {
 			ats_tooltip_set(&ui, image, "control-panel `png` image");
 			image = ats_image_set(box, "netscape.xpm");
 			ats_tooltip_set(&ui, image, "netscape `xpm` image");
+			image = ats_anyimage_set(&ui, box, "../examples/parrot-webp.webp");
+			ats_tooltip_set(&ui, image, "parrot `webp` image");
+			image = ats_anyimage_set(&ui, box, "../examples/cow-avif.avif");
+			ats_tooltip_set(&ui, image, "cow `avif` image");
 
 			box = ats_tabsbox_set("TextField", tabs);
 			textfield = ats_field_set(&ui, box, image, "Name", 0, 0, 100, field_text, return_cb);
