@@ -109,26 +109,35 @@ static void set_color(XColor *xcolor) {
 	XtVaSetValues(color, XtNbackground, xcolor->pixel, NULL);
 }
 
-static void cb_open(ui_t *self, void *data) {
+static void cb_open(__ATS_MENU__) {
 	ats_open_dialog(self, (_platform_cb)data);
 }
 
-static void cb_quit(ui_t *self, void *data) {
+static void cb_quit(__ATS_MENU__) {
 	ats_cancel(self->self);
 }
 
-static void cb_error(ui_t *self, void *data) {
+static void cb_error(__ATS_MENU__) {
 	MwErrorBox(self->self, "Nothing to see here.");
 }
 
-static void cb_alert(ui_t *self, void *data) {
+static void cb_alert(__ATS_MENU__) {
 	char *buttons[] = {"Abort", "Retry", "Continue", "Fail"};
 	MwAlertBox(self->self, "An unexpected error didn't occur at all.", buttons, 4);
 }
 
-static void cb_about(ui_t *self, void *data) {
+static void cb_about(__ATS_MENU__) {
 	printf("cb_about(%s)\n", XtName(self->ats->wnd));
 	MwAboutAthena(self->ats->topLevel);
+}
+
+static void cb_video(__ATS_MENU__) {
+	ats_t ui = {0};
+	if (ats_video_set(&ui, self->self,
+		"https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4")) {
+		ats_active(&ui);
+		ats_destroy(&ui);
+	}
 }
 
 static void select_tab(Widget w, XtPointer client_data, XtPointer call_data) {
@@ -189,6 +198,7 @@ int main(int argc, char **argv) {
 		menuitem_t items_two[] = {
 			{112, "Alert", cb_alert, "A", NULL},
 			{113, "Error", cb_error, "E", NULL},
+			{116, "Video", cb_video, "V", NULL},
 		};
 
 		menuitem_t items_three[] = {
@@ -199,7 +209,7 @@ int main(int argc, char **argv) {
 
 		if (!ats_font_set(&ui, helvetica)
 			|| !ats_menu_set(&ui, 0, items, 3, 1, "File")
-			|| !ats_menu_set(&ui, 1, items_two, 2, 2, "Misc")
+			|| !ats_menu_set(&ui, 1, items_two, 3, 2, "Misc")
 			|| !ats_menu_set(&ui, 2, items_three, 3, 3, "Help")) {
 			error = -2;
 		}

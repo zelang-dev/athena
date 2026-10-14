@@ -65,3 +65,4 @@ test.cgi.cmd
 .DS_Store
 test_http_auth.test_file.txt
 cert.pem
+examples/Big_Buck_Bunny_360_10s_1MB.mp4

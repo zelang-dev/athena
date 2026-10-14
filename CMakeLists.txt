@@ -28,6 +28,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(BUILD_SHARED_LIBS "Build the library as a shared (dynamically-linked) " OFF)
 option(BUILD_NATIVE_XAW "Linux: Build using Native X11 Athena Widget Toolkit " OFF)
+option(BUILD_APP "Build standalone `Browser` App" OFF)
 
 if (WIN32 OR APPLE)
     message(FATAL_ERROR "Linux Only!")
@@ -66,6 +67,21 @@ else()
 	find_package(TIFF REQUIRED)
 	find_package(LIBAVIF REQUIRED COMPONENTS AOM)
 	find_package(WebP REQUIRED)
+	find_package(FFmpeg QUIET)
+	if(NOT FFmpeg_FOUND)
+		message(FATAL_ERROR "FFmpeg not found, installation required:\n
+		`sudo apt install libavcodec-dev libavformat-dev libswscale-dev libavutil-dev`\n
+		`dnf install ffmpeg-devel`\n")
+	endif()
+	find_package(ALSA QUIET)
+	if(NOT ALSA_FOUND)
+		message(FATAL_ERROR "ALSA/asound not found, installation required:\n
+		`sudo apt-get install libasound2-dev`\n
+		`dnf install alsa-lib-devel`\n")
+	endif()
+	find_package(Threads REQUIRED)
+	find_package(ZLIB REQUIRED)
+
 	file(GLOB mowitz_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Mowitz/*.c)
 	#file(GLOB webview_files
@@ -114,6 +130,14 @@ else()
 		$<INSTALL_INTERFACE:${TIFF_INCLUDE_DIRS})
 
 	target_include_directories(${PROJECT_NAME}
+		PRIVATE $<BUILD_INTERFACE:${${FFMPEG_INCLUDE_DIRS}}
+		$<INSTALL_INTERFACE:${${FFMPEG_INCLUDE_DIRS}})
+
+	target_include_directories(${PROJECT_NAME}
+		PRIVATE $<BUILD_INTERFACE:${${ALSA_INCLUDE_DIRS}}
+		$<INSTALL_INTERFACE:${${ALSA_INCLUDE_DIRS}})
+
+	target_include_directories(${PROJECT_NAME}
 		PRIVATE $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}
 		$<INSTALL_INTERFACE:${OPENSSL_INCLUDE_DIR})
 
@@ -125,8 +149,10 @@ else()
 		target_link_libraries(${PROJECT_NAME}
 			Xaw X11::Xmu X11::Xt Xpm X11::X11 OpenGL::GL OpenGL::GLU
 			#Xaw X11::Xmu X11::Xt Xpm X11::X11
-			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m
-			TIFF::TIFF avif ${AOM_LIBRARIES} ${WebP_LIBRARY} ${WebP_DECODER_LIBRARY})
+			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m Threads::Threads
+			TIFF::TIFF avif ${AOM_LIBRARIES} ${WebP_LIBRARY} ${WebP_DECODER_LIBRARY}
+			ALSA::ALSA avformat avcodec swscale avutil swresample ${FFMPEG_LIBRARIES}
+			)
 	else()
 		target_compile_definitions(${PROJECT_NAME}
 			PUBLIC MOWITZ_DATA="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena"
@@ -134,8 +160,10 @@ else()
 		target_link_libraries(${PROJECT_NAME}
 			Xaw95 X11::Xmu X11::Xt Xpm X11::X11 OpenGL::GL OpenGL::GLU
 			#Xaw95 X11::Xmu X11::Xt Xpm X11::X11
-			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m
-			TIFF::TIFF avif ${AOM_LIBRARIES} ${WebP_LIBRARY} ${WebP_DECODER_LIBRARY})
+			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m Threads::Threads
+			TIFF::TIFF avif ${AOM_LIBRARIES} ${WebP_LIBRARY} ${WebP_DECODER_LIBRARY}
+			ALSA::ALSA avformat avcodec swscale avutil swresample ${FFMPEG_LIBRARIES}
+			)
 	endif(BUILD_NATIVE_XAW)
 endif()
 
@@ -197,7 +225,7 @@ set(CPACK_PACKAGE_CONTACT "lstubbs@zelang.dev")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Lawrence Stubbs <${CPACK_PACKAGE_CONTACT}>")
 set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${PROJECT__ARCH}")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libglx-dev, libglu1-mesa-dev, libx11-dev, libxt-dev")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libasound2-dev,libavcodec-dev,libavformat-dev,libswscale-dev,libavutil-dev,libglx-dev,libglu1-mesa-dev,libx11-dev,libxt-dev")
 
 set(CPACK_COMPONENTS_GROUPING ALL_COMPONENTS_IN_ONE)
 set(CPACK_COMPONENT_LIBRARIES_DISPLAY_NAME "${PROJECT_NAME}")
@@ -213,7 +241,7 @@ set(CPACK_PACKAGE_DESCRIPTION ${PROJECT_DESCRIPTION})
 set(CPACK_RPM_PACKAGE_LICENSE "MIT")
 set(CPACK_RPM_PACKAGE_URL "https://zelang-dev.github.io/${PROJECT_NAME}/")
 set(CPACK_RPM_PACKAGE_ARCHITECTURE "${PROJECT__ARCH}")
-set(CPACK_RPM_PACKAGE_REQUIRES "mesa-libGL-devel, mesa-libGLU-devel, libX11-devel, libXt-devel")
+set(CPACK_RPM_PACKAGE_REQUIRES "alsa-lib-devel,ffmpeg-devel,mesa-libGL-devel,mesa-libGLU-devel,libX11-devel,libXt-devel")
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
 	${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake

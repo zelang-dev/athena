@@ -1074,7 +1074,7 @@ FORCEINLINE ats_wnd ats_tabsgrid_set(char *title, ats_wnd on, const char *yLayou
 
 FORCEINLINE ats_wnd ats_boxwindow_set(ats_wnd on, int row) {
 	return XtVaCreateManagedWidget("boxwindow", boxWidgetClass, on,
-		XtNgridy, row, XtNborderWidth, 0, NULL);
+		XtNgridy, row, XtNy, row, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE ats_wnd ats_boxspace_set(ats_wnd on, int vertical, int horizontal) {
@@ -1086,7 +1086,7 @@ FORCEINLINE ats_wnd ats_boxspace_set(ats_wnd on, int vertical, int horizontal) {
 
 FORCEINLINE ats_wnd ats_formwindow_set(ats_wnd on, int row) {
 	return XtVaCreateManagedWidget("formwindow", formWidgetClass, on,
-		XtNgridy, row, XtNborder, 0, XtNborderWidth, 0, NULL);
+		XtNgridy, row, XtNy, row, XtNborder, 0, XtNborderWidth, 0, NULL);
 }
 
 FORCEINLINE void ats_callback_set(ats_wnd on, _platform_cb action, void *with) {
@@ -1283,6 +1283,17 @@ void ats_active(ats_t *ui) {
 	XtUnrealizeWidget(ui->app->wnd);
 }
 
+static void ats_timemenu_cb(XtPointer self, XtIntervalId *id) {
+	timedaction_t *delayed = (timedaction_t *)self;
+	if (delayed->bar->override)
+		((_platform_cb)delayed->item.action)(self,
+			(delayed->bar->override_data ? delayed->bar->override_data : delayed->item.data), delayed->data);
+	else
+		delayed->item.action(delayed->app, delayed->item.data);
+
+	free(delayed);
+}
+
 static void ats_menu_cb(Widget self, XtPointer client, XtPointer data) {
 	ats_t *ui = (ats_t *)client;
 	menu_bar_t *menubar = ui->bar_info;
@@ -1297,11 +1308,14 @@ static void ats_menu_cb(Widget self, XtPointer client, XtPointer data) {
 				ui->app->wnd = ui->topLevel;
 				ui->app->self = self;
 				if (items[i].action) {
-					if (menubar->override)
-						((_platform_cb)items[i].action)(self,
-							(menubar->override_data ? menubar->override_data : items[i].data), data);
-					else
-						items[i].action(ui->app, items[i].data);
+					timedaction_t *delay = malloc(sizeof(timedaction_t));
+					if (delay) {
+						delay->app = ui->app;
+						delay->bar = menubar;
+						delay->item = items[i];
+						delay->data = data;
+						XtAppAddTimeOut(ui->app_con, 1, ats_timemenu_cb, delay);
+					}
 				}
 				return;
 			}
@@ -1483,6 +1497,7 @@ int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_bu
 	}
 
 	if (main_athena_info == NULL) {
+		XInitThreads();
 		ui->topLevel = XtVaOpenApplication(&ui->app_con, ui->title, NULL, 0,
 			&argc, argv, fallback, mwApplicationShellWidgetClass,
 			XtNwidth, ui->width, XtNheight, ui->height,
@@ -1512,10 +1527,13 @@ int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_bu
 	} else {
 		if (ui != main_athena_info) {
 			ui->topLevel = XtVaAppInitialize(&ui->app_con, (ui->webview_set ? "webview" : ui->title), NULL, 0,
-				&argc, argv, (ui->webview_set ? fallback_webview : fallback),
+				&argc, argv, (ui->webview_set ? fallback_webview : (ui->video_set ? NULL : fallback)),
 				XtNbeNiceToColormap, False,
 				XtNwidth, ui->width,
 				XtNheight, ui->height, NULL, 0);
+			ui->dpy = XtDisplayOfObject(ui->topLevel);
+			ui->screen = DefaultScreen(ui->dpy);
+			XawFocusInstallActions(ui->app_con);
 		}
 
 		XtRealizeWidget(ui->topLevel);
@@ -1543,7 +1561,7 @@ int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_bu
 		ui->wnd = ui->topLevel;
 		XSync(ui->dpy, 0);
 	} else {
-		ui->img = XCreateImage(ui->dpy, DefaultVisual(ui->dpy, 0), 24, ZPixmap, 0,
+		ui->img = XCreateImage(ui->dpy, DefaultVisual(ui->dpy, ui->screen), 24, ZPixmap, 0,
 			(char *)ui->buf, ui->width, ui->height, 32, 0);
 		XSync(ui->dpy, ui->win);
 	}
@@ -1844,8 +1862,71 @@ FORCEINLINE void ats_tabinsert(ats_wnd tab, char *title, int slot) {
 	MwTabbingInsert(tab, title, slot);
 }
 
+FORCEINLINE ats_wnd ats_canvas_set(ats_wnd on, int width, int height, XtEventHandler action, void *data) {
+	ats_wnd canvas = XtVaCreateManagedWidget("canvas", mwCanvasWidgetClass, on, XtNwidth, width, XtNheight, height, NULL);
+	XtAddEventHandler(canvas, StructureNotifyMask, False, action, data);
+	return canvas;
+}
+
+#include "anyvideo.c"
+
+FORCEINLINE ats_wnd ats_videobox_set(ats_wnd on, ats_wnd vertTo, ats_wnd horizTo, int width, int height) {
+	return XtVaCreateManagedWidget("videobox", formWidgetClass, on,
+		XtNwidth, width, XtNheight, height,
+		XtNfromVert, vertTo, XtNfromHoriz, horizTo,
+		XtNborder, 0, XtNborderWidth, 0, XtNresizable, True, NULL);
+}
+
+FORCEINLINE ats_wnd ats_videocanvas_set(ats_video_info *av, ats_wnd on, int width, int height, XtEventHandler action) {
+	av->media_area = ats_canvas_set(on, width, height, action, (void *)av);
+	return av->media_area;
+}
+
+int ats_rendering_video(ats_wnd on, XImage *img, int width, int height,
+	int overlay_x, int overlay_y, unsigned long overlay_fg_color, char *fmt, ...) {
+	va_list ap;
+	int r = -1;
+	if (img) {
+		Display *dpy = XtDisplayOfObject(on);
+		XLockDisplay(dpy);
+		Window win = XtWindow(on);
+		if (win) {
+			GC gc = XCreateGC(dpy, win, 0, NULL);
+			XPutImage(dpy, win, gc, img, 0, 0, 0, 0, width, height);
+			if (fmt) {
+				char info_string[256];
+				va_start(ap, fmt);
+				vsnprintf(info_string, sizeof(info_string), fmt, ap);
+				va_end(ap);
+				XSetForeground(dpy, gc, overlay_fg_color);
+				r = XDrawString(dpy, win, gc, overlay_x, overlay_y, info_string, strlen(info_string));
+			}
+
+			XFreeGC(dpy, gc);
+			XFlush(dpy);
+		}
+		XUnlockDisplay(dpy);
+	}
+
+	return r;
+}
+
+int ats_video_set(ats_t *ui, ats_wnd on, char *path) {
+	if (load_video(ui, path))
+		return 1;
+
+	return 0;
+}
+
 void ats_close(ats_t *ui) {
 	if (ui) {
+		if (ui->video_set) {
+			ui->video_set = false;
+			ui->av.quit = true;
+			pthread_join(ui->av.media_tid, NULL);
+			pthread_mutex_destroy(&ui->av.media_mutex);
+		}
+
 		if (ui->bar_info) {
 			free(ui->bar_info->menus);
 			free(ui->bar_info);
@@ -1874,12 +1955,18 @@ void ats_close(ats_t *ui) {
 		if (ui->app_con)
 			XtDestroyApplicationContext(ui->app_con);
 
-		XDestroyWindow(ui->dpy, ui->win);
 		ui = NULL;
 	}
 }
 
-FORCEINLINE void ats_destroy(ats_t *ui) {
+void ats_destroy(ats_t *ui) {
+	if (ui->video_set) {
+		ui->video_set = false;
+		ui->av.quit = true;
+		pthread_join(ui->av.media_tid, NULL);
+		pthread_mutex_destroy(&ui->av.media_mutex);
+	}
+
 	if (ui->icon_pixmap)
 		XFreePixmap(ui->dpy, ui->icon_pixmap);
 

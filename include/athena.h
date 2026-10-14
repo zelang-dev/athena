@@ -299,6 +299,16 @@
 #include <sys/time.h>
 #include <ctype.h>
 
+#include <libgen.h>
+#include <pthread.h>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+#include <libswresample/swresample.h>
+#include <libavutil/imgutils.h>
+#include <libavutil/time.h>
+#include <alsa/asoundlib.h>
+
 typedef enum {
 	field_text = 4900,
 	field_number,
@@ -358,6 +368,44 @@ typedef struct Forms_s {
 
 typedef Form ui_field;
 typedef struct ats_info_s ats_t;
+
+// Playback State Tracking
+typedef enum { STATE_PLAYING, STATE_PAUSED, STATE_STOPPED } PlayState;
+#define MAX_AUDIO_FRAME_SIZE 192000
+
+// Structure to hold `video/media` state
+typedef struct {
+	// Athena context, Display & Resize Properties
+	Display *display;
+	Widget volume_bar, media_area, play_pause_label, progress_bar;
+	XImage *ximage;
+	unsigned char *image_buffer;
+	int canvas_w, canvas_h; // Track dynamically updated size
+
+	// FFmpeg context
+	char filepath[256];
+	AVFormatContext *fmt_ctx;
+	AVCodecContext *video_ctx;
+	AVCodecContext *audio_ctx;
+	struct SwsContext *sws_ctx;
+	SwrContext *swr_ctx;
+	int video_stream_idx;
+	int audio_stream_idx;
+
+	// Threading, State & Seeking
+	PlayState state;
+	pthread_t media_tid;
+	pthread_mutex_t media_mutex;
+	int64_t seek_target_pts;
+	float volume; 		// 0.0 to 1.0
+	double progress;	// 0.0 to 1.0
+	double duration, audio_clock;
+	bool seek_requested, quit;
+
+	// Native ALSA Sound Device
+	snd_pcm_t *pcm_handle;
+} ats_video_info;
+
 typedef struct {
 	/* `Application` main Window handle */
 	ats_wnd wnd;
@@ -432,6 +480,13 @@ typedef struct {
 	ats_menu hMenubar;
 } menu_bar_t;
 
+typedef struct timedaction_s {
+	menuitem_t item;
+	menu_bar_t *bar;
+	ui_t *app;
+	void *data;
+} timedaction_t;
+
 typedef struct webview webview_t;
 typedef void (*webview_external_invoke_cb_t)(webview_t *w, const char *arg);
 struct webview {
@@ -469,7 +524,7 @@ struct ats_info_s {
 	webview_t web[1];
 #if __linux__
 	bool webview_set, icon_set, dragdrop_set, buttons_vert;
-	int screen, toolheight;
+	int video_set, screen, toolheight;
 	Pixel color;
 	Colormap cmap;
 	Window win, root;
@@ -485,6 +540,7 @@ struct ats_info_s {
 	XImage *img;
 	XFontStruct *font_button;
 	char **use_icon, layout[32];
+	ats_video_info av;
 #endif
 };
 
@@ -539,6 +595,8 @@ C_API ats_wnd ats_gridfull_set(ats_wnd on, int bottomheight);
 C_API ats_wnd ats_gridbar_set(ats_wnd on, int width, int height, const char *xLayout);
 C_API ats_wnd ats_gridlayout_set(ats_wnd on, int x, int y, const char *xLayout, const char *yLayout);
 
+C_API ats_wnd ats_canvas_set(ats_wnd on, int width, int height, XtEventHandler action, void *data);
+
 C_API ats_wnd ats_statusline_set(ats_wnd on, ats_wnd alignto, const char *initial, int x, int y, int width);
 C_API ats_wnd ats_status_set(ats_wnd on, const char *initial, int row, int width, int height);
 C_API ats_wnd ats_viewport_set(ats_wnd on, bool force_bars, bool allow_horizontal);
@@ -562,6 +620,12 @@ C_API ats_wnd ats_image_set(ats_wnd on, char *pixmap);
 C_API Pixmap ats_image_get(ats_wnd alpha, Display *dpy, const char *filename,
 	unsigned char *memoryimage, int imagelen);
 C_API ats_wnd ats_anyimage_set(ats_t *ui, ats_wnd on, char *path);
+
+C_API int ats_video_set(ats_t *ui, ats_wnd on, char *path);
+C_API ats_wnd ats_videobox_set(ats_wnd on, ats_wnd vertTo, ats_wnd horizTo, int width, int height);
+C_API ats_wnd ats_videocanvas_set(ats_video_info *av, ats_wnd on, int width, int height, XtEventHandler action);
+C_API int ats_rendering_video(ats_wnd on, XImage *img, int width, int height,
+	int overlay_x, int overlay_y, unsigned long overlay_fg_color, char *fmt, ...);
 
 C_API void ats_background_set(ats_wnd on, char *to_color);
 C_API void ats_foreground_set(ats_wnd on, char *to_color);

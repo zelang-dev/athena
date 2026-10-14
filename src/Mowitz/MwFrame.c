@@ -484,12 +484,11 @@ Cardinal *num_args;
  * Return preferred size.
  */
 
-static XtGeometryResult
-MwFrameQueryGeometry(Widget		w, XtWidgetGeometry *intended, XtWidgetGeometry *preferred) {
+static XtGeometryResult MwFrameQueryGeometry(Widget w, XtWidgetGeometry *intended, XtWidgetGeometry *preferred) {
 	register MwFrameWidget fw = (MwFrameWidget)w;
 	Dimension	cw, ch;		/* child width, height */
 	Dimension	tw, th;		/* title width, height */
-	XtWidgetGeometry c_intended, c_preferred;
+	XtWidgetGeometry c_intended = {0}, c_preferred = {0};
 	Widget		child = MwFrameChild(fw);
 	Widget		ttl = fw->frame.title;
 	Dimension	sw = fw->frame.shadowWidth;

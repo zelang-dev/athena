@@ -127,7 +127,7 @@ SimpleClassRec simpleClassRec = {
     /* set_values_hook		*/	NULL,
     /* set_values_almost	*/	XtInheritSetValuesAlmost,
     /* get_values_hook		*/	NULL,
-    /* accept_focus		*/	NULL,
+	/* accept_focus		*/	XawAcceptFocus,
     /* version			*/	XtVersion,
     /* callback_private		*/	NULL,
     /* tm_table			*/	NULL,
