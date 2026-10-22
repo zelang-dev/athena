@@ -133,7 +133,7 @@ static void cb_about(__ATS_MENU__) {
 
 static void cb_video(__ATS_MENU__) {
 	ats_t ui = {0};
-	if (ats_video_set(&ui, self->self,
+	if (ats_video_set(&ui, NULL,
 		"https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4")) {
 		ats_active(&ui);
 		ats_destroy(&ui);
@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
 	int i, error = -1;
 	ats_t ui = {0};
 
-	if (ats_window(&ui, "Athena UI", 320, 400, false)
+	if (ats_window(&ui, "Athena UI", 650, 470, false)
 		&& ats_menubar_set(&ui, 3)) {
 		ats_dragdrop_set(&ui, "text/plain", 0, cb_drop, cb_drag);
 		ats_dragdrop_update(&ui, "text/uri-list", 1);
@@ -276,6 +276,12 @@ int main(int argc, char **argv) {
 			ats_tooltip_set(&ui, image, "parrot `webp` image");
 			image = ats_anyimage_set(&ui, box, "../examples/cow-avif.avif");
 			ats_tooltip_set(&ui, image, "cow `avif` image");
+
+			ats_t video = {0};
+			ats_wnd movie = ats_tabsbox_set("Video", tabs);
+			ats_video_set(&video, movie, "https://test-videos.co.uk/vids/jellyfish/mp4/h264/360/Jellyfish_360_10s_1MB.mp4");
+			ats_video_assign(&video, &ui);
+			ats_tooltip_set(&ui, movie, "Jellyfish Movie");
 
 			box = ats_tabsbox_set("TextField", tabs);
 			textfield = ats_field_set(&ui, box, image, "Name", 0, 0, 100, field_text, return_cb);

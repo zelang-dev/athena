@@ -395,20 +395,17 @@ void MwSetIcon(Widget toplevel, char **icon_data) {
 	Pixmap icon, mask;
 	XWMHints *hints;
 	Display *dpy = XtDisplay(toplevel);
-	int Width, Height;
 	int scrn = DefaultScreen(dpy);
 	int dpth = XDefaultDepth(dpy, scrn);
 	Window win = DefaultRootWindow(dpy);
-	/* Create the pixmaps accordingly		      *
-	 * All the pixmaps MUST have the same height and width */
 
+	/* Create the pixmaps accordingly
+	 * All the pixmaps MUST have the same height and width */
 	XpmAttributes xpmattributes;
 	xpmattributes.depth = dpth;
 	xpmattributes.valuemask = XpmSize | XpmDepth;
 	XpmCreatePixmapFromData(dpy, win, icon_data, &icon, &mask,
 		&xpmattributes);
-	Width = xpmattributes.width;
-	Height = xpmattributes.height;
 
 	/* Now tell the window manager what the icon is */
 	hints = XAllocWMHints();

@@ -34,6 +34,10 @@
 #define _DEFAULT_SOURCE 1
 #define ARROW_SCROLLBAR 1
 
+#define _NET_WM_STATE_REMOVE        0
+#define _NET_WM_STATE_ADD           1
+#define _NET_WM_STATE_TOGGLE        2
+
 #define RGB_COLOR(r, g, b)		(r),(g),(b)
 #define RGB_BLACK				0,0,0
 #define RGB_WHITE				255,255,255
@@ -243,6 +247,7 @@
 #	include <X11/Xaw/XawInit.h>
 #	include <X11/Xaw/Box.h>
 #	include <X11/Xaw/Paned.h>
+#	include <X11/Xaw/Panner.h>
 #	include <X11/Xaw/Dialog.h>
 #	include <X11/Xaw/Command.h>
 #	include <X11/Xaw/Form.h>
@@ -251,19 +256,23 @@
 #	include <X11/Xaw/MenuButton.h>
 #	include <X11/Xaw/Label.h>
 #	include <X11/Xaw/Viewport.h>
+#	include <X11/Xaw/Porthole.h>
 #	include <X11/Xaw/List.h>
 #	include <X11/Xaw/Scrollbar.h>
 #	include <X11/Xaw/SimpleMenu.h>
+#	include <X11/Xaw/StripChart.h>
 #	include <X11/Xaw/SmeBSB.h>
 #	include <X11/Xaw/SmeLine.h>
 #	include <X11/Xaw/Repeater.h>
 #	include <X11/Xaw/Traversal.h>
+#	include <X11/Xaw/Tree.h>
 #	include <X11/Xaw/Toggle.h>
 #	include <X11/Xaw/Cardinals.h>
 #else
 #	include <Xaw95/XawInit.h>
 #	include <Xaw95/Box.h>
 #	include <Xaw95/Paned.h>
+#	include <Xaw95/Panner.h>
 #	include <Xaw95/Dialog.h>
 #	include <Xaw95/Command.h>
 #	include <Xaw95/Form.h>
@@ -272,13 +281,16 @@
 #	include <Xaw95/MenuButton.h>
 #	include <Xaw95/Label.h>
 #	include <Xaw95/Viewport.h>
+#	include <Xaw95/Porthole.h>
 #	include <Xaw95/List.h>
 #	include <Xaw95/Scrollbar.h>
+#	include <Xaw95/StripChart.h>
 #	include <Xaw95/SimpleMenu.h>
 #	include <Xaw95/SmeBSB.h>
 #	include <Xaw95/SmeLine.h>
 #	include <Xaw95/Repeater.h>
 #	include <Xaw95/Traversal.h>
+#	include <Xaw95/Tree.h>
 #	include <Xaw95/Toggle.h>
 #	include <Xaw95/Cardinals.h>
 #endif
@@ -306,6 +318,7 @@
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/hwcontext.h>
 #include <libavutil/time.h>
 #include <alsa/asoundlib.h>
 
@@ -377,30 +390,44 @@ typedef enum { STATE_PLAYING, STATE_PAUSED, STATE_STOPPED } PlayState;
 typedef struct {
 	// Athena context, Display & Resize Properties
 	Display *display;
-	Widget volume_bar, media_area, play_pause_label, progress_bar;
-	XImage *ximage;
-	unsigned char *image_buffer;
-	int canvas_w, canvas_h; // Track dynamically updated size
+	GC gc, pip_gc;
+	Window win, pip_win, top_win;
+	Widget media_area, top_area;
+	XImage *ximage, *pip_ximage;
+	unsigned char *image_buffer, *pip_image_buffer;
+	int canvas_w, canvas_h, pip_w, pip_h;
+	long long last_move_time;
+	int is_fullscreen, video_set;
+	int win_w, win_h, saved_x, saved_y, saved_w, saved_h;
 
 	// FFmpeg context
 	char filepath[256];
+	AVRational time_base;
 	AVFormatContext *fmt_ctx;
 	AVCodecContext *video_ctx;
 	AVCodecContext *audio_ctx;
-	struct SwsContext *sws_ctx;
+	struct SwsContext *sws_ctx, *pip_sws_ctx;
 	SwrContext *swr_ctx;
+	AVDictionaryEntry *meta;
 	int video_stream_idx;
 	int audio_stream_idx;
+	double aspect_ratio, full_aspect;
+	uint8_t *buffer;
+	int buffer_width;
+	int buffer_height;
 
 	// Threading, State & Seeking
 	PlayState state;
 	pthread_t media_tid;
 	pthread_mutex_t media_mutex;
 	int64_t seek_target_pts;
+	int64_t current_pts;
+	XtIntervalId hide_timeout_id;
+	int pip_mode, controls_visible;
 	float volume; 		// 0.0 to 1.0
 	double progress;	// 0.0 to 1.0
-	double duration, audio_clock;
-	bool seek_requested, quit;
+	double audio_clock;
+	bool seek_requested, quit, has_audio;
 
 	// Native ALSA Sound Device
 	snd_pcm_t *pcm_handle;
@@ -419,6 +446,7 @@ typedef struct {
 	unsigned long code;
 	ats_wnd self;
 	int is_alert;
+	int is_video;
 } ui_t;
 
 typedef struct hist hist_t;
@@ -480,13 +508,6 @@ typedef struct {
 	ats_menu hMenubar;
 } menu_bar_t;
 
-typedef struct timedaction_s {
-	menuitem_t item;
-	menu_bar_t *bar;
-	ui_t *app;
-	void *data;
-} timedaction_t;
-
 typedef struct webview webview_t;
 typedef void (*webview_external_invoke_cb_t)(webview_t *w, const char *arg);
 struct webview {
@@ -524,14 +545,16 @@ struct ats_info_s {
 	webview_t web[1];
 #if __linux__
 	bool webview_set, icon_set, dragdrop_set, buttons_vert;
-	int video_set, screen, toolheight;
+	int screen, toolheight, autohide_visible;
+	long long mouse_moved_time;
+	XtIntervalId autohide_id;
 	Pixel color;
 	Colormap cmap;
 	Window win, root;
 	Pixmap icon_pixmap, icon_mask;
 	Atom exited, code, wmDeleteMessage, dragdrop[MAX_DRAGDROPS + 1];
 	XEvent xev;
-	Widget topLevel, statusLine, grid, tooltip;
+	Widget topLevel, statusLine, grid, tooltip, autohide;
 	Display *dpy;
 	XtAppContext app_con;
 	GC gc;
@@ -539,6 +562,7 @@ struct ats_info_s {
 	GLXContext glc;
 	XImage *img;
 	XFontStruct *font_button;
+	void (*closer)(void);
 	char **use_icon, layout[32];
 	ats_video_info av;
 #endif
@@ -580,22 +604,105 @@ C_API ats_wnd ats_animator_set(ats_wnd on, MwAniObject *cast, const char *gradie
 
 C_API int ats_message_box(const char *title, const char *message, Button *buttons, int numButtons);
 C_API void ats_about_box(char *pixmap, char *message);
-C_API void ats_center(ats_wnd window);
+C_API void ats_center(ats_wnd on);
 
+/* Set up window xpm `icon`, will execute `on_close` on `WM_DELETE_WINDOW` event.
+ * - Set `on` to `_NET_WM_STATE_ABOVE` top window.
+ *
+ * returns `WMProtocol` id.  */
+C_API Atom ats_display_wm(Display *dpy, Window on, char **icon, ats_t *ui, void (*on_close)(void));
+
+/* Set hover tool `tip` help text to `on` window handle.
+ * - returns `mwTooltipWidgetClass` window handle containted in `ui`. */
 C_API ats_wnd ats_tooltip_set(ats_t *ui, ats_wnd on, char *tip);
+
+/* Create `button` command, show `image`, with tool `tip` help string, for window `on` handle.
+ * - MUST Call `ats_navigation_set` first to initialize `on`.
+ *
+ * returns `button`, `commandWidgetClass` handle. */
 C_API ats_wnd ats_toolbar_set(ats_t *ui, ats_wnd on, _platform_cb button,
 	char *imagefile, char *tip, bool showtip);
+
+/* Setup `on` for a window navigation bar ~row~ for image buttons.
+ * - Call `ats_toolbar_set` to setup buttons.
+ *
+ * returns `positioned`, `boxWidgetClass` handle, managed by `on`. */
 C_API ats_wnd ats_navigation_set(ats_wnd on, int row);
 
+/* Setup window `on` into single `x` column taking up `100%`.
+ *
+ * returns `grid`, `mwRudegridWidgetClass` handle, managed by `on`.
+ */
 C_API ats_wnd ats_grid_set(ats_wnd on);
+
+/* Setup window `on` into `2` columns constrainted.
+ *
+ * - First `0` ~column~ constrainted to `leftwidth` size.
+ * - Second `1` ~column~ taking up `100%` of remainder.
+ *
+ * returns `grid`, `mwRudegridWidgetClass` handle, managed by `on`.
+ */
 C_API ats_wnd ats_gridtwo_set(ats_wnd on, int leftwidth);
+
+/* Setup window `on` into `3` row constrainted.
+ *
+ * - First `0` ~row~ constrainted to `topheight` size.
+ * - Second `1` ~row~ taking up `100%` of remainder.
+ * - Third `2` ~row~ constrainted to `bottomheight` size.
+ *
+ * returns `grid`, `mwRudegridWidgetClass` handle, managed by `on`.
+ */
 C_API ats_wnd ats_gridthree_set(ats_wnd on, int topheight, int bottomheight);
+
+/* Setup window `on` into `4` columns constrainted.
+ *
+ * - First `0` ~column~ constrainted to `leftwidth` size.
+ * - Second `1` ~column~ taking up `50%` of remainder.
+ * - Third `2` ~column~ taking up `50%` of remainder.
+ * - Fourth `3` ~column~ constrainted to `rightwidth` size.
+ *
+ * returns `grid`, `mwRudegridWidgetClass` handle, managed by `on`.
+ */
 C_API ats_wnd ats_gridfour_set(ats_wnd on, int leftwidth, int rightwidth);
+
+/* Setup window `on` into `2` rows constrainted.
+ *
+ * - First `0` ~column~ taking up `100%` of remainder.
+ * - Third `1` ~column~ constrainted to `bottomheight` size.
+ *
+ * returns `grid`, `mwRudegridWidgetClass` handle, managed by `on`.
+ */
 C_API ats_wnd ats_gridfull_set(ats_wnd on, int bottomheight);
+
+/* Setup window `on` into a single `row` constrainted to dimensions,
+ * and custom `xLayout` string.
+ *
+ * returns `grid`, `mwRudegridWidgetClass` handle, managed by `on`.
+ */
 C_API ats_wnd ats_gridbar_set(ats_wnd on, int width, int height, const char *xLayout);
+
+/* Setup window `on` positioned to `x` ~column~, and `y` ~row~.
+ * Then further constrainted to custom `xLayout` and `yLayout` string.
+ *
+ * returns `grid`, `mwRudegridWidgetClass` handle, managed by `on`.
+ */
 C_API ats_wnd ats_gridlayout_set(ats_wnd on, int x, int y, const char *xLayout, const char *yLayout);
 
+/* Setup handler `on` for `StructureNotifyMask` event,
+~action~ handles `ConfigureNotify` for `XEvent`. */
 C_API ats_wnd ats_canvas_set(ats_wnd on, int width, int height, XtEventHandler action, void *data);
+
+/* Setup handler `on` for `ExposureMask` event,
+~action~ handles `Expose` for `XEvent`. */
+C_API void ats_exposure_set(ats_wnd on, XtEventHandler action, void *data);
+
+/* Setup handler `on` for `LeaveWindowMask | PointerMotionMask` events,
+~action~ handles `MotionNotify` and `LeaveNotify` for `XEvent`. */
+C_API void ats_motion_set(ats_wnd on, XtEventHandler action, void *data);
+
+/* Setup handler `on` for `KeyPressMask | ButtonPressMask` events,
+~action~ handles `KeyPress` and `ButtonPress` for `XEvent`. */
+C_API void ats_keybutton_set(ats_wnd on, XtEventHandler action, void *data);
 
 C_API ats_wnd ats_statusline_set(ats_wnd on, ats_wnd alignto, const char *initial, int x, int y, int width);
 C_API ats_wnd ats_status_set(ats_wnd on, const char *initial, int row, int width, int height);
@@ -621,10 +728,14 @@ C_API Pixmap ats_image_get(ats_wnd alpha, Display *dpy, const char *filename,
 	unsigned char *memoryimage, int imagelen);
 C_API ats_wnd ats_anyimage_set(ats_t *ui, ats_wnd on, char *path);
 
+C_API void ats_video_assign(ats_t *av, ats_t *to);
 C_API int ats_video_set(ats_t *ui, ats_wnd on, char *path);
-C_API ats_wnd ats_videobox_set(ats_wnd on, ats_wnd vertTo, ats_wnd horizTo, int width, int height);
+C_API ats_wnd ats_videobox_set(ats_wnd on, ats_wnd vertTo, ats_wnd horizTo);
 C_API ats_wnd ats_videocanvas_set(ats_video_info *av, ats_wnd on, int width, int height, XtEventHandler action);
-C_API int ats_rendering_video(ats_wnd on, XImage *img, int width, int height,
+
+/* Render `XImage` onto `on` window handle, adding positioned `x, y` formated `fmt`
+text overlay afterwards, if not `NULL`. */
+C_API int ats_render_image(ats_wnd on, GC gc, XImage *img, int width, int height,
 	int overlay_x, int overlay_y, unsigned long overlay_fg_color, char *fmt, ...);
 
 C_API void ats_background_set(ats_wnd on, char *to_color);
@@ -635,12 +746,35 @@ C_API ats_wnd ats_button_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char 
 C_API ats_wnd ats_buttons_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label,
 	_platform_cb action, int is_vert, int number, int y);
 
+/* Create window with `title`, `dimensions`, and `icon` in `ui->use_icon`, set various `ats_t` fields, and `WM_DELETE_WINDOW`.
+ * - if `alloc_buffer` = `1`, `ui->buf` is allocated to `dimensions * sizeof(uint32_t)` , and window `resizeable`,
+ * `XCreateImage` is called for `ui->buf`, filling `ui->img`, setting `ui->gc`, thereafter `ats_graphics_loop` should be use.
+ * - if `alloc_buffer` = `-1`, created `window` not resizeable.
+ * - if `alloc_buffer` = `0`, created `window` resizeable.
+ *
+ * MUST call `ats_handler` or `ats_active` to have `events` handled,
+ * and `ats_close` or `ats_destroy` to `clean up`.
+ */
 C_API int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer);
 C_API int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc_buffer,
 	String *resources, XtActionList add_actions, Cardinal num_actions, bool catch_err);
+
+/* Setup `window` in `ui` into `3` row constraint grid.
+ *
+ * This is first `0` ~row~ having dropdown `menubar` for number of `menu names`.
+ * - Call `ats_font_set` to set `menu` font.
+ * - Call `ats_menu_set` to create the `menu` items.
+ *
+ * Second `1` ~row~ main content area.
+ * - Call `ats_mainarea_set` to further config.
+ *
+ * Third `2` ~row~ for window status line.
+ * - Call `ats_statusline_set or ats_status_set` to further config.
+ */
 C_API int ats_menubar_set(ats_t *ui, int numof_menus);
 C_API int ats_font_set(ats_t *ui, const char *font);
 C_API int ats_menu_set(ats_t *ui, int num_menu, menuitem_t *items, int numof_items, int menu_id, char *name);
+
 C_API void ats_dragdrop_set(ats_t *ui, const char *mime, int slot, _platform_cb dropfunc, _platform_cb dragfunc);
 C_API void ats_dragdrop_update(ats_t *ui, const char *mime, int slot);
 C_API void ats_title_set(ats_t *ui, const char *title);
@@ -649,8 +783,14 @@ C_API ats_wnd ats_windowgrid_set(ats_t *ui, int menuheight, int topheight, int b
 C_API ats_wnd ats_tabs_set(ats_t *ui, int row);
 C_API ats_wnd ats_tabsbox_set(char *title, ats_wnd on);
 C_API ats_wnd ats_tabsgrid_set(char *title, ats_wnd on, const char *yLayout);
+
+/* Set and return `boxWidgetClass` window layout handle for `on` onto `row`. All window/widgets assigned
+ * will be automatically be left aligned when box/layout resized. */
 C_API ats_wnd ats_boxwindow_set(ats_wnd on, int row);
 C_API ats_wnd ats_boxspace_set(ats_wnd on, int vertical, int horizontal);
+
+/* Set and return `formWidgetClass` window layout handle for `on` onto `row`. All window/widgets assigned
+ * can be aligned to each other, will automatically be resized to match/fit window dimensions. */
 C_API ats_wnd ats_formwindow_set(ats_wnd on, int row);
 C_API int ats_graphics_loop(ats_t *ui);
 C_API int ats_handler(ats_t *ui);

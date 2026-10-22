@@ -5,3 +5,4 @@ extern int MwErrorBox(Widget, char *);
 extern void MwAboutBox(Widget, char *, char *);
 extern int MwListBox(Widget, char *, char **, int);
 extern void MwStderrRedir(Widget);
+extern void MwAboutAthena(Widget pw);

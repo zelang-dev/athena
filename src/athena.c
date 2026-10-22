@@ -3,6 +3,18 @@
 #include <Gridbox.h>
 #include "libsmallregex.h"
 
+typedef struct timedaction_s {
+	menuitem_t item;
+	menu_bar_t *bar;
+	ui_t *app;
+	void *data;
+} timedaction_t;
+
+// Safely free `ctx->pip_ximage` and `ctx->pip_sws_ctx` will cause `pip` canvas to be reconstructed.
+static void pip_resize(ats_video_info *ctx, int w, int h);
+static void toggle_fullscreen(ats_video_info *ctx);
+static void toggle_pip(ats_video_info *ctx);
+
 static ats_t *main_athena_info = NULL;
 static volatile bool main_athena_shutdown = false;
 
@@ -223,7 +235,7 @@ static void hotkey_action(Widget w, XEvent *event, String *params, Cardinal *num
 	if (*num_params == 0)
 		return;
 
-	ui_t *ui = (ui_t *)main_athena_info->app;
+	ui_t *app = (ui_t *)main_athena_info->app;
 	menu_bar_t *menubar = main_athena_info->bar_info;
 	int i, r, number_items, number_menu = menubar->num_menus;
 	for (r = 0; r < number_menu; r++) {
@@ -232,13 +244,13 @@ static void hotkey_action(Widget w, XEvent *event, String *params, Cardinal *num
 		menuitem_t *items = menu->items;
 		for (i = 0; i < number_items; i++) {
 			if (strcmp(params[0], items[i].alphaKey) == 0) {
-				ui->self = items[i].index;
+				app->self = items[i].index;
 				if (items[i].action) {
 					if (menubar->override)
 						((_platform_cb)items[i].action)(w,
 							(menubar->override_data ? menubar->override_data : items[i].data), NULL);
 					else
-						items[i].action(ui, items[i].data);
+						items[i].action(app, items[i].data);
 				}
 				return;
 			}
@@ -252,7 +264,7 @@ static void _hotkey(ats_t *ats, int k) {
 	if (k > 123)
 		return;
 
-	ui_t *ui = (ui_t *)ats->app;
+	ui_t *app = (ui_t *)ats->app;
 	menu_bar_t *menubar = ats->bar_info;
 	int i, r, number_items, number_menu = menubar->num_menus;
 	for (r = 0; r < number_menu; r++) {
@@ -263,20 +275,54 @@ static void _hotkey(ats_t *ats, int k) {
 			if (items[i].alphaKey) {
 				if (k == items[i].alphaKey[0]
 					|| k == toupper(items[i].alphaKey[0])) {
-					ui->self = items[i].index;
-					ui->ats = ats;
+					app->self = items[i].index;
 					if (items[i].action) {
 						if (menubar->override)
-							((_platform_cb)items[i].action)(ui->self,
+							((_platform_cb)items[i].action)(app->self,
 								(menubar->override_data ? menubar->override_data : items[i].data), NULL);
 						else
-							items[i].action(ui, items[i].data);
+							items[i].action(app, items[i].data);
 					}
 					return;
 				}
 			}
 		}
 	}
+}
+
+Atom ats_display_wm(Display *dpy, Window on, char **icon, ats_t *ui, void (*on_close)(void)) {
+	Pixmap pm_icon, mask;
+	XWMHints *hints;
+	int scrn = DefaultScreen(dpy);
+	int dpth = XDefaultDepth(dpy, scrn);
+
+	/* Create the pixmaps accordingly
+	 * All the pixmaps MUST have the same height and width */
+	XpmAttributes xpmattributes;
+	xpmattributes.depth = dpth;
+	xpmattributes.valuemask = XpmSize | XpmDepth;
+	XpmCreatePixmapFromData(dpy, on, icon, &pm_icon, &mask, &xpmattributes);
+
+	/* Now tell the window manager what the icon is */
+	hints = XAllocWMHints();
+	hints->flags = IconPixmapHint | IconMaskHint;
+	hints->icon_pixmap = pm_icon;
+	hints->icon_mask = mask;
+	XSetWMHints(dpy, on, hints);
+
+	// Set WM_DELETE_WINDOW protocol, catch close events
+	Atom wmDeleteMessage = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
+	XSetWMProtocols(dpy, on, &wmDeleteMessage, 1);
+
+	// Alway keep window above others
+	Atom wm_state = XInternAtom(dpy, "_NET_WM_STATE", False);
+	Atom wm_above = XInternAtom(dpy, "_NET_WM_STATE_ABOVE", False);
+	XChangeProperty(dpy, on, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char *)&wm_above, 1);
+	XFree(hints);
+	if (ui && on_close)
+		ui->closer = on_close;
+
+	return wmDeleteMessage;
 }
 
 void ats_icon_set(ats_t *ui, const char *filepath) {
@@ -881,22 +927,17 @@ static size_t line_count(const char *text, const char *seps, int *count) {
 	return max_line_size;
 }
 
-void ats_center(ats_wnd window) {
+void ats_center(ats_wnd on) {
 	Position x, y;
 	Dimension w1, h1;
 	Window root;
 	int rx, ry, rw, rh, rb, rd;
 
-	XtVaGetValues(window,
-		XtNwidth, &w1,
-		XtNheight, &h1, NULL);
-	XGetGeometry(XtDisplay(window), DefaultRootWindow(XtDisplay(window)),
-		&root, &rx, &ry, &rw, &rh, &rb, &rd);
+	XtVaGetValues(on, XtNwidth, &w1, XtNheight, &h1, NULL);
+	XGetGeometry(XtDisplay(on), DefaultRootWindow(XtDisplay(on)), &root, &rx, &ry, &rw, &rh, &rb, &rd);
 	x = (rw - w1) / 2;
 	y = (rh - h1) / 2;
-	XtVaSetValues(window,
-		XtNx, x,
-		XtNy, y, NULL);
+	XtVaSetValues(on, XtNx, x,XtNy, y, NULL);
 }
 
 static void close_clicked(Widget self, XtPointer client, XtPointer data) {
@@ -1233,24 +1274,9 @@ void ats_active(ats_t *ui) {
 	if (!ui->dpy) {
 		ui->dpy = XtDisplayOfObject((Widget)ui->app->app_data);
 		XtRealizeWidget(ui->app->wnd);
-		XtActionsRec fileprompt_actions[] = {
-			{"WMProtocols", WMProtocols},
-		};
-
-		XtAppAddActions(context,
-			fileprompt_actions, XtNumber(fileprompt_actions));
-
-		/* set up to handle quits */
-		XInternAtom(ui->dpy, "WM_PROTOCOLS", False);
-		ui->wmDeleteMessage = XInternAtom(ui->dpy, "WM_DELETE_WINDOW", False);
-		XtOverrideTranslations(ui->app->wnd,
-			XtParseTranslationTable("<Message>WM_PROTOCOLS: WMProtocols()"));
 
 		ui->win = XtWindow(ui->app->wnd);
-		(void)XSetWMProtocols(ui->dpy, ui->win, (Atom *)&ui->wmDeleteMessage, 1);
-		if (!ui->icon_set)
-			ats_icon_set(ui, ATHENA_ICON);
-
+		ui->wmDeleteMessage = ats_display_wm(ui->dpy, ui->win, athena, NULL, NULL);
 		XStoreName(ui->dpy, ui->win, ui->app->name);
 		XMapWindow(ui->dpy, ui->win);
 	} else {
@@ -1263,13 +1289,35 @@ void ats_active(ats_t *ui) {
 		XtDispatchEvent(&ui->xev);
 		if (ui->xev.xclient.type == ClientMessage && !ui->app->is_alert
 			&& ui->xev.xclient.data.l[0] == ui->wmDeleteMessage) {
+			if (ui->av.video_set) {
+				if (ui->av.pip_mode)
+					toggle_pip(&ui->av);
+
+				if (ui->av.is_fullscreen)
+					toggle_fullscreen(&ui->av);
+
+				XFlush(ui->av.display);
+			}
+
+			if (ui->closer)
+				ui->closer();
 			break;
+		} else if (ui->av.video_set) {
+			if (ui->av.pip_mode && ui->av.pip_win && ui->xev.type == ConfigureNotify
+				&& ui->xev.xconfigure.window == ui->av.pip_win) {
+				pip_resize(&ui->av, ui->xev.xconfigure.width, ui->xev.xconfigure.height);
+			} else if (ui->xev.type == KeyPress) {
+				pthread_mutex_lock(&ui->av.media_mutex);
+				KeySym key = XLookupKeysym(&ui->xev.xkey, 0);
+				if (ui->av.is_fullscreen && key == XK_End)
+					toggle_fullscreen(&ui->av);
+				else if (key == XK_Escape)
+					ui->av.state = STATE_STOPPED;
+				pthread_mutex_unlock(&ui->av.media_mutex);
+			}
 		} else if (ui->webview_set && ui->xev.type == ConfigureNotify) {
 			XConfigureEvent xce = ui->xev.xconfigure;
-			/* This event type is generated for a variety of
-			   happenings, so check whether the window has been
-			   resized. */
-			if (xce.width != ui->web->width) {
+			if (ui->webview_set && xce.width != ui->web->width) {
 				int numtools = 4;
 				ui->web->width = xce.width;
 				if (ui->web->priv.inspector_window)
@@ -1454,8 +1502,27 @@ int ats_handler(ats_t *ui) {
 				XGetWindowAttributes(ui->dpy, ui->win, &(ui->bar_info->gwa));
 				break;
 			case ClientMessage:
-				if (ui->xev.xclient.data.l[0] == ui->wmDeleteMessage)
+				if (ui->xev.xclient.data.l[0] == ui->wmDeleteMessage) {
+					if (ui->av.video_set) {
+						if (ui->app->is_video) {
+							if (ui->app->ats->av.pip_mode)
+								toggle_pip(&ui->app->ats->av);
+							if (ui->app->ats->av.is_fullscreen)
+								toggle_fullscreen(&ui->app->ats->av);
+							XFlush(ui->app->ats->av.display);
+						} else {
+							if (ui->av.pip_mode)
+								toggle_pip(&ui->av);
+							if (ui->av.is_fullscreen)
+								toggle_fullscreen(&ui->av);
+							XFlush(ui->av.display);
+						}
+					}
+
+					if (ui->closer)
+						ui->closer();
 					return 0;
+				}
 			default:
 				break;
 		}
@@ -1482,99 +1549,8 @@ void ats_athena_set(ats_t *ui, char **xpm_icon, const char *title, int width, in
 	}
 }
 
-int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer) {
-	//return ats_window_ex(ui, title, width, height, alloc_buffer, NULL, NULL, 0, false);
-	int argc = 0;
-	char **argv = NULL;
-
-	ui->title = title;
-	ui->width = width;
-	ui->height = height;
-	if (alloc_buffer == true) {
-		ui->buf = malloc(ui->width * ui->height * sizeof(uint32_t));
-		if (!ui->buf)
-			return 0;
-	}
-
-	if (main_athena_info == NULL) {
-		XInitThreads();
-		ui->topLevel = XtVaOpenApplication(&ui->app_con, ui->title, NULL, 0,
-			&argc, argv, fallback, mwApplicationShellWidgetClass,
-			XtNwidth, ui->width, XtNheight, ui->height,
-			XtNbeNiceToColormap, True, NULL, 0);
-
-		// Register hotkey action
-		XtActionsRec actions[] = {{"hotkey", hotkey_action}};
-		XtAppAddActions(ui->app_con, actions, XtNumber(actions));
-		XawFocusInstallActions(ui->app_con);
-		ui->use_icon = athena;
-		main_athena_info = ui;
-		main_athena_info->wnd = ui->topLevel;
-	}
-
-	ui->dpy = XtDisplayOfObject(main_athena_info->wnd);
-	if (ui->dpy == NULL) {
-		XtAppError(ui->app_con, "\n\tCannot connect to X server\n\n");
-		return 0;
-	}
-
-	ui->screen = DefaultScreen(ui->dpy);
-	if (ui->buf) {
-		ui->root = RootWindow(ui->dpy, ui->screen);
-		ui->win = XCreateSimpleWindow(ui->dpy, ui->root, 0, 0, ui->width, ui->height,
-			0, BlackPixel(ui->dpy, ui->screen), WhitePixel(ui->dpy, ui->screen));
-		ui->gc = XCreateGC(ui->dpy, ui->win, 0, 0);
-	} else {
-		if (ui != main_athena_info) {
-			ui->topLevel = XtVaAppInitialize(&ui->app_con, (ui->webview_set ? "webview" : ui->title), NULL, 0,
-				&argc, argv, (ui->webview_set ? fallback_webview : (ui->video_set ? NULL : fallback)),
-				XtNbeNiceToColormap, False,
-				XtNwidth, ui->width,
-				XtNheight, ui->height, NULL, 0);
-			ui->dpy = XtDisplayOfObject(ui->topLevel);
-			ui->screen = DefaultScreen(ui->dpy);
-			XawFocusInstallActions(ui->app_con);
-		}
-
-		XtRealizeWidget(ui->topLevel);
-		ui->win = XtWindow(ui->topLevel);
-	}
-
-	XSelectInput(ui->dpy, ui->win, ExposureMask | KeyPressMask | KeyReleaseMask
-		| ButtonPressMask | ButtonReleaseMask | PointerMotionMask | StructureNotifyMask);
-
-	ui->wmDeleteMessage = XInternAtom(ui->dpy, "WM_DELETE_WINDOW", False);
-	XSetWMProtocols(ui->dpy, ui->win, &ui->wmDeleteMessage, 1);
-	if (alloc_buffer == -1) {
-		XSizeHints hints;
-		hints.flags = PSize | PMinSize | PMaxSize;
-		hints.min_width = hints.max_width = hints.base_width = width;
-		hints.min_height = hints.max_height = hints.base_height = height;
-		XSetWMNormalHints(ui->dpy, ui->win, &hints);
-	}
-
-	ats_icon_set(ui, ATHENA_ICON);
-	XStoreName(ui->dpy, ui->win, ui->title);
-	XMapWindow(ui->dpy, ui->win);
-
-	if (!ui->buf) {
-		ui->wnd = ui->topLevel;
-		XSync(ui->dpy, 0);
-	} else {
-		ui->img = XCreateImage(ui->dpy, DefaultVisual(ui->dpy, ui->screen), 24, ZPixmap, 0,
-			(char *)ui->buf, ui->width, ui->height, 32, 0);
-		XSync(ui->dpy, ui->win);
-	}
-
-	if (!main_athena_info->font) {
-		MwInitFormat(ui->dpy);
-		ui->font = XLoadQueryFont(ui->dpy, "lucidasans-8");
-		ui->font_button = XLoadQueryFont(ui->dpy, lucida);
-		main_athena_info->font = ui->font;
-		main_athena_info->font = ui->font_button;
-	}
-
-	return 1;
+FORCEINLINE int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer) {
+	return ats_window_ex(ui, title, width, height, alloc_buffer, NULL, NULL, 0, false);
 }
 
 /* xtErrorHandler */
@@ -1602,6 +1578,7 @@ int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc
 	}
 
 	if (main_athena_info == NULL) {
+		XInitThreads();
 		ui->topLevel = XtVaOpenApplication(&ui->app_con, ui->title, NULL, 0,
 			&argc, argv, (resources ? resources : fallback), mwApplicationShellWidgetClass,
 			XtNwidth, ui->width, XtNheight, ui->height,
@@ -1646,8 +1623,12 @@ int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc
 				XtNbeNiceToColormap, False,
 				XtNwidth, ui->width,
 				XtNheight, ui->height, NULL, 0);
+			ui->dpy = XtDisplayOfObject(ui->topLevel);
+			ui->screen = DefaultScreen(ui->dpy);
 			if (add_actions)
 				XtAppAddActions(ui->app_con, add_actions, num_actions);
+
+			XawFocusInstallActions(ui->app_con);
 		}
 
 		XtRealizeWidget(ui->topLevel);
@@ -1868,11 +1849,48 @@ FORCEINLINE ats_wnd ats_canvas_set(ats_wnd on, int width, int height, XtEventHan
 	return canvas;
 }
 
+FORCEINLINE void ats_keybutton_set(ats_wnd on, XtEventHandler action, void *data) {
+	XtAddEventHandler(on, KeyPressMask | ButtonPressMask, FALSE, (XtEventHandler)action, data);
+}
+
+FORCEINLINE void ats_exposure_set(ats_wnd on, XtEventHandler action, void *data) {
+	XtAddEventHandler(on, ExposureMask, FALSE, (XtEventHandler)action, data);
+}
+
+FORCEINLINE void ats_motion_set(ats_wnd on, XtEventHandler action, void *data) {
+	XtAddEventHandler(on, LeaveWindowMask | PointerMotionMask, FALSE, (XtEventHandler)action, data);
+}
+
+int ats_render_image(ats_wnd on, GC gc, XImage *img, int width, int height,
+	int overlay_x, int overlay_y, unsigned long overlay_fg_color, char *fmt, ...) {
+	va_list ap;
+	int r = -1;
+	if (img) {
+		Display *dpy = XtDisplayOfObject(on);
+		XLockDisplay(dpy);
+		Window win = XtWindow(on);
+		if (win) {
+			r = XPutImage(dpy, win, gc, img, 0, 0, 0, 0, width, height);
+			if (fmt) {
+				char info_string[256];
+				va_start(ap, fmt);
+				vsnprintf(info_string, sizeof(info_string), fmt, ap);
+				va_end(ap);
+				XSetForeground(dpy, gc, overlay_fg_color);
+				r = XDrawString(dpy, win, gc, overlay_x, overlay_y, info_string, strlen(info_string));
+			}
+			XFlush(dpy);
+		}
+		XUnlockDisplay(dpy);
+	}
+
+	return r;
+}
+
 #include "anyvideo.c"
 
-FORCEINLINE ats_wnd ats_videobox_set(ats_wnd on, ats_wnd vertTo, ats_wnd horizTo, int width, int height) {
+FORCEINLINE ats_wnd ats_videobox_set(ats_wnd on, ats_wnd vertTo, ats_wnd horizTo) {
 	return XtVaCreateManagedWidget("videobox", formWidgetClass, on,
-		XtNwidth, width, XtNheight, height,
 		XtNfromVert, vertTo, XtNfromHoriz, horizTo,
 		XtNborder, 0, XtNborderWidth, 0, XtNresizable, True, NULL);
 }
@@ -1882,37 +1900,14 @@ FORCEINLINE ats_wnd ats_videocanvas_set(ats_video_info *av, ats_wnd on, int widt
 	return av->media_area;
 }
 
-int ats_rendering_video(ats_wnd on, XImage *img, int width, int height,
-	int overlay_x, int overlay_y, unsigned long overlay_fg_color, char *fmt, ...) {
-	va_list ap;
-	int r = -1;
-	if (img) {
-		Display *dpy = XtDisplayOfObject(on);
-		XLockDisplay(dpy);
-		Window win = XtWindow(on);
-		if (win) {
-			GC gc = XCreateGC(dpy, win, 0, NULL);
-			XPutImage(dpy, win, gc, img, 0, 0, 0, 0, width, height);
-			if (fmt) {
-				char info_string[256];
-				va_start(ap, fmt);
-				vsnprintf(info_string, sizeof(info_string), fmt, ap);
-				va_end(ap);
-				XSetForeground(dpy, gc, overlay_fg_color);
-				r = XDrawString(dpy, win, gc, overlay_x, overlay_y, info_string, strlen(info_string));
-			}
-
-			XFreeGC(dpy, gc);
-			XFlush(dpy);
-		}
-		XUnlockDisplay(dpy);
-	}
-
-	return r;
+FORCEINLINE void ats_video_assign(ats_t *av, ats_t *to) {
+	to->av = av->av;
+	to->app->ats = av;
+	to->app->is_video = true;
 }
 
-int ats_video_set(ats_t *ui, ats_wnd on, char *path) {
-	if (load_video(ui, path))
+FORCEINLINE int ats_video_set(ats_t *ui, ats_wnd on, char *path) {
+	if (load_video(ui, on, path))
 		return 1;
 
 	return 0;
@@ -1920,11 +1915,17 @@ int ats_video_set(ats_t *ui, ats_wnd on, char *path) {
 
 void ats_close(ats_t *ui) {
 	if (ui) {
-		if (ui->video_set) {
-			ui->video_set = false;
-			ui->av.quit = true;
-			pthread_join(ui->av.media_tid, NULL);
-			pthread_mutex_destroy(&ui->av.media_mutex);
+		if (ui->av.video_set) {
+			ui->av.video_set = false;
+			if (ui->app->is_video) {
+				ui->app->ats->av.quit = true;
+				pthread_join(ui->app->ats->av.media_tid, NULL);
+				pthread_mutex_destroy(&ui->app->ats->av.media_mutex);
+			} else {
+				ui->av.quit = true;
+				pthread_join(ui->av.media_tid, NULL);
+				pthread_mutex_destroy(&ui->av.media_mutex);
+			}
 		}
 
 		if (ui->bar_info) {
@@ -1960,9 +1961,11 @@ void ats_close(ats_t *ui) {
 }
 
 void ats_destroy(ats_t *ui) {
-	if (ui->video_set) {
-		ui->video_set = false;
+	if (ui->av.video_set) {
+		pthread_mutex_lock(&ui->av.media_mutex);
+		ui->av.video_set = false;
 		ui->av.quit = true;
+		pthread_mutex_unlock(&ui->av.media_mutex);
 		pthread_join(ui->av.media_tid, NULL);
 		pthread_mutex_destroy(&ui->av.media_mutex);
 	}
