@@ -602,12 +602,14 @@ C_API ats_wnd ats_spinner_set(ats_wnd on, int min, int max, int step,
 	int initial_value, _platform_cb handler);
 C_API ats_wnd ats_animator_set(ats_wnd on, MwAniObject *cast, const char *gradient);
 
+/* Pops up a modal window box having, `title`, `message`, struct `Button`, holding `numButtons` of labels.
+ * Return ~index~ `> 0` number of `button` pressed, or `-1` if `setup error`. */
 C_API int ats_message_box(const char *title, const char *message, Button *buttons, int numButtons);
 C_API void ats_about_box(char *pixmap, char *message);
 C_API void ats_center(ats_wnd on);
 
 /* Set up window xpm `icon`, will execute `on_close` on `WM_DELETE_WINDOW` event.
- * - Set `on` to `_NET_WM_STATE_ABOVE` top window.
+ * - Set `on` to `_NET_WM_STATE_ABOVE`, always top window.
  *
  * returns `WMProtocol` id.  */
 C_API Atom ats_display_wm(Display *dpy, Window on, char **icon, ats_t *ui, void (*on_close)(void));
@@ -623,7 +625,7 @@ C_API ats_wnd ats_tooltip_set(ats_t *ui, ats_wnd on, char *tip);
 C_API ats_wnd ats_toolbar_set(ats_t *ui, ats_wnd on, _platform_cb button,
 	char *imagefile, char *tip, bool showtip);
 
-/* Setup `on` for a window navigation bar ~row~ for image buttons.
+/* Setup `on` for a window navigation bar placed at ~row~ for image buttons.
  * - Call `ats_toolbar_set` to setup buttons.
  *
  * returns `positioned`, `boxWidgetClass` handle, managed by `on`. */

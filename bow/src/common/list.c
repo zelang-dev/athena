@@ -32,6 +32,7 @@ struct GNodeP {
 	struct GNodeP *prev, *next;
 };
 
+/* Double linklist for `MemPool` */
 struct GListP {
 	bool localmp;
 	MemPool mp;

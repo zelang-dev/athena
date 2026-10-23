@@ -163,6 +163,7 @@ typedef struct GListP *GList;
 
 #define GListCreate() GListCreateTrack(__LINE__, __FILE__)
 GList GListCreateTrack _ArgProto((int, char *));
+/* Create new double linklist instance, increasing `MemPool` reference count. */
 GList GListCreateX _ArgProto((MemPool));
 void GListAddHead _ArgProto((GList, void *));
 #define GListPush(a, b) GListAddHead(a, b)

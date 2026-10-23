@@ -1579,6 +1579,7 @@ int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc
 
 	if (main_athena_info == NULL) {
 		XInitThreads();
+		XtToolkitThreadInitialize();
 		ui->topLevel = XtVaOpenApplication(&ui->app_con, ui->title, NULL, 0,
 			&argc, argv, (resources ? resources : fallback), mwApplicationShellWidgetClass,
 			XtNwidth, ui->width, XtNheight, ui->height,

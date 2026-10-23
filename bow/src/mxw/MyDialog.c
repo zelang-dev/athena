@@ -28,7 +28,7 @@ in this Software without prior written authorization from the X Consortium.
 
 Copyright 1987, 1988 by Digital Equipment Corporation, Maynard, Massachusetts.
 
-                        All Rights Reserved
+						All Rights Reserved
 
 Permission to use, copy, modify, and distribute this software and its
 documentation for any purpose and without fee is hereby granted,
@@ -68,270 +68,217 @@ static char defaultTranslations[] =
  Ctrl<Key>m:	MyPressReturn() \n";
 
 static XtResource resources[] = {
-  { XtNlabel, XtCLabel, XtRString, sizeof(String),
-       XtOffsetOf(MyDialogRec, mydialog.label), XtRString, NULL },
+  {XtNlabel, XtCLabel, XtRString, sizeof(String),
+	   XtOffsetOf(MyDialogRec, mydialog.label), XtRString, NULL},
   {XtNcallback, XtCCallback, XtRCallback, sizeof(XtPointer),
-     XtOffsetOf(MyDialogRec, mydialog.callbacks),XtRCallback,(XtPointer)NULL},
+	 XtOffsetOf(MyDialogRec, mydialog.callbacks),XtRCallback,(XtPointer)NULL},
 };
 
-static void Initialize(), ConstraintInitialize(), MyPressReturn();
-static Boolean SetValues();
+static void Initialize(Widget request, Widget new, ArgList args, Cardinal *num_args);
+static void ConstraintInitialize(Widget request, Widget new, ArgList args, Cardinal *num_args);
+static void MyPressReturn(Widget w, XEvent *event, String *params, Cardinal *num_params);
+static Boolean SetValues(Widget current, Widget request, Widget new, ArgList in_args, Cardinal *in_num_args);
 
-static XtActionsRec actionsList[] =
-{
-  { "MyPressReturn", MyPressReturn }
+static XtActionsRec actionsList[] = {
+  {"MyPressReturn", MyPressReturn}
 };
 
 MyDialogClassRec mydialogClassRec = {
   { /* core_class fields */
-    /* superclass         */    (WidgetClass) &formClassRec,
-    /* class_name         */    "MyDialog",
-    /* widget_size        */    sizeof(MyDialogRec),
-    /* class_initialize   */    XawInitializeWidgetSet,
-    /* class_part init    */    NULL,
-    /* class_inited       */    FALSE,
-    /* initialize         */    Initialize,
-    /* initialize_hook    */    NULL,
-    /* realize            */    XtInheritRealize,
-    /* actions            */    actionsList,
-    /* num_actions        */    XtNumber(actionsList),
-    /* resources          */    resources,
-    /* num_resources      */    XtNumber(resources),
-    /* xrm_class          */    NULLQUARK,
-    /* compress_motion    */    TRUE,
-    /* compress_exposure  */    TRUE,
-    /* compress_enterleave*/    TRUE,
-    /* visible_interest   */    FALSE,
-    /* destroy            */    NULL,
-    /* resize             */    XtInheritResize,
-    /* expose             */    XtInheritExpose,
-    /* set_values         */    SetValues,
-    /* set_values_hook    */    NULL,
-    /* set_values_almost  */    XtInheritSetValuesAlmost,
-    /* get_values_hook    */    NULL,
-	/* accept_focus       */    XawAcceptFocus,
-    /* version            */    XtVersion,
-    /* callback_private   */    NULL,
-    /* tm_table           */    NULL,
-    /* query_geometry     */	XtInheritQueryGeometry,
-    /* display_accelerator*/	XtInheritDisplayAccelerator,
-    /* extension          */	NULL
-  },
-  { /* composite_class fields */
-    /* geometry_manager   */   XtInheritGeometryManager,
-    /* change_managed     */   XtInheritChangeManaged,
-    /* insert_child       */   XtInheritInsertChild,
-    /* delete_child       */   XtInheritDeleteChild,
-    /* extension          */   NULL
-  },
-  { /* constraint_class fields */
-    /* subresourses       */   NULL,
-    /* subresource_count  */   0,
-    /* constraint_size    */   sizeof(MyDialogConstraintsRec),
-    /* initialize         */   ConstraintInitialize,
-    /* destroy            */   NULL,
-    /* set_values         */   NULL,
-    /* extension          */   NULL
-  },
-  { /* form_class fields */
-    /* layout             */   XtInheritLayout
-  },
-  { /* mydialog_class fields */
-    /* empty              */   0
-  }
+		/* superclass         */    (WidgetClass)&formClassRec,
+		/* class_name         */    "MyDialog",
+		/* widget_size        */    sizeof(MyDialogRec),
+		/* class_initialize   */    XawInitializeWidgetSet,
+		/* class_part init    */    NULL,
+		/* class_inited       */    FALSE,
+		/* initialize         */    Initialize,
+		/* initialize_hook    */    NULL,
+		/* realize            */    XtInheritRealize,
+		/* actions            */    actionsList,
+		/* num_actions        */    XtNumber(actionsList),
+		/* resources          */    resources,
+		/* num_resources      */    XtNumber(resources),
+		/* xrm_class          */    NULLQUARK,
+		/* compress_motion    */    TRUE,
+		/* compress_exposure  */    TRUE,
+		/* compress_enterleave*/    TRUE,
+		/* visible_interest   */    FALSE,
+		/* destroy            */    NULL,
+		/* resize             */    XtInheritResize,
+		/* expose             */    XtInheritExpose,
+		/* set_values         */    SetValues,
+		/* set_values_hook    */    NULL,
+		/* set_values_almost  */    XtInheritSetValuesAlmost,
+		/* get_values_hook    */    NULL,
+		/* accept_focus       */    XawAcceptFocus,
+		/* version            */    XtVersion,
+		/* callback_private   */    NULL,
+		/* tm_table           */    NULL,
+		/* query_geometry     */	XtInheritQueryGeometry,
+		/* display_accelerator*/	XtInheritDisplayAccelerator,
+		/* extension          */	NULL
+	  },
+	  { /* composite_class fields */
+		  /* geometry_manager   */   XtInheritGeometryManager,
+		  /* change_managed     */   XtInheritChangeManaged,
+		  /* insert_child       */   XtInheritInsertChild,
+		  /* delete_child       */   XtInheritDeleteChild,
+		  /* extension          */   NULL
+		},
+		{ /* constraint_class fields */
+			/* subresourses       */   NULL,
+			/* subresource_count  */   0,
+			/* constraint_size    */   sizeof(MyDialogConstraintsRec),
+			/* initialize         */   ConstraintInitialize,
+			/* destroy            */   NULL,
+			/* set_values         */   NULL,
+			/* extension          */   NULL
+		  },
+		  { /* form_class fields */
+			  /* layout             */   XtInheritLayout
+			},
+			{ /* mydialog_class fields */
+				/* empty              */   0
+			  }
 };
 
 WidgetClass mydialogWidgetClass = (WidgetClass)&mydialogClassRec;
 
 /* ARGSUSED */
-static void Initialize(request, new, args, num_args)
-Widget request, new;
-ArgList args;
-Cardinal *num_args;
-{
-    MyDialogWidget dw = (MyDialogWidget)new;
+static void Initialize(Widget request, Widget new,
+	ArgList args, Cardinal *num_args) {
+	MyDialogWidget dw = (MyDialogWidget)new;
 
-    dw->mydialog.messageW =
-	XtVaCreateManagedWidget("mydialog_message",
-				textfieldWidgetClass,
-				new,
-				XtNstring, dw->mydialog.label,
-				XtNdisplayCaret, False,
-				XtNeditable, False,
-				XtNborderWidth, 0,
-				XtNleft, XtChainLeft,
-				XtNright, XtChainRight,
-				NULL);
+	dw->mydialog.messageW =
+		XtVaCreateManagedWidget("mydialog_message",
+			textfieldWidgetClass,
+			new,
+			XtNstring, dw->mydialog.label,
+			XtNdisplayCaret, False,
+			XtNeditable, False,
+			XtNborderWidth, 0,
+			XtNleft, XtChainLeft,
+			XtNright, XtChainRight,
+			NULL);
 
 
-    dw->mydialog.valueW = XtVaCreateWidget("mydialog_value",
-					   textfieldWidgetClass,
-					   new,
-					   XtNfromVert, dw->mydialog.messageW,
-					   XtNleft, XtChainLeft,
-					   XtNright, XtChainRight,
-					   NULL);
+	dw->mydialog.valueW = XtVaCreateWidget("mydialog_value",
+		textfieldWidgetClass,
+		new,
+		XtNfromVert, dw->mydialog.messageW,
+		XtNleft, XtChainLeft,
+		XtNright, XtChainRight,
+		NULL);
 
-    /*
-     * if the value widget is being added after buttons,
-     * then the buttons need new layout constraints.
-     */
-    if (dw->composite.num_children > 1) {
-      WidgetList children = dw->composite.children;
-      Widget *childP;
+/*
+ * if the value widget is being added after buttons,
+ * then the buttons need new layout constraints.
+ */
+	if (dw->composite.num_children > 1) {
+		WidgetList children = dw->composite.children;
+		Widget *childP;
 
-      for (childP = children + dw->composite.num_children - 1;
-	   childP >= children; childP-- ) {
-	if (*childP == dw->mydialog.messageW ||
-	    *childP == dw->mydialog.messageW)
-	    continue;
-	if (XtIsManaged(*childP) &&
-	    XtIsSubclass(*childP, commandWidgetClass)) {
-	  ((MyDialogConstraints)(*childP)->core.constraints)->
-	      form.vert_base = dw->mydialog.messageW;
+		for (childP = children + dw->composite.num_children - 1;
+			childP >= children; childP--) {
+			if (*childP == dw->mydialog.messageW ||
+				*childP == dw->mydialog.messageW)
+				continue;
+			if (XtIsManaged(*childP) &&
+				XtIsSubclass(*childP, commandWidgetClass)) {
+				((MyDialogConstraints)(*childP)->core.constraints)->
+					form.vert_base = dw->mydialog.messageW;
+			}
+		}
 	}
-      }
-    }
 
-    XtOverrideTranslations(dw->mydialog.valueW,
-                           XtParseTranslationTable(defaultTranslations));
+	XtOverrideTranslations(dw->mydialog.valueW,
+		XtParseTranslationTable(defaultTranslations));
 
-    XtManageChild(dw->mydialog.valueW);
+	XtManageChild(dw->mydialog.valueW);
 
-    XtSetKeyboardFocus(new, dw->mydialog.valueW);
-  }
-
-/* ARGSUSED */
-static void ConstraintInitialize(request, new, args, num_args)
-Widget request, new;
-ArgList args;
-Cardinal *num_args;
-{
-    MyDialogWidget dw = (MyDialogWidget)new->core.parent;
-    MyDialogConstraints constraint = (MyDialogConstraints)new->core.constraints;
-
-    if (!XtIsSubclass(new, commandWidgetClass))	/* if not a button */
-	return;					/* then just use defaults */
-
-    constraint->form.left = constraint->form.right = XtChainLeft;
-    constraint->form.vert_base = dw->mydialog.valueW;
-
-    if (dw->composite.num_children > 1) {
-	WidgetList children = dw->composite.children;
-	Widget *childP;
-        for (childP = children + dw->composite.num_children - 1;
-	     childP >= children; childP-- ) {
-	    if (*childP == dw->mydialog.messageW ||
-		*childP == dw->mydialog.valueW)
-	        break;
-	    if (XtIsManaged(*childP) &&
-		XtIsSubclass(*childP, commandWidgetClass)) {
-	        constraint->form.horiz_base = *childP;
-		break;
-	    }
-	}
-    }
+	XtSetKeyboardFocus(new, dw->mydialog.valueW);
 }
 
 /* ARGSUSED */
-static Boolean
-SetValues(current, request, new, in_args, in_num_args)
-Widget current, request, new;
-ArgList in_args;
-Cardinal *in_num_args;
-{
-    MyDialogWidget w = (MyDialogWidget)new;
-    Boolean label_change = False;
-    int i;
+static void ConstraintInitialize(Widget request, Widget new,
+	ArgList args, Cardinal *num_args) {
+	MyDialogWidget dw = (MyDialogWidget)new->core.parent;
+	MyDialogConstraints constraint = (MyDialogConstraints)new->core.constraints;
 
-    for (i = 0; i < *in_num_args; i++) {
-	if (strcmp(XtNlabel, in_args[i].name) == 0) label_change = True;
-    }
+	if (!XtIsSubclass(new, commandWidgetClass))	/* if not a button */
+		return;					/* then just use defaults */
 
-    if (label_change) {
-        TextFieldSetString(w->mydialog.messageW, w->mydialog.label);
-    }
+	constraint->form.left = constraint->form.right = XtChainLeft;
+	constraint->form.vert_base = dw->mydialog.valueW;
 
-    return False;
+	if (dw->composite.num_children > 1) {
+		WidgetList children = dw->composite.children;
+		Widget *childP;
+		for (childP = children + dw->composite.num_children - 1;
+			childP >= children; childP--) {
+			if (*childP == dw->mydialog.messageW ||
+				*childP == dw->mydialog.valueW)
+				break;
+			if (XtIsManaged(*childP) &&
+				XtIsSubclass(*childP, commandWidgetClass)) {
+				constraint->form.horiz_base = *childP;
+				break;
+			}
+		}
+	}
 }
 
-Widget
-#if NeedFunctionPrototypes
-MyDialogAddButton(Widget mydialog, _Xconst char* name, XtCallbackProc function,
-		   XtPointer param)
-#else
-MyDialogAddButton(mydialog, name, function, param)
-Widget mydialog;
-String name;
-XtCallbackProc function;
-XtPointer param;
-#endif
-{
+/* ARGSUSED */
+static Boolean SetValues(Widget current, Widget request, Widget new,
+	ArgList in_args, Cardinal *in_num_args) {
+	MyDialogWidget w = (MyDialogWidget)new;
+	Boolean label_change = False;
+	int i;
+
+	for (i = 0; i < *in_num_args; i++) {
+		if (strcmp(XtNlabel, in_args[i].name) == 0) label_change = True;
+	}
+
+	if (label_change) {
+		TextFieldSetString(w->mydialog.messageW, w->mydialog.label);
+	}
+
+	return False;
+}
+
+Widget MyDialogAddButton(Widget mydialog, const char *name, XtCallbackProc function, XtPointer param) {
 /*
  * Correct Constraints are all set in ConstraintInitialize().
  */
-    Widget button;
+	Widget button;
 
-    button = XtVaCreateManagedWidget(name,
-				     commandWidgetClass, mydialog, NULL);
+	button = XtVaCreateManagedWidget(name,
+		commandWidgetClass, mydialog, NULL);
 
-    if (function != NULL)	/* don't add NULL callback func. */
-        XtAddCallback(button, XtNcallback, function, param);
-    return(button);
+	if (function != NULL)	/* don't add NULL callback func. */
+		XtAddCallback(button, XtNcallback, function, param);
+	return(button);
 }
 
 
-void
-#if NeedFunctionPrototypes
-MyDialogSetMessage(Widget w, char *message)
-#else
-MyDialogSetMessage(w, message)
-Widget w;
-char *message;
-#endif
-{
-    TextFieldSetString(((MyDialogWidget)w)->mydialog.messageW, message);
-    return;
+void MyDialogSetMessage(Widget w, char *message) {
+	TextFieldSetString(((MyDialogWidget)w)->mydialog.messageW, message);
 }
 
-void
-#if NeedFunctionPrototypes
-MyDialogSetValue(Widget w, char *value)
-#else
-MyDialogSetValue(w, value)
-Widget w;
-char *value;
-#endif
-{
-    TextFieldSetString(((MyDialogWidget)w)->mydialog.valueW, value);
-    return;
+void MyDialogSetValue(Widget w, char *value) {
+	TextFieldSetString(((MyDialogWidget)w)->mydialog.valueW, value);
 }
 
-char *
-#if NeedFunctionPrototypes
-MyDialogGetValue(Widget w)
-#else
-MyDialogGetValue(w)
-Widget w;
-#endif
-{
-    return(TextFieldGetString(((MyDialogWidget)w)->mydialog.valueW));
+char *MyDialogGetValue(Widget w) {
+	return(TextFieldGetString(((MyDialogWidget)w)->mydialog.valueW));
 }
 
 /*
  * MyPressReturn
  */
-static void
-MyPressReturn(w, event, params, num_params)
-Widget w;
-XEvent *event;
-String *params;
-Cardinal *num_params;
-{
-  MyDialogWidget dw;
+static void MyPressReturn(Widget w, XEvent *event, String *params, Cardinal *num_params) {
+	MyDialogWidget dw;
 
-  dw = (MyDialogWidget)XtParent(w);
-  XtCallCallbackList(XtParent(w), dw->mydialog.callbacks, (XtPointer) NULL);
-
-  return;
+	dw = (MyDialogWidget)XtParent(w);
+	XtCallCallbackList(XtParent(w), dw->mydialog.callbacks, (XtPointer)NULL);
 }

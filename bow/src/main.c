@@ -23,15 +23,9 @@
 #include "bow/BowP.h"
 #include "bow_archer.xpm"
 
-static void sigigh_handler _ArgProto(());
-static void xtWarningHandler _ArgProto((String));
-static int xErrorHandler _ArgProto((Display *, XErrorEvent *));
-static void BowCleanup _ArgProto((BowResources));
+extern char *fallback_resources[];
 static BowResources ResourcesCreate _ArgProto((ats_t *, int *, char **));
 static void ResourcesDestroy _ArgProto((BowResources));
-
-extern char *fallback_resources[];
-
 static BowResources globalcres = NULL;
 static char *default_resource = "bookmark.filename: ~/.bow/bookmarks.html\n"
 "cache.directory: ~/.bow/cache\n"
@@ -40,74 +34,7 @@ static char *default_resource = "bookmark.filename: ~/.bow/bookmarks.html\n"
 "html.propFontPattern: -adobe-helvetica-*-*-*-*-*-*-*-*-*-*-iso8859-1\n"
 "view.capFiles: ~/.bow/mailcap:~/.mailcap\n";
 
-int main(int argc, char **argv) {
-	char base_url[255];
-
-	signal(SIGINT, sigigh_handler);
-	signal(SIGQUIT, sigigh_handler);
-	signal(SIGHUP, sigigh_handler);
-	signal(SIGTERM, sigigh_handler);
-	signal(SIGPIPE, SIG_IGN);
-
-	StartReaper();
-
-	ats_t ui = {0};
-	ui.use_icon = bow_archer;
-	globalcres = ResourcesCreate(&ui, &argc, argv);
-	if (globalcres) {
-		/*
-		* Default base URL; this allows filenames to be used on the
-		* command line
-		*/
-		strcpy(base_url, "file:");
-		getcwd(base_url + 5, sizeof(base_url) - 5);
-		strcat(base_url, "/");
-
-		if (argc > 1)
-			HeadCreate(globalcres, RequestCreate(globalcres, argv[argc - 1], base_url), NULL);
-		else
-			HeadCreate(globalcres, NULL, NULL);
-
-		/*
-		 * And away we go...
-		 */
-		ats_handler(globalcres->ats);
-		ats_close(globalcres->ats);
-		return 0;
-	}
-
-	return -1;
-}
-
-/*
- * sigiqh_handler
- */
-static void sigigh_handler(int sig) {
-}
-
-/*
- * xErrorHandler
- */
-static int xErrorHandler(Display *dpy, XErrorEvent *xe) {
-	char buf[256] = {0};
-	XGetErrorText(dpy, xe->error_code, buf, sizeof(buf));
-	fprintf(stderr, "X error: %d\n", buf);
-	return 0;
-}
-
-/*
- * xtErrorHandler
- */
- static FORCEINLINE void xtErrorHandler(String msg) {
-	fprintf(stderr, "%s\n", msg);
- }
-
-/*
- * xtWarningHandler
- */
- static FORCEINLINE void xtWarningHandler(String msg) {
-	fprintf(stderr, "%s\n", msg);
-}
+static void sigigh_handler(int sig) {}
 
 /*
  * BowAddReference
@@ -142,15 +69,6 @@ FORCEINLINE void BowRemoveReference(BowResources cres) {
 		BowCleanup(cres);
 }
 
-static void DeleteAction(Widget w, XEvent *xe, String *params, Cardinal *num_params);
-static void ReturnAction(Widget w, XEvent *xe, String *params, Cardinal *num_params);
-
-static XtActionsRec actionsList[] =
-{
-  { "ReturnAction", (XtActionProc)ReturnAction },
-  { "DeleteAction",  (XtActionProc)DeleteAction  },
-};
-
 /*
  * DeleteAction
  */
@@ -179,6 +97,12 @@ static void ReturnAction(Widget w, XEvent *xe, String *params, Cardinal *num_par
 		}
 	}
 }
+
+static XtActionsRec actionsList[] =
+{
+  { "ReturnAction", (XtActionProc)ReturnAction },
+  { "DeleteAction",  (XtActionProc)DeleteAction  },
+};
 
 BowResources ResourcesCreate(ats_t *ats, int *argcp, char **argv) {
 	BowResources cres;
@@ -297,4 +221,44 @@ static void ResourcesDestroy(BowResources cres) {
 	MPDestroy(cres->mp);
 
 	return;
+}
+
+int main(int argc, char **argv) {
+	char base_url[255];
+
+	signal(SIGINT, sigigh_handler);
+	signal(SIGQUIT, sigigh_handler);
+	signal(SIGHUP, sigigh_handler);
+	signal(SIGTERM, sigigh_handler);
+	signal(SIGPIPE, SIG_IGN);
+
+	StartReaper();
+	XInitThreads();
+	XrmInitialize();
+	ats_t ui = {0};
+	ui.use_icon = bow_archer;
+	globalcres = ResourcesCreate(&ui, &argc, argv);
+	if (globalcres) {
+		/*
+		* Default base URL; this allows filenames to be used on the
+		* command line
+		*/
+		strcpy(base_url, "file:");
+		getcwd(base_url + 5, sizeof(base_url) - 5);
+		strcat(base_url, "/");
+
+		if (argc > 1)
+			HeadCreate(globalcres, RequestCreate(globalcres, argv[argc - 1], base_url), NULL);
+		else
+			HeadCreate(globalcres, NULL, NULL);
+
+		/*
+		 * And away we go...
+		 */
+		ats_handler(globalcres->ats);
+		ats_close(globalcres->ats);
+		return 0;
+	}
+
+	return -1;
 }

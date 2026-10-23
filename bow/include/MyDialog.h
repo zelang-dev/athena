@@ -28,7 +28,7 @@ in this Software without prior written authorization from the X Consortium.
 
 Copyright 1987, 1988 by Digital Equipment Corporation, Maynard, Massachusetts.
 
-                        All Rights Reserved
+						All Rights Reserved
 
 Permission to use, copy, modify, and distribute this software and its
 documentation for any purpose and without fee is hereby granted,
@@ -86,38 +86,30 @@ SOFTWARE.
 #define XtCIcon "Icon"
 #define XtNicon "icon"
 
-typedef struct _MyDialogClassRec	*MyDialogWidgetClass;
-typedef struct _MyDialogRec	*MyDialogWidget;
+typedef struct _MyDialogClassRec *MyDialogWidgetClass;
+typedef struct _MyDialogRec *MyDialogWidget;
 
 extern WidgetClass mydialogWidgetClass;
 
 extern Widget MyDialogAddButton(
-#if NeedFunctionPrototypes
-    Widget		/* mydialog */,
-    _Xconst char*	/* name */,
-    XtCallbackProc	/* function */,
-    XtPointer		/* client_data */
-#endif
+	Widget		/* mydialog */,
+	const char *	/* name */,
+	XtCallbackProc	/* function */,
+	XtPointer		/* client_data */
 );
 
 extern char *MyDialogGetValue(
-#if NeedFunctionPrototypes
-    Widget		/* w */
-#endif
+	Widget		/* w */
 );
 
 extern void MyDialogSetValue(
-#if NeedFunctionPrototypes
-    Widget		/* w */,
-    char *
-#endif
+	Widget		/* w */,
+	char *
 );
 
 extern void MyDialogSetMessage(
-#if NeedFunctionPrototypes
-    Widget		/* w */,
-    char *
-#endif
+	Widget		/* w */,
+	char *
 );
 
 #endif /* _MyDialog_h */

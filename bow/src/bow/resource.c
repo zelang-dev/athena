@@ -29,137 +29,104 @@
 
 #include "BowP.h"
 
-int
-ResourceAddString(cres, str)
-BowResources cres;
-char *str;
-{
-  XrmDatabase db;
+int ResourceAddString(BowResources cres, char *str) {
+	XrmDatabase db;
 
-  db = XrmGetStringDatabase(str);
-  if (cres->db != NULL) XrmMergeDatabases(db, &(cres->db));
-  else cres->db = db;
+	db = XrmGetStringDatabase(str);
+	if (cres->db != NULL) XrmMergeDatabases(db, &(cres->db));
+	else cres->db = db;
 
-  if (cres->db == NULL) return(-1);
+	if (cres->db == NULL) return(-1);
 
-  return(0);
+	return(0);
 }
 
-int
-ResourceAddFile(cres, file)
-BowResources cres;
-char *file;
-{
-  char *dbfile;
-  MemPool mp;
-  XrmDatabase db;
+int ResourceAddFile(BowResources cres, char *file) {
+	char *dbfile;
+	MemPool mp;
+	XrmDatabase db;
 
-  if (file == NULL) return(-1);
+	if (file == NULL) return(-1);
 
-  mp = MPCreate();
-  if ((dbfile = FixPath(mp, file)) == NULL)
-  {
-    MPDestroy(mp);
-    return(-1);
-  }
+	mp = MPCreate();
+	if ((dbfile = FixPath(mp, file)) == NULL) {
+		MPDestroy(mp);
+		return(-1);
+	}
 
-  db = XrmGetFileDatabase(dbfile);
-  if (cres->db != NULL) XrmMergeDatabases(db, &(cres->db));
-  else cres->db = db;
+	db = XrmGetFileDatabase(dbfile);
+	if (cres->db != NULL) XrmMergeDatabases(db, &(cres->db));
+	else cres->db = db;
 
-  MPDestroy(mp);
+	MPDestroy(mp);
 
-  if (cres->db == NULL) return(-1);
+	if (cres->db == NULL) return(-1);
 
-  return(0);
+	return(0);
 }
 
 /*
  * ResourceGetString
  */
-char *
-ResourceGetString(cres, name)
-BowResources cres;
-char *name;
-{
-  char *type;
-  XrmValue v;
+char *ResourceGetString(BowResources cres, char *name) {
+	char *type = NULL;
+	XrmValue v = {0};
 
-  if (cres->db == NULL) return(NULL);
-  if (!XrmGetResource(cres->db, name, XtNstring, &type, &v)) return(NULL);
-  return(v.addr);
+	if (cres->db == NULL) return(NULL);
+	if (!XrmGetResource(cres->db, name, XtNstring, &type, &v)) return(NULL);
+	return(v.addr);
 }
 
 /*
  * ResourceGetFilename
  */
-char *
-ResourceGetFilename(cres, mp, name)
-BowResources cres;
-MemPool mp;
-char *name;
-{
-  char *value;
+char *ResourceGetFilename(BowResources cres, MemPool mp, char *name) {
+	char *value;
 
-  if ((value = ResourceGetString(cres, name)) == NULL) return(NULL);
-  return(FixPath(mp, value));
+	if ((value = ResourceGetString(cres, name)) == NULL) return(NULL);
+	return(FixPath(mp, value));
 }
 
 /*
  * ResourceGetBool
  */
-char *
-ResourceGetBool(cres, name, value)
-BowResources cres;
-char *name;
-bool *value;
-{
-  char *str;
+char *ResourceGetBool(BowResources cres, char *name, bool *value) {
+	char *str;
 
-  if ((str = ResourceGetString(cres, name)) == NULL) return(NULL);
+	if ((str = ResourceGetString(cres, name)) == NULL) return(NULL);
 
-  *value = false;
-  if (strncasecmp("true", str, 4) == 0) *value = true;
-  if (atoi(str) > 0) *value = true;
+	*value = false;
+	if (strncasecmp("true", str, 4) == 0) *value = true;
+	if (atoi(str) > 0) *value = true;
 
-  return(str);
+	return(str);
 }
 
 /*
  * ResourceGetInt
  */
-char *
-ResourceGetInt(cres, name, value)
-BowResources cres;
-char *name;
-int *value;
-{
-  char *str;
+char *ResourceGetInt(BowResources cres, char *name, int *value) {
+	char *str;
 
-  if ((str = ResourceGetString(cres, name)) == NULL) return(NULL);
+	if ((str = ResourceGetString(cres, name)) == NULL) return(NULL);
 
-  *value = atoi(str);
+	*value = atoi(str);
 
-  return(str);
+	return(str);
 }
 
 /*
  * ResourceGetUInt
  */
-char *
-ResourceGetUInt(cres, name, value)
-BowResources cres;
-char *name;
-unsigned int *value;
-{
-  char *str;
-  int bla;
+char *ResourceGetUInt(BowResources cres, char *name, unsigned int *value) {
+	char *str;
+	int bla;
 
-  if ((str = ResourceGetString(cres, name)) == NULL) return(NULL);
+	if ((str = ResourceGetString(cres, name)) == NULL) return(NULL);
 
-  bla = atoi(str);
-  if (bla < 0) bla = 0;
-  *value = bla;
+	bla = atoi(str);
+	if (bla < 0) bla = 0;
+	*value = bla;
 
-  return(str);
+	return(str);
 }
