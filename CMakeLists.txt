@@ -89,7 +89,6 @@ else()
 	set(athena_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/athena.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/libsmallregex.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/TextField.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/FileSelect.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Gridbox.c)
 	file(GLOB Xaw95_files

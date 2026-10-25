@@ -145,13 +145,7 @@ char *path;
 /*
  * xmyassert
  */
-void
-xmyassert(isok, msg, file, line)
-bool isok;
-char *msg;
-char *file;
-int line;
-{
+void xmyassert(bool isok, char *msg, char *file, int line) {
   if (!isok)
   {
     fprintf (stderr, "%s: %d\n", file, line);
@@ -159,7 +153,6 @@ int line;
     fflush(stderr);
     abort();
   }
-  return;
 }
 
 #ifndef P_tmpdir

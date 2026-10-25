@@ -98,6 +98,7 @@ static void toggle_fullscreen(ats_video_info *ctx) {
 
 // Cleanup after thread loop exits
 static void free_video(ats_video_info *ctx) {
+	ctx->finished = true;
 	if (ctx->gc)
 		XFreeGC(ctx->display, ctx->gc);
 
@@ -577,6 +578,8 @@ static bool process_media(ats_video_info *ctx, const char *url) {
 	ctx->state = STATE_STOPPED;
 	ctx->volume = 0.50;
 	ctx->has_audio = false;
+	ctx->quit = false;
+	ctx->finished = false;
 	pthread_mutex_init(&ctx->media_mutex, NULL);
 
 	if (avformat_open_input(&ctx->fmt_ctx, ctx->filepath, NULL, NULL) < 0

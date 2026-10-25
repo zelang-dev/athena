@@ -578,30 +578,23 @@ URLParts *up;
 /*
  * URLGetScheme
  */
-char *
-URLGetScheme(mp, url)
-MemPool mp;
-char *url;
-{
-  char *cp, *dp;
-  char *r;
-
-  for (cp = url; *cp != '\0'; cp++)
-  {
-    for (dp = URLDELIMS; *dp != '\0'; dp++)
-    {
-      if (*cp == *dp)
-      {
-	if (*cp == ':')
-	{
-	  r = (char *)MPCGet(mp, cp - url + 1);
-	  strncpy(r, url, cp - url);
-	  return(r);
+char *URLGetScheme(MemPool mp, char *url) {
+	char *cp, *dp;
+	char *r;
+	if (url) {
+		for (cp = url; *cp != '\0'; cp++) {
+			for (dp = URLDELIMS; *dp != '\0'; dp++) {
+				if (*cp == *dp) {
+					if (*cp == ':') {
+						r = (char *)MPCGet(mp, cp - url + 1);
+						strncpy(r, url, cp - url);
+						return(r);
+					}
+					return(NULL);
+				}
+			}
+		}
 	}
-	return(NULL);
-      }
-    }
-  }
 
-  return(NULL);
+	return(NULL);
 }

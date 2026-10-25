@@ -65,6 +65,7 @@ SOFTWARE.
 #include <Xaw95/DialogP.h>
 #include <Xaw95/Cardinals.h>
 #include <Xaw95/TraversalP.h>
+#include <TextField.h>
 
 /*
  * After we have set the string in the value widget we set the
@@ -327,13 +328,7 @@ Cardinal *in_num_args;
  *                 num_args - the number of args.
  *	Returns: none.
  */
-
-static void
-GetValuesHook(w, args, num_args)
-Widget w;
-ArgList args;
-Cardinal * num_args;
-{
+static void GetValuesHook(Widget w, ArgList args, Cardinal *num_args) {
   Arg a[1];
   String s;
   DialogWidget src = (DialogWidget) w;
@@ -355,11 +350,7 @@ Cardinal * num_args;
  *
  *	must be called only when w->dialog.value is non-nil.
  */
-
-static void
-CreateDialogValueWidget(w)
-Widget w;
-{
+static void CreateDialogValueWidget(Widget w) {
     DialogWidget dw = (DialogWidget) w;
     Arg arglist[10];
     Cardinal num_args = 0;
@@ -368,18 +359,24 @@ Widget w;
     XtSetArg(arglist[num_args], XtNwidth,
 	     dw->dialog.labelW->core.width); num_args++; /* ||| hack */
 #endif /*notdef*/
-    XtSetArg(arglist[num_args], XtNstring, dw->dialog.value);     num_args++;
-    XtSetArg(arglist[num_args], XtNresizable, True);              num_args++;
-    XtSetArg(arglist[num_args], XtNresize, XawtextResizeBoth);    num_args++;
-    XtSetArg(arglist[num_args], XtNeditType, XawtextEdit);        num_args++;
-    XtSetArg(arglist[num_args], XtNfromVert, dw->dialog.labelW);  num_args++;
-    XtSetArg(arglist[num_args], XtNleft, XtChainLeft);            num_args++;
-    XtSetArg(arglist[num_args], XtNright, XtChainRight);          num_args++;
+	dw->dialog.valueW = XtVaCreateWidget("value", textfieldWidgetClass, w, XtNborder, 0,
+		XtNinsertPosition, 0,
+		XtNstring, dw->dialog.value,
+		XtNdisplayCaret, False,
+		XtNallowSelection, True,
+		XtNresizable, True,
+		XtNeditable, True,
+		XtNecho, True,
+		XtNborderColor, 0xDAA520,
+		XtNbackground, 0xffffff,
+		XtNleft, XtChainLeft,
+		XtNright, XtChainRight,
+		XtNfromVert, dw->dialog.labelW,
+		NULL);
 
-    dw->dialog.valueW = XtCreateWidget("value", asciiTextWidgetClass,
-				     w, arglist, num_args);
+	TextFieldAutoFocus(dw->dialog.valueW);
 
-    /* if the value widget is being added after buttons,
+	/* if the value widget is being added after buttons,
      * then the buttons need new layout constraints.
      */
     if (dw->composite.num_children > 1) {
@@ -407,18 +404,8 @@ Widget w;
 }
 
 
-void
-#if NeedFunctionPrototypes
-XawDialogAddButton(Widget dialog, _Xconst char* name, XtCallbackProc function,
-		   XtPointer param)
-#else
-XawDialogAddButton(dialog, name, function, param)
-Widget dialog;
-String name;
-XtCallbackProc function;
-XtPointer param;
-#endif
-{
+Widget XawDialogAddButton(Widget dialog, _Xconst char *name, XtCallbackProc function,
+		   XtPointer param) {
 /*
  * Correct Constraints are all set in ConstraintInitialize().
  */
@@ -428,18 +415,13 @@ XtPointer param;
 				    (ArgList)NULL, (Cardinal)0 );
 
     if (function != NULL)	/* don't add NULL callback func. */
-        XtAddCallback(button, XtNcallback, function, param);
+		XtAddCallback(button, XtNcallback, function, param);
+
+	return button;
 }
 
 
-char *
-#if NeedFunctionPrototypes
-XawDialogGetValueString(Widget w)
-#else
-XawDialogGetValueString(w)
-Widget w;
-#endif
-{
+char *XawDialogGetValueString(Widget w) {
     Arg args[1];
     char * value;
 

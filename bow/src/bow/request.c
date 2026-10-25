@@ -359,12 +359,7 @@ char *c1, *c2;
  * If the base is NULL and the URL is relative then it is assumed to
  * be a domain-name which is transformed to http://domain-name/.
  */
-BowRequest *
-RequestCreate(cres, url, base)
-BowResources cres;
-char *url;
-char *base;
-{
+BowRequest *RequestCreate(BowResources cres, char *url, char *base) {
   MemPool mp;
   BowRequest *wr, *tr;
   BowSourceHooks *hooks, *phooks;
@@ -396,8 +391,10 @@ char *base;
    * be used.
    */
   uscheme = URLGetScheme(mp, url);
-  if (base != NULL) bscheme = URLGetScheme(mp, base);
-  else bscheme = NULL;
+  if (base != NULL)
+	  bscheme = URLGetScheme(mp, base);
+  else
+	  bscheme = NULL;
 
   /*
    * Neither URL is absolute.  Pretend that the supplied URL is a domain

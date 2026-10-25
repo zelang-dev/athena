@@ -1580,8 +1580,7 @@ TextFieldGetInsertionPosition(Widget aw) {
 	return w->text.CursorPos;
 }
 
-char *
-TextFieldGetString(Widget aw) {
+char *TextFieldGetString(Widget aw) {
 	TextFieldWidget w = (TextFieldWidget)aw;
 	char *ret;
 
@@ -1597,8 +1596,7 @@ TextFieldGetString(Widget aw) {
 	return ret;
 }
 
-void
-TextFieldInsert(Widget aw, int pos, char *str) {
+void TextFieldInsert(Widget aw, int pos, char *str) {
 	TextFieldWidget w = (TextFieldWidget)aw;
 	int len;
 

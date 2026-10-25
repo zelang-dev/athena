@@ -30,6 +30,7 @@
 #include "MyDialog.h"
 
 #include "BowP.h"
+#include "../bow_archer.xpm"
 
 static void Quit _ArgProto((Widget, XtPointer, XtPointer));
 static void Back _ArgProto((Widget, XtPointer, XtPointer));
@@ -284,7 +285,8 @@ void HeadDestroy(BowContext wc) {
  * ClearDialogValue
  */
 static void ClearDialogValue(Widget w, XtPointer cldata, XtPointer cbdata) {
-	if ((w = XtParent(w)) != NULL) MyDialogSetValue(w, "");
+	if ((w = XtParent(w)) != NULL)
+		XtVaSetValues(w, XtNvalue, "", NULL);;
 
 	return;
 }
@@ -295,30 +297,19 @@ static void ClearDialogValue(Widget w, XtPointer cldata, XtPointer cbdata) {
 Widget CreateDialog(Widget p, char *name, void (*ofunc)(), void (*dfunc)(),
 	void (*rfunc)(), XtPointer closure) {
 	Widget w, dw;
-	Window rw, cw;
-	int rx, ry, wx, wy;
-	unsigned int mask;
 
-	XQueryPointer(XtDisplay(p), DefaultRootWindow(XtDisplay(p)),
-		&rw, &cw,
-		&rx, &ry,
-		&wx, &wy,
-		&mask);
-	w = XtVaCreatePopupShell(name,
-		transientShellWidgetClass, p,
-		XtNx, rx - 2,
-		XtNy, ry - 2,
-		NULL);
-	dw = XtVaCreateManagedWidget("dialog",
-		mydialogWidgetClass, w,
+	w = ats_modalwindow_set(p, name);
+	dw = XtVaCreateManagedWidget(
+		"dialog", dialogWidgetClass, w,
 		XtNvalue, "",
-		NULL);
-	MyDialogAddButton(dw, "ok", ofunc, closure);
-	MyDialogAddButton(dw, "clear", ClearDialogValue, closure);
-	MyDialogAddButton(dw, "dismiss", dfunc, closure);
-	XtAddCallback(dw, XtNcallback, rfunc, closure);
+		NULL
+	);
+	XawDialogAddButton(dw, "ok", ofunc, closure);
+	XawDialogAddButton(dw, "clear", ClearDialogValue, closure);
+	XawDialogAddButton(dw, "dismiss", dfunc, closure);
 
 	XtRealizeWidget(w);
+	ats_display_top(w);
 
 	return(w);
 }
@@ -337,7 +328,7 @@ static void OOpen(Widget ww, XtPointer cldata, XtPointer cbdata) {
 	BowContext wc = (BowContext)cldata;
 	char *url;
 
-	if ((url = MyDialogGetValue(GetDialogWidget(wc->openpop))) == NULL) return;
+	if ((url = XawDialogGetValueString(GetDialogWidget(wc->openpop))) == NULL) return;
 
 	StackOpen(wc->tstack, RequestCreate(wc->cres, url, NULL));
 	XtPopdown(wc->openpop);
@@ -360,7 +351,6 @@ static void Open(Widget w, XtPointer cldata, XtPointer cbdata) {
 	if (wc->openpop == NULL) {
 		wc->openpop = CreateDialog(wc->toplevel, "openpop",
 			OOpen, DOpen, OOpen, (XtPointer)wc);
-		MwSetIcon(wc->openpop, icon_32x32);
 	}
 	XtPopup(wc->openpop, XtGrabNone);
 }
@@ -503,8 +493,6 @@ void AddMark(Widget w, XtPointer cldata, XtPointer cbdata) {
 	if ((title = RenderQuery(wn, "title")) == NULL) title = url;
 
 	BookmarkAdd(wc->cres->bc, title, url);
-
-	return;
 }
 
 /*
@@ -529,8 +517,6 @@ void ViewMark(Widget w, XtPointer cldata, XtPointer cbdata) {
 	StackOpen(wc->tstack, RequestCreate(wc->cres, url, NULL));
 
 	MPDestroy(mp);
-
-	return;
 }
 
 /*
@@ -540,9 +526,8 @@ static void Bookmark(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BowContext wc = (BowContext)cldata;
 
 	wc->cres->bmcontext = wc;
-	if (wc->cres->bc != NULL) BookmarkShow(wc->cres->bc);
-
-	return;
+	if (wc->cres->bc != NULL)
+		BookmarkShow(wc->cres->bc);
 }
 
 /*
@@ -552,15 +537,13 @@ static void OFind(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BowContext wc = (BowContext)cldata;
 	char *str;
 
-	if ((str = MyDialogGetValue(GetDialogWidget(wc->findpop))) == NULL) {
+	if ((str = XawDialogGetValueString(GetDialogWidget(wc->findpop))) == NULL) {
 		return;
 	}
 
 	RenderSearch(StackToRender(wc->tstack), str, 0);
 
 	XtPopdown(wc->findpop);
-
-	return;
 }
 
 /*
@@ -569,7 +552,6 @@ static void OFind(Widget w, XtPointer cldata, XtPointer cbdata) {
 static void DFind(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BowContext wc = (BowContext)cldata;
 	XtPopdown(wc->findpop);
-	return;
 }
 
 /*
@@ -581,8 +563,6 @@ static void Find(Widget w, XtPointer cldata, XtPointer cbdata) {
 	if (wc->findpop == NULL) {
 		wc->findpop = CreateDialog(wc->toplevel, "findpop",
 			OFind, DFind, OFind, (XtPointer)wc);
-
-		MwSetIcon(wc->findpop, icon_32x32);
 	}
 	XtPopup(wc->findpop, XtGrabNone);
 }
@@ -683,10 +663,7 @@ void HeadCreate(BowResources cres, BowRequest *first, BowRequest *lastresort) {
 	}
 
 	myassert(wr != NULL, "ERROR: No valud URLs found for new head.\n");
-
 	StackOpen(wc->tstack, wr);
-
-	return;
 }
 
 /*

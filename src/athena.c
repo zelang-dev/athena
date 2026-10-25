@@ -39,7 +39,7 @@ static volatile bool main_athena_shutdown = false;
 #include NONE_ICON
 
 static char *fallback[] = {
-	"*background: LightGray",
+	"*background: Gray",
 	"*Frame.shadowType: solid",
 	"*font: -*-helvetica-medium-r-normal-*-12-*-*-*-*-*-iso8859-*",
 	"*variablewidth*font: -adobe-helvetica-medium-r-normal--*-120-*",
@@ -231,7 +231,6 @@ FORCEINLINE ui_bool str_field_valid(ui_form_t field, ui_field form) {
 }
 
 static void hotkey_action(Widget w, XEvent *event, String *params, Cardinal *num_params) {
-	trace;
 	if (*num_params == 0)
 		return;
 
@@ -556,7 +555,7 @@ FORCEINLINE ats_wnd ats_richtext_set(ats_wnd on, int width, int height) {
 		XtNresizable, True,
 		XtNeditable, True,
 		XtNecho, (kind == field_secret ? False : True),
-		XtNborderColor, 0xDAA520,
+		XtNborderColor, ATHENA_COLOR,
 		XtNbackground, 0xffffff,
 		XtNx, x,
 		XtNy, y,
@@ -582,7 +581,7 @@ FORCEINLINE ats_wnd ats_textfield_set(ats_wnd on, char *initial, int x, int y, i
 		XtNresizable, True,
 		XtNeditable, True,
 		XtNecho, True,
-		XtNborderColor, 0xDAA520,
+		XtNborderColor, ATHENA_COLOR,
 		XtNbackground, 0xffffff,
 		XtNx, x,
 		XtNgridy, y,
@@ -775,7 +774,7 @@ ats_wnd ats_button_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label
 			XtNheight, 18,
 			XtNborder, 1,
 			XtNfont, main_athena_info->font_button,
-			XtNborderColor, 0xDAA520,
+			XtNborderColor, ATHENA_COLOR,
 			XtNborderWidth, 1,
 			XtNleft, XawChainRight,
 			XtNright, XawChainRight,
@@ -791,7 +790,7 @@ ats_wnd ats_button_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label
 			XtNheight, 18,
 			XtNborder, 1,
 			XtNfont, main_athena_info->font_button,
-			XtNborderColor, 0xDAA520,
+			XtNborderColor, ATHENA_COLOR,
 			XtNborderWidth, 1,
 			XtNleft, XawChainRight,
 			XtNright, XawChainRight,
@@ -843,6 +842,39 @@ ats_wnd ats_buttons_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *labe
 	return button;
 }
 
+FORCEINLINE ats_wnd ats_dialogwindow_set(ats_wnd on, const char *title, char *value) {
+	return XtVaCreateManagedWidget("Dialog", dialogWidgetClass, on, XtNlabel, title, XtNvalue, value, NULL);
+}
+
+void ats_display_top(ats_wnd on) {
+	Display *dpy = XtDisplay(on);
+	Window win = XtWindow(on);
+
+	Atom wm_type = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
+	Atom type_utility = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_UTILITY", False);
+	XChangeProperty(dpy, win, wm_type, XA_ATOM, 32,
+		PropModeReplace, (unsigned char *)&type_utility, 1);
+
+	Atom wm_state = XInternAtom(dpy, "_NET_WM_STATE", False);
+	Atom wm_above = XInternAtom(dpy, "_NET_WM_STATE_ABOVE", False);
+	XChangeProperty(dpy, win, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char *)&wm_above, 1);
+
+	XSetWMProtocols(dpy, win, NULL, 0);
+	ats_background_set(on, "blue");
+}
+
+ats_wnd ats_modalwindow_set(ats_wnd on, const char *tagtitle) {
+	Display *dpy = XtDisplay(on);
+	Window win = XtWindow(on);
+	XWindowAttributes wa;
+
+	XGetWindowAttributes(dpy, win, &wa);
+	ats_wnd sub = XtVaAppCreateShell(tagtitle, tagtitle, overrideShellWidgetClass, dpy,
+		XtNx, wa.x, XtNy, wa.y + 1, XtNoverrideRedirect, True, NULL);
+
+	return sub;
+}
+
 int ats_form(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb verify) {
 	int i, y = 0, max_width = 0, spacing = 30;
 
@@ -856,7 +888,7 @@ int ats_form(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb
 	ui->app->code = numFields;
 	ui->use_icon = none_xpm;
 	/* calculate form height based off number of text fields provided */
-	if (ats_window(ui, title, max_width + 20, numFields * 48, -1)) {
+	if (ats_window(ui, title, max_width + 20, numFields * 49, -1)) {
 		Widget text = NULL, form = ats_formwindow_set(ui->topLevel, 0);
 		for (i = 0; i < numFields; i++) {
 			/* Setup spacing between each `textfield` with `caption/label` */
@@ -864,27 +896,10 @@ int ats_form(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb
 			if (fill[i].caption)
 				text = ats_labelfull_set("label", form, text, fill[i].caption, 6, y - 12, True);
 
-			text = XtVaCreateManagedWidget("sans-serif", textfieldWidgetClass, form,
-				XtNwidth, fill[i].width,
-				XtNstring, fill[i].value,
-				XtNborder, 0,
-				XtNinsertPosition, 0,
-				XtNdisplayCaret, False,
-				XtNallowSelection, True,
-				XtNeditable, True,
-				XtNecho, (fill[i].kind != field_secret ? True : False),
-				XtNborderColor, 0xDAA520,
-				XtNbackground, 0xFFFFFF,
-				XtNx, 5,
-				XtNy, y - 5,
-				XtNheight, 18,
-				XtNleft, XtChainLeft,
-				XtNfromVert, text,
-				NULL);
+			text = ats_field_set(ui, form, text, fill[i].value, 5, y - 5,
+				fill[i].width, fill[i].kind, verify_field);
 
-			XtAddCallback(text, XtNactivateCallback, verify_field, ui);
 			XtAddCallback(text, XtNvalueChangedCallback, verify_field, ui);
-			TextFieldAutoFocus(text);
 			XtAddCallback(text, XtNtabCallback, tab_editable_field, ui);
 			//XtAddCallback(text, XtNmodifyVerifyCallback, editable_field, ui);
 			fill[i].index = text;
@@ -1075,7 +1090,7 @@ FORCEINLINE void ats_foreground_set(ats_wnd on, char *to_color) {
 
 FORCEINLINE ats_wnd ats_label_set(ats_wnd on, char *label) {
 	return XtVaCreateManagedWidget("label", labelWidgetClass, on,
-		XtNlabel, label, NULL);
+		XtNlabel, label, XtNfont, main_athena_info->font, NULL);
 }
 
 FORCEINLINE ats_wnd ats_labelalign_set(ats_wnd on, char *label, XawEdgeType left, XawEdgeType right) {
@@ -1197,7 +1212,7 @@ void ats_editfile(ats_wnd self, XtPointer parent, XtPointer filepath) {
 		XtSetArg(arglist[num_args], XtNfont, main_athena_info->font); num_args++;
 		XtSetArg(arglist[num_args],	XtNborderWidth, 0); num_args++;
 		XtSetArg(arglist[num_args],	XtNborder, 0); num_args++;
-		XtSetArg(arglist[num_args],	XtNborderColor, 0xDAA520); num_args++;
+		XtSetArg(arglist[num_args],	XtNborderColor, ATHENA_COLOR); num_args++;
 		XtSetArg(arglist[num_args], XtNbackground, 0xFFFFFF); num_args++;
 		Widget textwindow = XtCreateManagedWidget("editWindow", asciiTextWidgetClass,
 			ui.topLevel, arglist, num_args);
@@ -1583,7 +1598,7 @@ int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc
 		ui->topLevel = XtVaOpenApplication(&ui->app_con, ui->title, NULL, 0,
 			&argc, argv, (resources ? resources : fallback), mwApplicationShellWidgetClass,
 			XtNwidth, ui->width, XtNheight, ui->height,
-			XtNbeNiceToColormap, False, NULL, 0);
+			XtNbeNiceToColormap, True, NULL, 0);
 
 		// Register hotkey action
 		XtActionsRec actions[] = {{"hotkey", hotkey_action}};
@@ -1919,11 +1934,21 @@ void ats_close(ats_t *ui) {
 		if (ui->av.video_set) {
 			ui->av.video_set = false;
 			if (ui->app->is_video) {
+				pthread_mutex_lock(&ui->app->ats->av.media_mutex);
 				ui->app->ats->av.quit = true;
+				pthread_mutex_unlock(&ui->app->ats->av.media_mutex);
+				usleep(20000);
+				if (!ui->app->ats->av.finished)
+					pthread_cancel(ui->app->ats->av.media_tid);
+
 				pthread_join(ui->app->ats->av.media_tid, NULL);
 				pthread_mutex_destroy(&ui->app->ats->av.media_mutex);
 			} else {
 				ui->av.quit = true;
+				usleep(20000);
+				if (!ui->av.finished)
+					pthread_cancel(ui->av.media_tid);
+
 				pthread_join(ui->av.media_tid, NULL);
 				pthread_mutex_destroy(&ui->av.media_mutex);
 			}
@@ -1951,8 +1976,8 @@ void ats_close(ats_t *ui) {
 			ui->buf = NULL;
 		}
 
-		if (ui->topLevel)
-			XtDestroyWidget(ui->topLevel);
+		if (ui->wnd)
+			XtDestroyWidget(ui->wnd);
 
 		if (ui->app_con)
 			XtDestroyApplicationContext(ui->app_con);

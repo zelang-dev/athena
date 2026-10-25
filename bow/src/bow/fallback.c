@@ -21,8 +21,6 @@
 
 char *fallback_resources[] =
 {
-  "*Command.background:        burlywood2",
-
   /* labels for commands */
   "*open.label:                Open",
   "*quit.label:                Quit",
@@ -66,9 +64,7 @@ char *fallback_resources[] =
   "*download.dialog.label:     Enter Filename",
   "*agpop.dialog.label:        Enter Group Name",
   "*ampop.dialog.label:        Enter Mark Name",
-
-  "*Label.font: -*-lucidatypewriter-medium-r-normal-*-*-120-*-*-*-*-iso8859-1",
-  "*Text.font:  -*-lucidatypewriter-medium-r-normal-*-*-120-*-*-*-*-iso8859-1",
+  "*findpop.dialog.label:      Search",
 
   NULL
 };

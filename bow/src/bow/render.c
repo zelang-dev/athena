@@ -30,104 +30,83 @@
 
 #include "BowP.h"
 
-struct BowRenderP
-{
-  MemPool            mp;              /* memory pool */
-  BowRenderHooks rh;              /* renderer hooks */
-  BowRenderHooks orh;             /* override renderer hooks */
-  void               *rc;             /* renderer context */
-  void               *orc;            /* override renderer context */
-  BowContext     wc;
-  BowGUI         wd;
-  BowSink        wp;
-  BowRenderActionProc rap;        /* kludge */
-  void               *rapc;           /* kludge context */
+struct BowRenderP {
+	MemPool            mp;              /* memory pool */
+	BowRenderHooks rh;              /* renderer hooks */
+	BowRenderHooks orh;             /* override renderer hooks */
+	void *rc;             /* renderer context */
+	void *orc;            /* override renderer context */
+	BowContext     wc;
+	BowGUI         wd;
+	BowSink        wp;
+	BowRenderActionProc rap;        /* kludge */
+	void *rapc;           /* kludge context */
 };
 
 /*
  * RenderDestroy
  */
-void
-RenderDestroy(wn)
-BowRender wn;
+void RenderDestroy(BowRender wn)
 {
-  if (wn->rh.destroy != NULL) CMethod(wn->rh.destroy)(wn->rc);
-  MPDestroy(wn->mp);
-  return;
+	if (wn->rh.destroy != NULL)
+		CMethod(wn->rh.destroy)(wn->rc);
+	MPDestroy(wn->mp);
 }
 
 /*
  * RenderAdd
  */
-void
-RenderAdd(wn)
-BowRender wn;
-{
-  if (wn->rh.add != NULL) CMethod(wn->rh.add)(wn->rc);
-  return;
+void RenderAdd(BowRender wn){
+	if (wn->rh.add != NULL)
+		CMethod(wn->rh.add)(wn->rc);
 }
 
 /*
  * RenderEnd
  */
-void
-RenderEnd(wn)
-BowRender wn;
+void RenderEnd(BowRender wn)
 {
-  if (wn->rh.end != NULL) CMethod(wn->rh.end)(wn->rc);
-  return;
+	if (wn->rh.end != NULL)
+		CMethod(wn->rh.end)(wn->rc);
+
 }
 
 /*
  * RenderQuery
  */
-char *
-RenderQuery(wn, key)
-BowRender wn;
-char *key;
-{
-  if (wn->rh.query != NULL)
-  {
-    return(CMethodBytePtr(wn->rh.query)(wn->rc, key));
-  }
-  return(NULL);
+char *RenderQuery(BowRender wn, char *key) {
+	if (wn && wn->rh.query != NULL) {
+		return(CMethodBytePtr(wn->rh.query)(wn->rc, key));
+	}
+	return(NULL);
 }
 
 /*
  * RenderSearch
  */
-int
-RenderSearch(wn, key, mode)
-BowRender wn;
-char *key;
-int mode;
-{
-  if (wn->rh.search != NULL)
-  {
-    return(CMethodInt(wn->rh.search)(wn->rc, key, mode));
-  }
-  return(-1);
+int RenderSearch(BowRender wn, char *key, int mode) {
+	if (wn->rh.search != NULL) {
+		return(CMethodInt(wn->rh.search)(wn->rc, key, mode));
+	}
+	return(-1);
 }
 
 /*
  * RenderCancel
  */
-void
-RenderCancel(wn)
+void RenderCancel(wn)
 BowRender wn;
 {
-  if (wn->rh.cancel != NULL)
-  {
-    CMethodVoid(wn->rh.cancel)(wn->rc);
-  }
-  return;
+	if (wn->rh.cancel != NULL) {
+		CMethodVoid(wn->rh.cancel)(wn->rc);
+	}
+	return;
 }
 
 /*
  * RenderCreate
  */
-BowRender
-RenderCreate(wc, wd, wp, rh, orh, orc, state, rap, rapc)
+BowRender RenderCreate(wc, wd, wp, rh, orh, orc, state, rap, rapc)
 BowContext wc;
 BowGUI wd;
 BowSink wp;
@@ -137,156 +116,132 @@ void *state;
 BowRenderActionProc rap;
 void *rapc;
 {
-  BowRender wn;
-  MemPool mp;
+	BowRender wn;
+	MemPool mp;
 
-  myassert(rh->init != NULL, "Callback is NULL.");
-  myassert(rh->add != NULL, "Callback is NULL.");
-  myassert(rh->end != NULL, "Callback is NULL.");
-  myassert(rh->destroy != NULL, "Callback is NULL.");
-  myassert(rh->expose != NULL, "Callback is NULL.");
-  myassert(rh->cancel != NULL, "Callback is NULL.");
+	myassert(rh->init != NULL, "Callback is NULL.");
+	myassert(rh->add != NULL, "Callback is NULL.");
+	myassert(rh->end != NULL, "Callback is NULL.");
+	myassert(rh->destroy != NULL, "Callback is NULL.");
+	myassert(rh->expose != NULL, "Callback is NULL.");
+	myassert(rh->cancel != NULL, "Callback is NULL.");
 
-  mp = MPCreate();
-  wn = (BowRender)MPCGet(mp, sizeof(struct BowRenderP));
-  wn->mp = mp;
-  wn->wc = wc;
-  wn->wd = wd;
-  wn->wp = wp;
-  wn->orc = orc;
+	mp = MPCreate();
+	wn = (BowRender)MPCGet(mp, sizeof(struct BowRenderP));
+	wn->mp = mp;
+	wn->wc = wc;
+	wn->wd = wd;
+	wn->wp = wp;
+	wn->orc = orc;
 
-  wn->rap = rap;
-  wn->rapc = rapc;
+	wn->rap = rap;
+	wn->rapc = rapc;
 
-  memcpy(&(wn->rh), rh, sizeof(BowRenderHooks));
-  if (orh != NULL) memcpy(&(wn->orh), orh, sizeof(BowRenderHooks));
+	memcpy(&(wn->rh), rh, sizeof(BowRenderHooks));
+	if (orh != NULL) memcpy(&(wn->orh), orh, sizeof(BowRenderHooks));
 
-  if ((wn->rc =
-       CMethodVoidPtr(rh->init)(wn, rh->class_context, state)) == NULL)
-  {
-    MPDestroy(wn->mp);
-    return(NULL);
-  }
+	if ((wn->rc =
+		CMethodVoidPtr(rh->init)(wn, rh->class_context, state)) == NULL) {
+		MPDestroy(wn->mp);
+		return(NULL);
+	}
 
-  GUIAddRender(wd, wn);
+	GUIAddRender(wd, wn);
 
-  return(wn);
+	return(wn);
 }
 
-void *
-RenderGetState(wn)
+void *RenderGetState(wn)
 BowRender wn;
 {
-  if (wn->rh.getstate != NULL)
-  {
-    return(CMethodVoidPtr(wn->rh.getstate)(wn->rc));
-  }
-  return(NULL);
+	if (wn->rh.getstate != NULL) {
+		return(CMethodVoidPtr(wn->rh.getstate)(wn->rc));
+	}
+	return(NULL);
 }
 
-void
-RenderAction(wn, wr, action)
+void RenderAction(wn, wr, action)
 BowRender wn;
 BowRequest *wr;
 char *action;
 {
-  if (wn->rap == NULL)
-  {
-    if (strcmp("download", action) == 0) DownloadOpen(wn->wc->cres, wr);
-    else if (strcmp("external", action) == 0) ViewOpen(wn->wc->cres, wr);
-    else fprintf (stderr, "Action cannot be taken.  Bug.\n");
-  }
-  else
-  {
-    CMethod(wn->rap)(wn->rapc, wn, wr, action);
-  }
+	if (wn->rap == NULL) {
+		if (strcmp("download", action) == 0) DownloadOpen(wn->wc->cres, wr);
+		else if (strcmp("external", action) == 0) ViewOpen(wn->wc->cres, wr);
+		else fprintf(stderr, "Action cannot be taken.  Bug.\n");
+	} else {
+		CMethod(wn->rap)(wn->rapc, wn, wr, action);
+	}
 
-  return;
+	return;
 }
 
-BowGUI
-RenderToGUI(wn)
+BowGUI RenderToGUI(wn)
 BowRender wn;
 {
-  return(wn->wd);
+	return(wn->wd);
 }
 
-BowSink
-RenderToSink(wn)
+BowSink RenderToSink(wn)
 BowRender wn;
 {
-  return(wn->wp);
+	return(wn->wp);
 }
 
-BowContext
-RenderToContext(wn)
+BowContext RenderToContext(wn)
 BowRender wn;
 {
-  return(wn->wc);
+	return(wn->wc);
 }
 
-void
-RenderSendMessage(wn, message)
+void RenderSendMessage(wn, message)
 BowRender wn;
 char *message;
 {
-  HeadPrintMessage(wn->wc, message);
-  return;
+	HeadPrintMessage(wn->wc, message);
+	return;
 }
 
-void
-RenderExpose(wn, x, y, width, height)
+void RenderExpose(wn, x, y, width, height)
 BowRender wn;
 int x, y;
 unsigned int width, height;
 {
-  if (wn->rh.expose != NULL)
-  {
-    CMethodBool(wn->rh.expose)(wn->rc, x, y, width, height);
-  }
-  return;
+	if (wn->rh.expose != NULL) {
+		CMethodBool(wn->rh.expose)(wn->rc, x, y, width, height);
+	}
+	return;
 }
 
-void
-RenderSelect(wn, x, y, action)
+void RenderSelect(wn, x, y, action)
 BowRender wn;
 int x, y;
 char *action;
 {
-  if (wn->orc != NULL && wn->orh.select != NULL)
-  {
-    CMethodBool(wn->orh.select)(wn->orc, x, y, action);
-  }
-  else if (wn->rh.select != NULL)
-  {
-    CMethodBool(wn->rh.select)(wn->rc, x, y, action);
-  }
+	if (wn->orc != NULL && wn->orh.select != NULL) {
+		CMethodBool(wn->orh.select)(wn->orc, x, y, action);
+	} else if (wn->rh.select != NULL) {
+		CMethodBool(wn->rh.select)(wn->rc, x, y, action);
+	}
 
-  return;
+	return;
 }
 
-void
-RenderMotion(wn, x, y)
+void RenderMotion(wn, x, y)
 BowRender wn;
 int x, y;
 {
-  if (wn->orc != NULL && wn->orh.motion != NULL)
-  {
-    CMethodBool(wn->orh.motion)(wn->orc, x, y);
-  }
-  if (wn->rh.motion != NULL)
-  {
-    CMethodBool(wn->rh.motion)(wn->rc, x, y);
-  }
-  return;
+	if (wn->orc != NULL && wn->orh.motion != NULL) {
+		CMethodBool(wn->orh.motion)(wn->orc, x, y);
+	}
+	if (wn->rh.motion != NULL) {
+		CMethodBool(wn->rh.motion)(wn->rc, x, y);
+	}
 }
 
 /*
  * RenderToResources
  */
-BowResources
-RenderToResources(wn)
-BowRender wn;
-{
-  return(wn->wc->cres);
+BowResources RenderToResources(BowRender wn) {
+	return(wn->wc->cres);
 }

@@ -329,6 +329,7 @@ typedef enum {
 	field_email,
 	field_secret,
 	field_url,
+	field_viewport,
 	field_regex,
 } ui_field_type;
 
@@ -367,6 +368,7 @@ typedef struct Buttons_s {
 	char *label;
 	ats_wnd result;
 } Button;
+typedef Button ats_buttons[MAX_MSGBUTTONS];
 
 typedef struct Forms_s {
 	uintptr_t ID;
@@ -378,8 +380,8 @@ typedef struct Forms_s {
 	int min;
 	ui_form_t index;
 } Form;
-
 typedef Form ui_field;
+
 typedef struct ats_info_s ats_t;
 
 // Playback State Tracking
@@ -427,7 +429,7 @@ typedef struct {
 	float volume; 		// 0.0 to 1.0
 	double progress;	// 0.0 to 1.0
 	double audio_clock;
-	bool seek_requested, quit, has_audio;
+	volatile bool seek_requested, quit, has_audio, finished;
 
 	// Native ALSA Sound Device
 	snd_pcm_t *pcm_handle;
@@ -467,6 +469,18 @@ typedef XtCallbackProc _platform_cb;
 typedef void (*_menu_cb)(ui_t *self, void *data);
 typedef void (*ui_file_cb)(ui_t *, const char *);
 typedef bool (*ui_form_cb)(const ui_t *, uint32_t field_id, void *, char *err);
+typedef struct dialog_button_s {
+	char label[32];
+	_platform_cb action;
+	ats_wnd result;
+} ats_dialog_button;
+
+typedef struct Dialog_s {
+	int width, height, numFields, numButtons;
+	Form *field;
+	ats_dialog_button button[MAX_MSGBUTTONS];
+	ats_wnd result;
+} Dialog;
 typedef struct {
 	int menu_id;
 	char *item_name;
@@ -568,14 +582,16 @@ struct ats_info_s {
 #endif
 };
 
-typedef Button ats_buttons[MAX_MSGBUTTONS];
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #if !defined(X11_WINDOW_ICON)
 #	define X11_WINDOW_ICON "../share/icon_32x32.xpm"
+#endif
+
+#if !defined(ATHENA_COLOR)
+#	define ATHENA_COLOR 0xDAA520
 #endif
 
 #include X11_WINDOW_ICON
@@ -593,6 +609,7 @@ C_API void ats_alignfield(ats_wnd self, ats_wnd to, bool is_vert);
 C_API ats_wnd ats_textfield_set(ats_wnd on, char *initial, int x, int y,
 	int width, int height);
 
+C_API int ats_dialog(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb verify);
 C_API int ats_form(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb verify);
 C_API ats_wnd ats_richtext_set(ats_wnd on, int width, int height);
 C_API ats_wnd ats_ruler_set(ats_wnd on, int width, int height);
@@ -760,6 +777,9 @@ C_API ats_wnd ats_buttons_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char
 C_API int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer);
 C_API int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc_buffer,
 	String *resources, XtActionList add_actions, Cardinal num_actions, bool catch_err);
+C_API ats_wnd ats_dialogwindow_set(ats_wnd on, const char *title, char *value);
+C_API ats_wnd ats_modalwindow_set(ats_wnd on, const char *tagtitle);
+C_API void ats_display_top(ats_wnd on);
 
 /* Setup `window` in `ui` into `3` row constraint grid.
  *
@@ -786,12 +806,12 @@ C_API ats_wnd ats_tabs_set(ats_t *ui, int row);
 C_API ats_wnd ats_tabsbox_set(char *title, ats_wnd on);
 C_API ats_wnd ats_tabsgrid_set(char *title, ats_wnd on, const char *yLayout);
 
-/* Set and return `boxWidgetClass` window layout handle for `on` onto `row`. All window/widgets assigned
+/* Set and return `boxWidgetClass` layout handle for `on` onto `row`. All window/widgets assigned
  * will be automatically be left aligned when box/layout resized. */
 C_API ats_wnd ats_boxwindow_set(ats_wnd on, int row);
 C_API ats_wnd ats_boxspace_set(ats_wnd on, int vertical, int horizontal);
 
-/* Set and return `formWidgetClass` window layout handle for `on` onto `row`. All window/widgets assigned
+/* Set and return `formWidgetClass` layout handle for `on` onto `row`. All window/widgets assigned
  * can be aligned to each other, will automatically be resized to match/fit window dimensions. */
 C_API ats_wnd ats_formwindow_set(ats_wnd on, int row);
 C_API int ats_graphics_loop(ats_t *ui);

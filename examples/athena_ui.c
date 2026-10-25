@@ -231,6 +231,8 @@ int main(int argc, char **argv) {
 			ats_wnd combo = ats_combo_set(combobox, NULL, 0, list_cb);
 			ats_combofield_set(combo, "athena");
 
+
+			XLockDisplay(ui.dpy);
 			ats_wnd boxframe = ats_tabsbox_set("Frames", tabs);
 			ats_wnd frame1 = ats_frame_set(boxframe, Blank, 3);
 			ats_label_set(frame1, "Blank");
@@ -266,6 +268,7 @@ int main(int argc, char **argv) {
 			noFrame = ats_frame_set(boxframe, Blank, 1);
 			yesNoFrames[2] = noFrame;
 			ats_button_set(&ui, noFrame, yesFrame, "No", CommandCB, false);
+			XUnlockDisplay(ui.dpy);
 
 			ats_wnd box = ats_tabsbox_set("Images", tabs);
 			ats_wnd image = ats_anyimage_set(&ui, box, "../examples/control-panel-128px.png");

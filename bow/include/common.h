@@ -147,11 +147,11 @@ char *FixPath _ArgProto((MemPool, char *));
 char *mystrtok _ArgProto((char *, size_t, char **));
 char *GetBaseFilename _ArgProto((char *));
 char *mytmpnam _ArgProto((MemPool));
-#ifdef NDEBUG
-#define myassert(a, b)
-#else
-#define myassert(a, b) xmyassert(a, b, __FILE__, __LINE__)
+#ifdef USE_DEBUG
+#	define myassert(a, b) xmyassert(a, b, __FILE__, __LINE__)
 void xmyassert _ArgProto((bool, char *, char *, int));
+#else
+#	define myassert(a, b)
 #endif
 
 /* dir.c */

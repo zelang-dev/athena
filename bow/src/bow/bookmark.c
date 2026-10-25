@@ -70,8 +70,7 @@ static void BMChangeMarkList _ArgProto((BookmarkContext));
 static BGroup *BMFindGroup _ArgProto((BookmarkContext));
 static BMark *BMFindMark _ArgProto((BookmarkContext));
 static void BMWrite _ArgProto((BookmarkContext));
-static void BMCreate _ArgProto((BookmarkContext, BGroup *,
-	char *, char *));
+static void BMCreate _ArgProto((BookmarkContext, BGroup *, char *, char *));
 static void BMElementHandler _ArgProto((void *, MLElement));
 static char *BMGetText _ArgProto((MemPool, GList));
 
@@ -81,10 +80,7 @@ static void BMDAddMark _ArgProto((Widget, XtPointer, XtPointer));
 /*
  * BMChangeGroupList
  */
-static void
-BMChangeGroupList(bc)
-BookmarkContext bc;
-{
+static void BMChangeGroupList(BookmarkContext bc) {
 	int cnt;
 	BGroup *g;
 
@@ -115,10 +111,7 @@ BookmarkContext bc;
 /*
  * BMChangeMarkList
  */
-static void
-BMChangeMarkList(bc)
-BookmarkContext bc;
-{
+static void BMChangeMarkList(BookmarkContext bc) {
 	int cnt;
 	BMark *m;
 	BGroup *g;
@@ -156,10 +149,7 @@ BookmarkContext bc;
 /*
  * BMWrite
  */
-static void
-BMWrite(bc)
-BookmarkContext bc;
-{
+static void BMWrite(BookmarkContext bc) {
 	FILE *fp;
 	const char *brec = "<li><a href=\"%s\">%s</a>\n";
 	BMark *c;
@@ -188,12 +178,7 @@ BookmarkContext bc;
 /*
  * GroupCreate
  */
-static BGroup *
-GroupCreate(bc, group, top)
-BookmarkContext bc;
-char *group;
-bool top;
-{
+static BGroup *GroupCreate(BookmarkContext bc, char *group, bool top) {
 	BGroup *g;
 
 	g = (BGroup *)MPCGet(bc->mp, sizeof(BGroup));
@@ -211,13 +196,7 @@ bool top;
 /*
  * BMCreate
  */
-static void
-BMCreate(bc, g, title, url)
-BookmarkContext bc;
-BGroup *g;
-char *title;
-char *url;
-{
+static void BMCreate(BookmarkContext bc, BGroup *g, char *title, char *url) {
 	BMark *n;
 
 	n = (BMark *)MPCGet(bc->mp, sizeof(BMark));
@@ -235,11 +214,7 @@ char *url;
 /*
  * BMGetText
  */
-static char *
-BMGetText(mp, list)
-MemPool mp;
-GList list;
-{
+static char *BMGetText(MemPool mp, GList list) {
 	MLElement c;
 	char *text, *str;
 	size_t tlen = 0;
@@ -273,11 +248,7 @@ GList list;
 /*
  * BMElementHandler
  */
-static void
-BMElementHandler(closure, p)
-void *closure;
-MLElement p;
-{
+static void BMElementHandler(void *closure, MLElement p) {
 	BookmarkContext bc = (BookmarkContext)closure;
 	char *value;
 	char *title;
@@ -333,12 +304,7 @@ MLElement p;
 /*
  * BookmarkAdd
  */
-void
-BookmarkAdd(bc, title, url)
-BookmarkContext bc;
-char *title;
-char *url;
-{
+void BookmarkAdd(BookmarkContext bc, char *title, char *url) {
 	BGroup *g;
 
 	if ((g = BMFindGroup(bc)) == NULL) return;
@@ -351,10 +317,7 @@ char *url;
 /*
  * BookmarkDestroyContext
  */
-void
-BookmarkDestroyContext(bc)
-BookmarkContext bc;
-{
+void BookmarkDestroyContext(BookmarkContext bc) {
 	XtDestroyWidget(bc->bw);
 	if (bc->mnames != NULL) free(bc->mnames);
 	if (bc->gnames != NULL) free(bc->gnames);
@@ -365,19 +328,14 @@ BookmarkContext bc;
 /*
  * BookmarkShow
  */
-void
-BookmarkShow(bc)
-BookmarkContext bc;
-{
+void BookmarkShow(BookmarkContext bc) {
 	XtMapWidget(bc->bw);
-	MwSetIcon(bc->bw, icon_32x32);
 }
 
 /*
  * BMFindGroup
  */
-static BGroup *
-BMFindGroup(bc)
+static BGroup *BMFindGroup(bc)
 BookmarkContext bc;
 {
 	int i;
@@ -398,8 +356,7 @@ BookmarkContext bc;
 /*
  * BMFindMark
  */
-static BMark *
-BMFindMark(bc)
+static BMark *BMFindMark(bc)
 BookmarkContext bc;
 {
 	int i;
@@ -422,8 +379,7 @@ BookmarkContext bc;
 /*
  * BMDAddGroup
  */
-static void
-BMDAddGroup(w, cldata, cbdata)
+static void BMDAddGroup(w, cldata, cbdata)
 Widget w;
 XtPointer cldata, cbdata;
 {
@@ -438,15 +394,14 @@ XtPointer cldata, cbdata;
 /*
  * BMOAddGroup
  */
-static void
-BMOAddGroup(w, cldata, cbdata)
+static void BMOAddGroup(w, cldata, cbdata)
 Widget w;
 XtPointer cldata, cbdata;
 {
 	BookmarkContext bc = (BookmarkContext)cldata;
 	char *name;
 
-	if ((name = MyDialogGetValue(GetDialogWidget(bc->agpop))) == NULL ||
+	if ((name = XawDialogGetValueString(GetDialogWidget(bc->agpop))) == NULL ||
 		name[0] == '\0') {
 		return;
 	}
@@ -456,15 +411,12 @@ XtPointer cldata, cbdata;
 	BMDAddGroup(w, cldata, cbdata);
 
 	BMWrite(bc);
-
-	return;
 }
 
 /*
  * BMAddGroup
  */
-static void
-BMAddGroup(w, cldata, cbdata)
+static void BMAddGroup(w, cldata, cbdata)
 Widget w;
 XtPointer cldata, cbdata;
 {
@@ -477,7 +429,7 @@ XtPointer cldata, cbdata;
 			BMOAddGroup, BMDAddGroup, BMOAddGroup, bc);
 	}
 
-	MyDialogSetValue(GetDialogWidget(bc->agpop), "");
+	XtVaSetValues(GetDialogWidget(bc->agpop), XtNvalue, "", NULL);
 
 	XtPopup(bc->agpop, XtGrabNone);
 	bc->agpopped = true;
@@ -488,11 +440,7 @@ XtPointer cldata, cbdata;
 /*
  * BMRMGroup
  */
-static void
-BMRMGroup(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMRMGroup(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
 	BGroup *g;
 
@@ -512,8 +460,7 @@ XtPointer cldata, cbdata;
 /*
  * BMDAddMark
  */
-static void
-BMDAddMark(w, cldata, cbdata)
+static void BMDAddMark(w, cldata, cbdata)
 Widget w;
 XtPointer cldata, cbdata;
 {
@@ -528,8 +475,7 @@ XtPointer cldata, cbdata;
 /*
  * BMOAddMark
  */
-static void
-BMOAddMark(w, cldata, cbdata)
+static void BMOAddMark(w, cldata, cbdata)
 Widget w;
 XtPointer cldata, cbdata;
 {
@@ -537,7 +483,7 @@ XtPointer cldata, cbdata;
 	char *name;
 	char *url;
 
-	if ((name = MyDialogGetValue(GetDialogWidget(bc->ampop))) == NULL ||
+	if ((name = XawDialogGetValueString(GetDialogWidget(bc->ampop))) == NULL ||
 		name[0] == '\0') {
 		return;
 	}
@@ -556,8 +502,7 @@ XtPointer cldata, cbdata;
 /*
  * BMAddMark
  */
-static void
-BMAddMark(w, cldata, cbdata)
+static void BMAddMark(w, cldata, cbdata)
 Widget w;
 XtPointer cldata, cbdata;
 {
@@ -579,7 +524,8 @@ XtPointer cldata, cbdata;
 		bc->ampop = CreateDialog(bc->bw, "ampop",
 			BMOAddMark, BMDAddMark, BMOAddMark, bc);
 	}
-	MyDialogSetValue(GetDialogWidget(bc->ampop), title);
+
+	XtVaSetValues(GetDialogWidget(bc->ampop), XtNvalue, title, NULL);
 
 	XtPopup(bc->ampop, XtGrabNone);
 	bc->ampopped = true;
@@ -590,8 +536,7 @@ XtPointer cldata, cbdata;
 /*
  * BMRMMark
  */
-static void
-BMRMMark(w, cldata, cbdata)
+static void BMRMMark(w, cldata, cbdata)
 Widget w;
 XtPointer cldata, cbdata;
 {
@@ -614,8 +559,7 @@ XtPointer cldata, cbdata;
 /*
  * BMDismiss
  */
-static void
-BMDismiss(w, cldata, cbdata)
+static void BMDismiss(w, cldata, cbdata)
 Widget w;
 XtPointer cldata, cbdata;
 {
@@ -631,23 +575,15 @@ XtPointer cldata, cbdata;
 /*
  * BMGroupList
  */
-static void
-BMGroupList(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMGroupList(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
-
 	BMChangeMarkList(bc);
-
-	return;
 }
 
 /*
  * BMMarkList
  */
-static void
-BMMarkList(w, cldata, cbdata)
+static void BMMarkList(w, cldata, cbdata)
 Widget w;
 XtPointer cldata, cbdata;
 {
@@ -665,19 +601,15 @@ XtPointer cldata, cbdata;
 /*
  * BookmarkCreateContext
  */
-BookmarkContext
-BookmarkCreateContext(cres)
-BowResources cres;
-{
+BookmarkContext BookmarkCreateContext(BowResources cres) {
 	Widget fw, w, gvw, mvw;
 	BookmarkContext bc;
+	Window root;
 	struct stat s;
 	FILE *fp;
 	char *bdata;
 	char *filename;
 	MemPool mp;
-	Window rw, cw;
-	int rx, ry, wx, wy;
 	unsigned int mask;
 
 	if ((filename = ResourceGetString(cres, "bookmark.filename")) == NULL) {
@@ -688,24 +620,11 @@ BowResources cres;
 	bc = (BookmarkContext)MPCGet(mp, sizeof(struct BookmarkContextP));
 	bc->mp = mp;
 	bc->cres = cres;
+	bc->bw = ats_modalwindow_set(cres->ats->wnd, "Bookmark");
 
-	XQueryPointer(cres->dpy, DefaultRootWindow(cres->dpy),
-		&rw, &cw,
-		&rx, &ry,
-		&wx, &wy,
-		&mask);
-	bc->bw = XtVaAppCreateShell("bookmark", "Bookmark",
-		transientShellWidgetClass, cres->dpy,
-		XtNx, rx, XtNy, ry,
-		NULL);
-
-/* group widgets */
-	fw = XtVaCreateManagedWidget("form",
-		formWidgetClass, bc->bw,
-		NULL);
-	gvw = XtVaCreateManagedWidget("groupview",
-		viewportWidgetClass, fw,
-		NULL);
+	/* group widgets */
+	fw = ats_formwindow_set(bc->bw, 0);
+	gvw = ats_viewport_set(fw, false, false);
 	bc->glw = XtVaCreateManagedWidget("grouplist",
 		listWidgetClass, gvw,
 		NULL);

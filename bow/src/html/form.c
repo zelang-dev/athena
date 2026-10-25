@@ -506,7 +506,7 @@ static void CreateText(FormState *fs, HTMLEnv env, MLElement p, InputType type) 
 		textfieldWidgetClass, fs->li->widget,
 		XtNecho, echo,
 		XtNlength, 500,
-		XtNborderColor, 0xDAA520,
+		XtNborderColor, ATHENA_COLOR,
 		XtNbackground, 0xffffff,
 		NULL);
 

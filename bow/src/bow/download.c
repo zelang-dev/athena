@@ -70,7 +70,7 @@ static void DownloadDestroy(DownloadInfo *di) {
 static void DownloadClear(Widget w, XtPointer cldata, XtPointer cbdata) {
 	DownloadInfo *di = (DownloadInfo *)cldata;
 
-	MyDialogSetValue(di->dialog, "");
+	XtVaSetValues(di->dialog, XtNvalue, "", NULL);
 	XtVaSetValues(di->ok, XtNsensitive, True, NULL);
 	di->okd = false;
 }
@@ -93,7 +93,7 @@ static void SaveTask(void *closure) {
 	FILE *fp;
 	DownloadInfo *di = (DownloadInfo *)closure;
 
-	if ((filename = MyDialogGetValue(di->dialog)) == NULL) {
+	if ((filename = XawDialogGetValueString(di->dialog)) == NULL) {
 		XBell(di->cres->dpy, 100);
 		XtVaSetValues(di->ok, XtNsensitive, True, NULL);
 		di->okd = false;
@@ -107,7 +107,7 @@ static void SaveTask(void *closure) {
 		XtVaSetValues(di->ok, XtNsensitive, True, NULL);
 		di->okd = false;
 		di->wt = NULL;
-		MyDialogSetValue(di->dialog, di->filename);
+		XtVaSetValues(di->dialog, XtNvalue, di->filename, NULL);
 		return;
 	}
 
@@ -144,31 +144,14 @@ static void DownloadOSave(Widget w, XtPointer cldata, XtPointer cbdata) {
 }
 
 static void DownloadMakePop(DownloadInfo *di) {
-	Window rw, cw;
-	int rx, ry, wx, wy;
-	unsigned int mask;
-
-	XQueryPointer(di->cres->dpy, DefaultRootWindow(di->cres->dpy),
-		&rw, &cw,
-		&rx, &ry,
-		&wx, &wy,
-		&mask);
-	di->pop = XtVaAppCreateShell("download", "Download",
-		transientShellWidgetClass, di->cres->dpy,
-		XtNx, rx - 2,
-		XtNy, ry - 2,
-		NULL);
-	di->dialog = XtVaCreateManagedWidget("dialog",
-		mydialogWidgetClass, di->pop,
-		NULL);
-	di->ok = MyDialogAddButton(di->dialog, "ok", DownloadOSave, di);
-	MyDialogAddButton(di->dialog, "Clear", DownloadClear, di);
-	MyDialogAddButton(di->dialog, "dismiss", DownloadDSave, di);
-	XtAddCallback(di->dialog, XtNcallback, DownloadOSave, di);
-
+	di->pop = ats_modalwindow_set(di->cres->ats->wnd, "download");
+	di->dialog = XtVaCreateManagedWidget("dialog", dialogWidgetClass, di->pop, NULL);
+	di->ok = XawDialogAddButton(di->dialog, "ok", DownloadOSave, di);
+	XawDialogAddButton(di->dialog, "clear", DownloadClear, di);
+	XawDialogAddButton(di->dialog, "dismiss", DownloadDSave, di);
+	XtVaSetValues(di->dialog, XtNvalue, di->filename, NULL);
 	XtRealizeWidget(di->pop);
-
-	MyDialogSetValue(di->dialog, di->filename);
+	ats_display_top(di->pop);
 }
 
 /*
@@ -193,8 +176,9 @@ void DownloadEnd(void *closure) {
 void DownloadMessage(void *closure, char *message) {
 	DownloadInfo *di = (DownloadInfo *)closure;
 
-	if (di->dialog != NULL)
-		MyDialogSetMessage(di->dialog, message);
+	if (di->dialog != NULL) {
+		XtVaSetValues(di->dialog, XtNlabel, message, NULL);
+	}
 }
 
 /*
@@ -234,6 +218,4 @@ void DownloadOpen(BowResources cres, BowRequest *wr) {
 		DownloadDestroy(di);
 		RequestDestroy(wr);
 	}
-
-	MwSetIcon(di->pop, icon_32x32);
 }
