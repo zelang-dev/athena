@@ -79,7 +79,9 @@ static void DownloadClear(Widget w, XtPointer cldata, XtPointer cbdata) {
  * DownloadDSave
  */
 static void DownloadDSave(Widget w, XtPointer cldata, XtPointer cbdata) {
-	DownloadDestroy((DownloadInfo *)cldata);
+	DownloadInfo *di = (DownloadInfo *)cldata;
+	ats_display_top(di->pop, di->cres->ats->topLevel, di->pop, true);
+	DownloadDestroy(di);
 }
 
 /*
@@ -145,13 +147,12 @@ static void DownloadOSave(Widget w, XtPointer cldata, XtPointer cbdata) {
 
 static void DownloadMakePop(DownloadInfo *di) {
 	di->pop = ats_modalwindow_set(di->cres->ats->wnd, "download");
-	di->dialog = XtVaCreateManagedWidget("dialog", dialogWidgetClass, di->pop, NULL);
+	di->dialog = ats_dialogwindow_set(di->pop, "dialog", ATHENA_COLOR, "Enter Filename", di->filename);
 	di->ok = XawDialogAddButton(di->dialog, "ok", DownloadOSave, di);
 	XawDialogAddButton(di->dialog, "clear", DownloadClear, di);
 	XawDialogAddButton(di->dialog, "dismiss", DownloadDSave, di);
-	XtVaSetValues(di->dialog, XtNvalue, di->filename, NULL);
 	XtRealizeWidget(di->pop);
-	ats_display_top(di->pop);
+	ats_display_top(di->pop, di->cres->ats->topLevel, di->pop, false);
 }
 
 /*

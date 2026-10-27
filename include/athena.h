@@ -726,6 +726,8 @@ C_API void ats_keybutton_set(ats_wnd on, XtEventHandler action, void *data);
 C_API ats_wnd ats_statusline_set(ats_wnd on, ats_wnd alignto, const char *initial, int x, int y, int width);
 C_API ats_wnd ats_status_set(ats_wnd on, const char *initial, int row, int width, int height);
 C_API ats_wnd ats_viewport_set(ats_wnd on, bool force_bars, bool allow_horizontal);
+C_API ats_wnd ats_viewportfull_set(const char *tag, ats_wnd on, ats_wnd alignto,
+	bool force_bars, bool allow_horizontal, bool is_vert);
 C_API ats_wnd ats_mainarea_set(ats_t *ui, ats_wnd on, int row);
 
 C_API ats_wnd ats_frame_set(ats_wnd on, XtShadowType shadowType, int shadowWidth);
@@ -760,6 +762,12 @@ C_API int ats_render_image(ats_wnd on, GC gc, XImage *img, int width, int height
 C_API void ats_background_set(ats_wnd on, char *to_color);
 C_API void ats_foreground_set(ats_wnd on, char *to_color);
 
+C_API ats_wnd ats_listfull_set(const char *tag, ats_wnd on, char **itemlist, int nlists, int columns,
+	int columnsSpacing, int rowSpacing, bool columnForced, bool listVert, _platform_cb action, void *data);
+C_API ats_wnd ats_list_set(const char *tag, ats_wnd on, _platform_cb action, void *data);
+
+C_API ats_wnd ats_buttonfull_set(const char *tag, ats_wnd on, ats_wnd alignVert,
+	ats_wnd alignHoriz, const char *label, _platform_cb action, void *data);
 C_API ats_wnd ats_button_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label,
 	_platform_cb action, int is_vert);
 C_API ats_wnd ats_buttons_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label,
@@ -777,9 +785,9 @@ C_API ats_wnd ats_buttons_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char
 C_API int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer);
 C_API int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc_buffer,
 	String *resources, XtActionList add_actions, Cardinal num_actions, bool catch_err);
-C_API ats_wnd ats_dialogwindow_set(ats_wnd on, const char *title, char *value);
+C_API ats_wnd ats_dialogwindow_set(ats_wnd on, const char *tag, unsigned long bg_color, const char *label, char *value);
 C_API ats_wnd ats_modalwindow_set(ats_wnd on, const char *tagtitle);
-C_API void ats_display_top(ats_wnd on);
+C_API void ats_display_top(ats_wnd on, ats_wnd top, ats_wnd sync, bool remove);
 
 /* Setup `window` in `ui` into `3` row constraint grid.
  *

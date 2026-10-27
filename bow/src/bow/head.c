@@ -257,8 +257,8 @@ static void CreateWidgets(BowContext wc) {
 	wc->message = ats_status_set(paned, "", 3, 500, 10);
 	ats_alignfield(wc->message, box, false);
 
-	paned = ats_viewport_set(box, false, false);
-	wc->tstack = StackCreateToplevel(wc, paned);
+//	paned = ats_viewport_set(box, false, false);
+	wc->tstack = StackCreateToplevel(wc, box);
 
 	XtRealizeWidget(wc->toplevel);
 	ats_icon_set(wc->athena, "athena.xpm");
@@ -299,17 +299,13 @@ Widget CreateDialog(Widget p, char *name, void (*ofunc)(), void (*dfunc)(),
 	Widget w, dw;
 
 	w = ats_modalwindow_set(p, name);
-	dw = XtVaCreateManagedWidget(
-		"dialog", dialogWidgetClass, w,
-		XtNvalue, "",
-		NULL
-	);
+	dw = ats_dialogwindow_set(w, "dialog", ATHENA_COLOR, name, "");
 	XawDialogAddButton(dw, "ok", ofunc, closure);
 	XawDialogAddButton(dw, "clear", ClearDialogValue, closure);
 	XawDialogAddButton(dw, "dismiss", dfunc, closure);
 
 	XtRealizeWidget(w);
-	ats_display_top(w);
+	ats_display_top(w, p, w, false);
 
 	return(w);
 }
@@ -339,6 +335,8 @@ static void OOpen(Widget ww, XtPointer cldata, XtPointer cbdata) {
  */
 static void DOpen(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BowContext wc = (BowContext)cldata;
+
+	ats_display_top(w, wc->toplevel, wc->openpop, true);
 	XtPopdown(wc->openpop);
 }
 
@@ -349,7 +347,7 @@ static void Open(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BowContext wc = (BowContext)cldata;
 
 	if (wc->openpop == NULL) {
-		wc->openpop = CreateDialog(wc->toplevel, "openpop",
+		wc->openpop = CreateDialog(wc->toplevel, "Enter URL",
 			OOpen, DOpen, OOpen, (XtPointer)wc);
 	}
 	XtPopup(wc->openpop, XtGrabNone);
@@ -551,6 +549,7 @@ static void OFind(Widget w, XtPointer cldata, XtPointer cbdata) {
  */
 static void DFind(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BowContext wc = (BowContext)cldata;
+	ats_display_top(w, wc->toplevel, wc->findpop, true);
 	XtPopdown(wc->findpop);
 }
 
@@ -561,7 +560,7 @@ static void Find(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BowContext wc = (BowContext)cldata;
 
 	if (wc->findpop == NULL) {
-		wc->findpop = CreateDialog(wc->toplevel, "findpop",
+		wc->findpop = CreateDialog(wc->toplevel, "Search",
 			OFind, DFind, OFind, (XtPointer)wc);
 	}
 	XtPopup(wc->findpop, XtGrabNone);

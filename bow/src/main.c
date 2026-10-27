@@ -179,6 +179,7 @@ BowResources ResourcesCreate(ats_t *ats, int *argcp, char **argv) {
 	if (ats_window_ex(ats, "Bow", 768, 600, false, fallback_resources, actionsList, XtNumber(actionsList), true)) {
 		cres->appcon = ats->app_con;
 		cres->dpy = ats->dpy;
+		cres->ats = ats;
 		cres->bc = BookmarkCreateContext(cres);
 		InitBowBuiltins(cres);
 

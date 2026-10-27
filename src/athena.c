@@ -463,12 +463,8 @@ static void tab_editable_field(Widget self, XtPointer client, XtPointer data) {
 }
 
 void verify_field(Widget self, XtPointer client, XtPointer data) {
-	Arg wargs[10];
-	ats_t *ui = (ats_t *)client;
 	TextFieldReturnStruct *ret = (TextFieldReturnStruct *)data;
-	printf("changed: string = %s\n", ret->string);
-	//	XtSetArg(wargs[0], XtNlabel, "Error: invalid input!");
-	//	XtSetValues(ui->statusLine, wargs, 1);
+	//XtVaSetValues(self, XtNvalue, ret->string, NULL);
 }
 
 FORCEINLINE ats_wnd ats_richtext_set(ats_wnd on, int width, int height) {
@@ -600,6 +596,22 @@ FORCEINLINE void ats_alignfield(ats_wnd self, ats_wnd to, bool is_vert) {
 		XtVaSetValues(self, XtNleft, XawRubber, XtNfromVert, to, NULL);
 	else
 		XtVaSetValues(self,	XtNright, XawRubber, XtNfromHoriz, to, NULL);
+}
+
+FORCEINLINE ats_wnd ats_viewportfull_set(const char *tag, ats_wnd on, ats_wnd alignto,
+	bool force_bars, bool allow_horizontal, bool is_vert) {
+	return XtVaCreateManagedWidget(tag,
+		viewportWidgetClass, on,
+		XtNallowHoriz, allow_horizontal,
+		XtNallowVert, True,
+		XtNuseBottom, True,
+		XtNuseRight, True,
+		XtNforceBars, force_bars,
+		XtNborder, 0,
+		XtNborderWidth, 0,
+		XtNbackground, 0xffffff,
+		(is_vert ? XtNfromVert : XtNfromHoriz), alignto,
+		NULL, 0);
 }
 
 FORCEINLINE ats_wnd ats_viewport_set(ats_wnd on, bool force_bars, bool allow_horizontal) {
@@ -754,7 +766,7 @@ Pixmap ats_image_get(ats_wnd alpha, Display *dpy, const char *filename, unsigned
 	return pixmap;
 }
 
-ats_wnd ats_anyimage_set(ats_t *ui, ats_wnd on, char *path) {
+FORCEINLINE ats_wnd ats_anyimage_set(ats_t *ui, ats_wnd on, char *path) {
 	Pixmap pm = ats_image_get((ui->grid ? ui->grid : ui->topLevel), ui->dpy, path, NULL, 0);
 	if (pm)
 		return XtVaCreateManagedWidget("Anyimage", mwImageWidgetClass, on,
@@ -763,11 +775,48 @@ ats_wnd ats_anyimage_set(ats_t *ui, ats_wnd on, char *path) {
 	return NULL;
 }
 
-ats_wnd ats_button_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label,
+FORCEINLINE ats_wnd ats_listfull_set(const char *tag, ats_wnd on, char **itemlist, int nlists, int columns,
+	int columnsSpacing, int rowSpacing, bool columnForced, bool listVert, _platform_cb action, void *data) {
+	Widget list = XtVaCreateManagedWidget(tag,
+		listWidgetClass, on,
+		XtNlist, itemlist,
+		XtNnumberStrings, nlists,
+		XtNdefaultColumns, columns,
+		XtNcolumnSpacing, columnsSpacing,
+		XtNrowSpacing, rowSpacing,
+		XtNforceColumns, columnForced,
+		XtNverticalList, listVert,
+		NULL);
+	ats_callback_set(list, action, (XtPointer)data);
+	return list;
+}
+
+FORCEINLINE ats_wnd ats_list_set(const char *tag, ats_wnd on, _platform_cb action, void *data) {
+	Widget list = XtVaCreateManagedWidget(tag,
+		listWidgetClass, on, NULL);
+	ats_callback_set(list, action, (XtPointer)data);
+	return list;
+}
+
+FORCEINLINE ats_wnd ats_buttonfull_set(const char *tag, ats_wnd on, ats_wnd alignVert,
+	ats_wnd alignHoriz, const char *label, _platform_cb action, void *data) {
+	Widget button = XtVaCreateManagedWidget(tag,
+		commandWidgetClass, on,
+		XtNlabel, label,
+		XtNborder, 1,
+		XtNborderColor, ATHENA_COLOR,
+		XtNborderWidth, 1,
+		(alignVert ? XtNfromVert : XtNleft), (alignVert ? alignVert : (void *)(intptr_t)XtChainLeft),
+		(alignHoriz ? XtNfromHoriz : XtNright), (alignHoriz ? alignHoriz : (void *)(intptr_t)XtChainLeft),
+		NULL);
+
+	XtAddCallback(button, XtNcallback, action, data);
+	return button;
+}
+
+FORCEINLINE ats_wnd ats_button_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label,
 	_platform_cb action, int is_vert) {
-	Widget button;
-	if (is_vert == 1) {
-		button = XtVaCreateManagedWidget("button",
+	Widget button = XtVaCreateManagedWidget("button",
 			commandWidgetClass, on,
 			XtNlabel, label,
 			XtNwidth, 80,
@@ -780,25 +829,8 @@ ats_wnd ats_button_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *label
 			XtNright, XawChainRight,
 			XtNtop, XawChainRight,
 			XtNbottom, XawChainRight,
-			XtNfromVert, alignto,
+			(is_vert == 1 ? XtNfromVert : XtNfromHoriz), alignto,
 			NULL);
-	} else {
-		button = XtVaCreateManagedWidget("button",
-			commandWidgetClass, on,
-			XtNlabel, label,
-			XtNwidth, 80,
-			XtNheight, 18,
-			XtNborder, 1,
-			XtNfont, main_athena_info->font_button,
-			XtNborderColor, ATHENA_COLOR,
-			XtNborderWidth, 1,
-			XtNleft, XawChainRight,
-			XtNright, XawChainRight,
-			XtNtop, XawChainRight,
-			XtNbottom, XawChainRight,
-			XtNfromHoriz, alignto,
-			NULL);
-	}
 
 	XtAddCallback(button, XtNcallback, action, ui);
 	return button;
@@ -842,25 +874,65 @@ ats_wnd ats_buttons_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char *labe
 	return button;
 }
 
-FORCEINLINE ats_wnd ats_dialogwindow_set(ats_wnd on, const char *title, char *value) {
-	return XtVaCreateManagedWidget("Dialog", dialogWidgetClass, on, XtNlabel, title, XtNvalue, value, NULL);
+static void display_track_cb(Widget w, XtPointer client_data, XEvent *event, Boolean *continue_to_dispatch) {
+	Widget sub = (Widget)client_data;
+	if (sub && event->type == ConfigureNotify) {
+		XConfigureEvent *cevent = &event->xconfigure;
+		Window child;
+		int root_x, root_y;
+		XTranslateCoordinates(cevent->display, cevent->window,
+			RootWindow(cevent->display, DefaultScreen(cevent->display)),
+			0, 0, &root_x, &root_y, &child);
+
+		XtVaSetValues(sub, XtNx, root_x + 10, XtNy, root_y + 10, NULL);
+	}
 }
 
-void ats_display_top(ats_wnd on) {
-	Display *dpy = XtDisplay(on);
-	Window win = XtWindow(on);
+void ats_display_top(ats_wnd on, ats_wnd top, ats_wnd sync, bool remove) {
+	if (!remove) {
+		Display *dpy = XtDisplay(on);
+		Window win = XtWindow(on);
 
-	Atom wm_type = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
-	Atom type_utility = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_UTILITY", False);
-	XChangeProperty(dpy, win, wm_type, XA_ATOM, 32,
-		PropModeReplace, (unsigned char *)&type_utility, 1);
+		Atom wm_type = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
+		Atom type_utility = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_UTILITY", False);
+		XChangeProperty(dpy, win, wm_type, XA_ATOM, 32,
+			PropModeReplace, (unsigned char *)&type_utility, 1);
 
-	Atom wm_state = XInternAtom(dpy, "_NET_WM_STATE", False);
-	Atom wm_above = XInternAtom(dpy, "_NET_WM_STATE_ABOVE", False);
-	XChangeProperty(dpy, win, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char *)&wm_above, 1);
+		Atom wm_state = XInternAtom(dpy, "_NET_WM_STATE", False);
+		Atom wm_above = XInternAtom(dpy, "_NET_WM_STATE_ABOVE", False);
+		XChangeProperty(dpy, win, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char *)&wm_above, 1);
 
-	XSetWMProtocols(dpy, win, NULL, 0);
-	ats_background_set(on, "blue");
+		XSetWMProtocols(dpy, win, NULL, 0);
+		XSetInputFocus(dpy, win, RevertToParent, CurrentTime);
+		if (sync && top)
+			XtAddEventHandler(top, StructureNotifyMask, False, display_track_cb, sync);
+	} else if (sync && top) {
+		XtRemoveEventHandler(top, StructureNotifyMask, True, display_track_cb, sync);
+	}
+}
+
+static void dialog_input_cb(Widget w, XtPointer client_data, XEvent *event, Boolean *continue_to_dispatch) {
+	Widget inputbox = (Widget)client_data;
+	if (event->type == KeyPress || event->type == KeyRelease) {
+		if (inputbox) {
+			XtDispatchEventToWidget(inputbox, event);
+			*continue_to_dispatch = False;
+		}
+	}
+}
+
+FORCEINLINE ats_wnd ats_dialogwindow_set(ats_wnd on, const char *tag, unsigned long bg_color, const char *label, char *value) {
+	int on_x, on_y;
+	XtVaGetValues(on, XtNx, &on_x, XtNy, &on_y, NULL);
+	ats_wnd bg_label, dialog = XtVaCreateManagedWidget(tag, dialogWidgetClass, on,
+		XtNx, on_x + 10, XtNy, on_y + 10, XtNlabel, label, XtNvalue, value,
+		XtNbackground, bg_color, NULL);
+
+	if ((bg_label = XtNameToWidget(dialog, "label")))
+		XtVaSetValues(bg_label, XtNbackground, bg_color, XtNforeground, 0xFFFFFF, NULL);
+
+	XtAddEventHandler(on, KeyPressMask | KeyReleaseMask, False, dialog_input_cb, XtNameToWidget(dialog, "value"));
+	return dialog;
 }
 
 ats_wnd ats_modalwindow_set(ats_wnd on, const char *tagtitle) {
@@ -869,10 +941,8 @@ ats_wnd ats_modalwindow_set(ats_wnd on, const char *tagtitle) {
 	XWindowAttributes wa;
 
 	XGetWindowAttributes(dpy, win, &wa);
-	ats_wnd sub = XtVaAppCreateShell(tagtitle, tagtitle, overrideShellWidgetClass, dpy,
-		XtNx, wa.x, XtNy, wa.y + 1, XtNoverrideRedirect, True, NULL);
-
-	return sub;
+	return XtVaAppCreateShell(tagtitle, tagtitle, overrideShellWidgetClass, dpy,
+		XtNx, wa.x + 1, XtNy, wa.y + 1, NULL);
 }
 
 int ats_form(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb verify) {

@@ -21,50 +21,11 @@
 
 char *fallback_resources[] =
 {
-  /* labels for commands */
-  "*open.label:                Open",
-  "*quit.label:                Quit",
-  "*reload.label:              Reload",
-  "*help.label:                Help",
-  "*home.label:                Home",
-  "*back.label:                Back",
-  "*cancel.label:              Cancel",
-  "*dup.label:                 Clone",
-  "*addmark.label:             Add Mark",
-  "*viewmark.label:            View Mark",
-  "*bookmark.label:            Bookmark",
-  "*save.label:                Save",
-  "*source.label:              Source",
-  "*addgroup.label:            Add Group",
-  "*rmgroup.label:             Remove Group",
-  "*rmmark.label:              Remove Mark",
-  "*mlabel.label:              Mark",
-  "*glabel.label:              Groups",
-  "*dismiss.label:             Dismiss",
-
   /* bookmark */
-  "*grouplist.defaultColumns:  1",
-  "*grouplist.verticalList:    true",
-  "*groupview.width:           400",
-  "*groupview.height:          100",
-  "*groupview.allowVert:       true",
   "*marklist.defaultColumns:   1",
   "*marklist.verticalList:     true",
   "*markview.width:            400",
   "*markview.height:           100",
   "*markview.allowVert:        true",
-
-  /* resources for dialog widget */
-  "*dialog.ok.label:           OK",
-  "*dialog.clear.label:        Clear",
-  "*dialog.dismiss.label:      Dismiss",
-  "*dialog.value.length:       80",
-  "*openpop.dialog.label:      Enter URL",
-  "*savepop.dialog.label:      Enter Filename",
-  "*download.dialog.label:     Enter Filename",
-  "*agpop.dialog.label:        Enter Group Name",
-  "*ampop.dialog.label:        Enter Mark Name",
-  "*findpop.dialog.label:      Search",
-
   NULL
 };

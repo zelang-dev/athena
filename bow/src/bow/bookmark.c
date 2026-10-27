@@ -330,6 +330,7 @@ void BookmarkDestroyContext(BookmarkContext bc) {
  */
 void BookmarkShow(BookmarkContext bc) {
 	XtMapWidget(bc->bw);
+	ats_display_top(bc->bw, bc->cres->ats->topLevel, bc->bw, false);
 }
 
 /*
@@ -356,9 +357,7 @@ BookmarkContext bc;
 /*
  * BMFindMark
  */
-static BMark *BMFindMark(bc)
-BookmarkContext bc;
-{
+static BMark *BMFindMark(BookmarkContext bc) {
 	int i;
 	BMark *m;
 	BGroup *g;
@@ -379,10 +378,7 @@ BookmarkContext bc;
 /*
  * BMDAddGroup
  */
-static void BMDAddGroup(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMDAddGroup(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
 
 	XtPopdown(bc->agpop);
@@ -394,10 +390,7 @@ XtPointer cldata, cbdata;
 /*
  * BMOAddGroup
  */
-static void BMOAddGroup(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMOAddGroup(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
 	char *name;
 
@@ -416,16 +409,13 @@ XtPointer cldata, cbdata;
 /*
  * BMAddGroup
  */
-static void BMAddGroup(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMAddGroup(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
 
 	if (bc->agpopped) return;
 
 	if (bc->agpop == NULL) {
-		bc->agpop = CreateDialog(bc->bw, "agpop",
+		bc->agpop = CreateDialog(bc->bw, "Enter Group Name",
 			BMOAddGroup, BMDAddGroup, BMOAddGroup, bc);
 	}
 
@@ -460,10 +450,7 @@ static void BMRMGroup(Widget w, XtPointer cldata, XtPointer cbdata) {
 /*
  * BMDAddMark
  */
-static void BMDAddMark(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMDAddMark(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
 
 	XtPopdown(bc->ampop);
@@ -475,10 +462,7 @@ XtPointer cldata, cbdata;
 /*
  * BMOAddMark
  */
-static void BMOAddMark(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMOAddMark(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
 	char *name;
 	char *url;
@@ -502,10 +486,7 @@ XtPointer cldata, cbdata;
 /*
  * BMAddMark
  */
-static void BMAddMark(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMAddMark(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
 	char *title;
 	BowRender wn;
@@ -521,7 +502,7 @@ XtPointer cldata, cbdata;
 		}
 	}
 	if (bc->ampop == NULL) {
-		bc->ampop = CreateDialog(bc->bw, "ampop",
+		bc->ampop = CreateDialog(bc->bw, "Enter Mark Name",
 			BMOAddMark, BMDAddMark, BMOAddMark, bc);
 	}
 
@@ -536,10 +517,7 @@ XtPointer cldata, cbdata;
 /*
  * BMRMMark
  */
-static void BMRMMark(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMRMMark(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
 	BMark *m;
 	BGroup *g;
@@ -559,14 +537,12 @@ XtPointer cldata, cbdata;
 /*
  * BMDismiss
  */
-static void BMDismiss(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMDismiss(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
 
 	if (bc->ampop != NULL) XtPopdown(bc->ampop);
 	if (bc->agpop != NULL) XtPopdown(bc->agpop);
+	ats_display_top(bc->bw, bc->cres->ats->topLevel, bc->bw, true);
 	XtUnmapWidget(bc->bw);
 
 	return;
@@ -583,19 +559,13 @@ static void BMGroupList(Widget w, XtPointer cldata, XtPointer cbdata) {
 /*
  * BMMarkList
  */
-static void BMMarkList(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void BMMarkList(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BookmarkContext bc = (BookmarkContext)cldata;
 	BMark *m;
 
 	if ((m = BMFindMark(bc)) == NULL) return;
 
-	StackOpen(bc->cres->bmcontext->tstack,
-		RequestCreate(bc->cres, m->url, NULL));
-
-	return;
+	StackOpen(bc->cres->bmcontext->tstack, RequestCreate(bc->cres, m->url, NULL));
 }
 
 /*
@@ -620,54 +590,21 @@ BookmarkContext BookmarkCreateContext(BowResources cres) {
 	bc = (BookmarkContext)MPCGet(mp, sizeof(struct BookmarkContextP));
 	bc->mp = mp;
 	bc->cres = cres;
-	bc->bw = ats_modalwindow_set(cres->ats->wnd, "Bookmark");
+	bc->bw = ats_modalwindow_set(cres->ats->topLevel, "Bookmark");
 
 	/* group widgets */
 	fw = ats_formwindow_set(bc->bw, 0);
 	gvw = ats_viewport_set(fw, false, false);
-	bc->glw = XtVaCreateManagedWidget("grouplist",
-		listWidgetClass, gvw,
-		NULL);
-	XtAddCallback(bc->glw, XtNcallback, BMGroupList, (XtPointer)bc);
-	w = XtVaCreateManagedWidget("addgroup",
-		commandWidgetClass, fw,
-		XtNfromVert, gvw,
-		NULL);
-	XtAddCallback(w, XtNcallback, BMAddGroup, (XtPointer)bc);
-	w = XtVaCreateManagedWidget("rmgroup",
-		commandWidgetClass, fw,
-		XtNfromVert, gvw,
-		XtNfromHoriz, w,
-		NULL);
-	XtAddCallback(w, XtNcallback, BMRMGroup, (XtPointer)bc);
+	bc->glw = ats_listfull_set("grouplist", gvw, NULL, 0, 1, 40, 2, true, true, BMGroupList, (XtPointer)bc);
+	w = ats_buttonfull_set("addgroup", fw, gvw, NULL, "Add Group", BMAddGroup, (XtPointer)bc);
+	w = ats_buttonfull_set("rmgroup", fw, gvw, w, "Remove Group", BMRMGroup, (XtPointer)bc);
 
 	/* Mark widgets */
-	mvw = XtVaCreateManagedWidget("markview",
-		viewportWidgetClass, fw,
-		XtNfromVert, w,
-		NULL);
-	bc->mlw = XtVaCreateManagedWidget("marklist",
-		listWidgetClass, mvw,
-		NULL);
-	XtAddCallback(bc->mlw, XtNcallback, BMMarkList, (XtPointer)bc);
-	w = XtVaCreateManagedWidget("addmark",
-		commandWidgetClass, fw,
-		XtNfromVert, mvw,
-		NULL);
-	XtAddCallback(w, XtNcallback, BMAddMark, (XtPointer)bc);
-	w = XtVaCreateManagedWidget("rmmark",
-		commandWidgetClass, fw,
-		XtNfromVert, mvw,
-		XtNfromHoriz, w,
-		NULL);
-	XtAddCallback(w, XtNcallback, BMRMMark, (XtPointer)bc);
-	w = XtVaCreateManagedWidget("dismiss",
-		commandWidgetClass, fw,
-		XtNfromVert, mvw,
-		XtNfromHoriz, w,
-		NULL);
-	XtAddCallback(w, XtNcallback, BMDismiss, (XtPointer)bc);
-
+	mvw = ats_viewportfull_set("markview", fw, w, false, false, true);
+	bc->mlw = ats_list_set("marklist", mvw, BMMarkList, (XtPointer)bc);
+	w = ats_buttonfull_set("addmark", fw, mvw, NULL, "Add Mark", BMAddMark, (XtPointer)bc);
+	w = ats_buttonfull_set("rmmark", fw, mvw, w, "Remove Mark", BMRMMark, (XtPointer)bc);
+	w = ats_buttonfull_set("dismiss", fw, mvw, w, "Dismiss", BMDismiss, (XtPointer)bc);
 	if ((bc->header = ResourceGetString(cres, "bookmark.header")) == NULL) {
 		bc->header = "";
 	}
