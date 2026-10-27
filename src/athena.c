@@ -329,7 +329,6 @@ void ats_icon_set(ats_t *ui, const char *filepath) {
 	XWMHints wm_hints;
 	int status = -1;
 
-	ui->win = XtWindow(ui->topLevel);
 	ui->screen = DefaultScreen(ui->dpy);
 	if (ui->use_icon) {
 		/* Create the pixmaps accordingly
@@ -2051,6 +2050,9 @@ void ats_close(ats_t *ui) {
 
 		if (ui->app_con)
 			XtDestroyApplicationContext(ui->app_con);
+
+		if (!ui->wnd && !ui->app_con)
+			XDestroyWindow(ui->dpy, ui->win);
 
 		ui = NULL;
 	}
