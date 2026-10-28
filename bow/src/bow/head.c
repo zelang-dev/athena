@@ -5,7 +5,6 @@
 #include "common.h"
 #include <athena.h>
 #include "BowP.h"
-#include "../bow_archer.xpm"
 
 static void Quit _ArgProto((Widget, XtPointer, XtPointer));
 static void Back _ArgProto((Widget, XtPointer, XtPointer));
@@ -121,7 +120,7 @@ static void CreateWidgets(BowContext wc) {
 	wc->tstack = StackCreateToplevel(wc, box);
 	XtRealizeWidget(wc->toplevel);
 	wc->athena->win = XtWindow(wc->toplevel);
-	wc->athena->web->priv.web = wc;
+	wc->athena->web->priv.context = wc;
 	wc->athena->wmDeleteMessage = ats_display_wm(wc->cres->dpy, wc->athena->win, wc->athena->use_icon, NULL, NULL);
 	XtOverrideTranslations(wc->toplevel, XtParseTranslationTable("<Message>WM_PROTOCOLS: DeleteAction()"));
 }

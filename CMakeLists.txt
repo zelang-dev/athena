@@ -84,13 +84,9 @@ else()
 
 	file(GLOB mowitz_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Mowitz/*.c)
-	#file(GLOB webview_files
-	#	${CMAKE_CURRENT_SOURCE_DIR}/src/Webview/*.c)
 	set(athena_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/athena.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/libsmallregex.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/FileSelect.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/Gridbox.c)
+		${CMAKE_CURRENT_SOURCE_DIR}/src/libsmallregex.c)
 	file(GLOB Xaw95_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Xaw95/*.c)
 

@@ -464,7 +464,8 @@ struct webview_priv {
 	int js_busy;
 	int should_exit;
 	ats_t *ats;
-	bowview_t web;
+	bow_t web;
+	bowview_t context;
 	hist_t *backhist, *forwhist;
 };
 
@@ -811,7 +812,6 @@ C_API int ats_menu_set(ats_t *ui, int num_menu, menuitem_t *items, int numof_ite
 
 C_API void ats_dragdrop_set(ats_t *ui, const char *mime, int slot, _platform_cb dropfunc, _platform_cb dragfunc);
 C_API void ats_dragdrop_update(ats_t *ui, const char *mime, int slot);
-C_API void ats_title_set(ats_t *ui, const char *title);
 C_API void ats_icon_set(ats_t *ui, const char *filepath);
 C_API ats_wnd ats_windowgrid_set(ats_t *ui, int menuheight, int topheight, int bottomheight);
 C_API ats_wnd ats_tabs_set(ats_t *ui, int row);
@@ -864,9 +864,10 @@ C_API int ats_webview(ats_t *ui, const char *title, const char *url,
 C_API void ats_webactive(ats_t *ui);
 C_API void ats_webdestroy(ats_t *ui);
 
-C_API char *bow_tag(bowview_t wc, char *anchor);
-C_API void bow_set_title(bowview_t wc, const char *name);
-C_API bow_t bow_create(ats_t *ui, const char *url);
+C_API void bow_window(bow_t web, const char *url, char *secondary_url);
+C_API char *bow_tag(bowview_t ctx, char *anchor);
+C_API void bow_set_title(bowview_t ctx, const char *name);
+C_API bow_t bow_create(ats_t *ui);
 
 #define DEFAULT_URL                                                            \
   "data:text/"                                                                 \

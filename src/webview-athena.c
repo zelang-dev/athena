@@ -60,7 +60,7 @@ int webview_loop(webview_t *w, int blocking) {
 }
 
 FORCEINLINE void webview_set_title(webview_t *w, const char *title) {
-	bow_set_title(w->priv.web, title);
+	bow_set_title(w->priv.context, title);
 }
 
 FORCEINLINE void webview_set_fullscreen(webview_t *w, int fullscreen) {

@@ -5,6 +5,7 @@
 #include "../bow_archer.xpm"
 
 extern char *fallback_resources[];
+static char base_url[MAX_PATH_LEN] = {0};
 static BowResources globalcres = NULL;
 static char *default_resource = "bookmark.filename: ~/.bow/bookmarks.html\n"
 "cache.directory: ~/.bow/cache\n"
@@ -110,24 +111,35 @@ static XtActionsRec actionsList[] =
   {"DeleteAction",  (XtActionProc)DeleteAction},
 };
 
-char *bow_tag(bowview_t web, char *anchor) {
+char *bow_tag(bowview_t ctx, char *anchor) {
 	char *tag = NULL;
 	BowRender wn = NULL;
-	if (anchor && web && web->tstack && (wn = StackToRender(web->tstack)))
+	if (anchor && ctx && ctx->tstack && (wn = StackToRender(ctx->tstack)))
 		tag = RenderQuery(wn, anchor);
 
 	return tag;
 }
 
-void bow_set_title(bowview_t web, const char *name) {
-	const char *title = name ? name : bow_tag(web, "title");
+void bow_set_title(bowview_t ctx, const char *name) {
+	const char *title = name ? name : bow_tag(ctx, "title");
 	if (title) {
-		XStoreName(web->cres->dpy, web->cres->ats->win, title);
-		XFlush(web->cres->dpy);
+		XStoreName(ctx->cres->dpy, ctx->cres->ats->win, title);
+		XFlush(ctx->cres->dpy);
 	}
 }
 
-bow_t bow_create(ats_t *ui, const char *url) {
+void bow_window(bow_t web, const char *url, char *secondary_url) {
+	/*
+	 * Default base URL; this allows filenames to be used on the command line
+	 */
+	strcpy(base_url, "file:");
+	getcwd(base_url + 5, sizeof(base_url) - 5);
+	strcat(base_url, "/");
+	HeadCreate(web, (url ? RequestCreate(web, (char *)url, base_url) : NULL),
+		(secondary_url ? RequestCreate(web, (char *)secondary_url, base_url) : NULL));
+}
+
+bow_t bow_create(ats_t *ui) {
 	bow_t res;
 	MemPool mp, tmp;
 	char *f, *filename;
@@ -210,6 +222,7 @@ bow_t bow_create(ats_t *ui, const char *url) {
 
 		MPDestroy(tmp);
 		res->plainhooks = RenderGetHooks(res, "text/plain");
+		ui->web->priv.web = res;
 		return(res);
 	}
 
