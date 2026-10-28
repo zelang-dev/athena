@@ -27,7 +27,7 @@
 #define helvetica "-*-helvetica-medium-r-normal-*-12-*-*-*-*-*-iso8859-*"
 #define times "-*-times-medium-r-*-*-12-*-*-*-*-*-*"
 #define courier "-*-courier-medium-r-*-*-14-*-*-*-*-*-*"
-#define __ATS_MENU__ 	ui_t *self, void *data
+#define __ATS_MENU__ 	app_t *self, void *data
 #define __ATS_FILE__ 	Widget self, XtPointer client, XtPointer data
 #define __ATS_FIELD__ 	__ATS_FILE__
 #define __ATS_WEBVIEW__ __ATS_FILE__
@@ -330,8 +330,10 @@ typedef enum {
 	field_secret,
 	field_url,
 	field_viewport,
+	field_radio,
+	field_check,
 	field_regex,
-} ui_field_type;
+} field_types;
 
 enum {
 	ID_ATS_ICON = 900,
@@ -347,21 +349,15 @@ enum {
 };
 
 typedef __attribute__((noreturn)) void (*_noreturn_cb)(char *);
-/* Platform Window type */
+
 typedef Widget ats_wnd;
-/* Platform FONT type */
 typedef XFontStruct *ats_font;
-/* Platform Color type */
 typedef Colormap ats_color;
-/* Platform Menu type */
 typedef Widget ats_menu;
-/* Platform TextField type */
-typedef Widget ui_form_t;
-/* Platform string type */
-typedef String ui_str_t;
-/* Platform bool type */
-typedef bool ui_bool;
-#define ui_field_str(value, field)		String value = MwTextFieldGetString(field)
+typedef Widget ats_form;
+typedef String ats_str;
+
+#define field_str(value, field)		String value = TextFieldGetString(field)
 
 typedef struct Buttons_s {
 	int ID;
@@ -372,15 +368,15 @@ typedef Button ats_buttons[MAX_MSGBUTTONS];
 
 typedef struct Forms_s {
 	uintptr_t ID;
-	ui_field_type kind;
+	field_types kind;
 	char *caption;
 	char *value;
 	int width;
 	int max;
 	int min;
-	ui_form_t index;
+	ats_form index;
 } Form;
-typedef Form ui_field;
+typedef Form ats_fill;
 
 typedef struct ats_info_s ats_t;
 
@@ -449,7 +445,14 @@ typedef struct {
 	ats_wnd self;
 	int is_alert;
 	int is_video;
-} ui_t;
+} app_t;
+
+typedef struct BowResourcesP *BowResources;
+typedef struct BowStackP *BowStack;
+typedef struct BowContextP *BowContext;
+typedef BowResources bow_t;
+typedef BowContext bowview_t;
+typedef BowStack bowdata_t;
 
 typedef struct hist hist_t;
 struct webview_priv {
@@ -457,18 +460,18 @@ struct webview_priv {
 	Widget scroller;
 	Widget webview;
 	Widget inspector_window;
-	void **queue;
 	int ready;
 	int js_busy;
 	int should_exit;
 	ats_t *ats;
+	bowview_t web;
 	hist_t *backhist, *forwhist;
 };
 
 typedef XtCallbackProc _platform_cb;
-typedef void (*_menu_cb)(ui_t *self, void *data);
-typedef void (*ui_file_cb)(ui_t *, const char *);
-typedef bool (*ui_form_cb)(const ui_t *, uint32_t field_id, void *, char *err);
+typedef void (*_menu_cb)(app_t *self, void *data);
+typedef void (*ats_file_cb)(app_t *, const char *);
+typedef bool (*ats_form_cb)(const app_t *, uint32_t field_id, void *, char *err);
 typedef struct dialog_button_s {
 	char label[32];
 	_platform_cb action;
@@ -481,6 +484,7 @@ typedef struct Dialog_s {
 	ats_dialog_button button[MAX_MSGBUTTONS];
 	ats_wnd result;
 } Dialog;
+
 typedef struct {
 	int menu_id;
 	char *item_name;
@@ -555,7 +559,7 @@ struct ats_info_s {
 	ats_color txtCr, bkCr;
 	/* For passing data to custom `Window` handler routine */
 	void *user_data;
-	ui_t app[1];
+	app_t app[1];
 	webview_t web[1];
 #if __linux__
 	bool webview_set, icon_set, dragdrop_set, buttons_vert;
@@ -603,14 +607,14 @@ C_API void ats_cancel(ats_wnd self);
 C_API void ats_callback_set(ats_wnd on, _platform_cb action, void *with);
 
 C_API ats_wnd ats_field_set(ats_t *ui, ats_wnd on, ats_wnd alignto, char *initial, int x, int y, int width,
-	ui_field_type kind, _platform_cb activate);
+	field_types kind, _platform_cb activate);
 C_API ats_wnd ats_field_reset(ats_wnd field, size_t bgColor, char *initial, int width, bool is_secret);
 C_API void ats_alignfield(ats_wnd self, ats_wnd to, bool is_vert);
 C_API ats_wnd ats_textfield_set(ats_wnd on, char *initial, int x, int y,
 	int width, int height);
 
-C_API int ats_dialog(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb verify);
-C_API int ats_form(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb verify);
+C_API int ats_dialog(ats_t *ui, const char *title, Form *fill, int numFields, ats_form_cb verify);
+C_API int ats_dialog_box(ats_t *ui, const char *title, Form *fill, int numFields, ats_form_cb verify);
 C_API ats_wnd ats_richtext_set(ats_wnd on, int width, int height);
 C_API ats_wnd ats_ruler_set(ats_wnd on, int width, int height);
 C_API ats_wnd ats_slider_set(ats_wnd on, int width, int height);
@@ -726,8 +730,8 @@ C_API void ats_keybutton_set(ats_wnd on, XtEventHandler action, void *data);
 C_API ats_wnd ats_statusline_set(ats_wnd on, ats_wnd alignto, const char *initial, int x, int y, int width);
 C_API ats_wnd ats_status_set(ats_wnd on, const char *initial, int row, int width, int height);
 C_API ats_wnd ats_viewport_set(ats_wnd on, bool force_bars, bool allow_horizontal);
-C_API ats_wnd ats_viewportfull_set(const char *tag, ats_wnd on, ats_wnd alignto,
-	bool force_bars, bool allow_horizontal, bool is_vert);
+C_API ats_wnd ats_viewportfull_set(const char *tag, ats_wnd on, ats_wnd alignto, int width,
+	int height, bool force_bars, bool allowHoriz, bool alignVert);
 C_API ats_wnd ats_mainarea_set(ats_t *ui, ats_wnd on, int row);
 
 C_API ats_wnd ats_frame_set(ats_wnd on, XtShadowType shadowType, int shadowWidth);
@@ -784,7 +788,7 @@ C_API ats_wnd ats_buttons_set(ats_t *ui, ats_wnd on, ats_wnd alignto, const char
  */
 C_API int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer);
 C_API int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc_buffer,
-	String *resources, XtActionList add_actions, Cardinal num_actions, bool catch_err);
+	String *resources, XtActionList add_actions, Cardinal num_actions, bool catch_err, bool bypass);
 C_API ats_wnd ats_dialogwindow_set(ats_wnd on, const char *tag, unsigned long bg_color, const char *label, char *value);
 C_API ats_wnd ats_modalwindow_set(ats_wnd on, const char *tagtitle);
 C_API void ats_display_top(ats_wnd on, ats_wnd top, ats_wnd sync, bool remove);
@@ -827,18 +831,18 @@ C_API int ats_handler(ats_t *ui);
 C_API void ats_close(ats_t *ui);
 
 C_API void ats_editfile(ats_wnd, XtPointer, XtPointer);
-C_API void ats_save_dialog(ui_t *, _platform_cb open_handler);
-C_API void ats_open_dialog(ui_t *, _platform_cb save_handler);
+C_API void ats_save_dialog(app_t *, _platform_cb open_handler);
+C_API void ats_open_dialog(app_t *, _platform_cb save_handler);
 
 C_API void ats_sleep(int64_t ms);
 C_API int64_t ats_time(void);
 
-C_API size_t str_length(ui_form_t field);
-C_API ui_bool str_field_valid(ui_form_t field, ui_field form);
-C_API ui_bool str_is_regex(const char *pattern, ui_str_t match);
-C_API ui_bool is_ValidUrl(ui_str_t text);
-C_API ui_bool is_ValidEmail(ui_str_t text);
-C_API ui_bool is_ValidPassword(ui_form_t field);
+C_API size_t str_length(ats_form field);
+C_API bool str_field_valid(ats_form field, ats_fill form);
+C_API bool str_is_regex(const char *pattern, ats_str match);
+C_API bool is_ValidUrl(ats_str text);
+C_API bool is_ValidEmail(ats_str text);
+C_API bool is_ValidPassword(ats_form field);
 
 unsigned char *read_file(const char *filename, int *len);
 
@@ -860,6 +864,9 @@ C_API int ats_webview(ats_t *ui, const char *title, const char *url,
 C_API void ats_webactive(ats_t *ui);
 C_API void ats_webdestroy(ats_t *ui);
 
+C_API char *bow_tag(bowview_t wc, char *anchor);
+C_API void bow_set_title(bowview_t wc, const char *name);
+C_API bow_t bow_create(ats_t *ui, const char *url);
 
 #define DEFAULT_URL                                                            \
   "data:text/"                                                                 \

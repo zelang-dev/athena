@@ -19,210 +19,10 @@
  */
 
 #include <athena.h>
-#include "MyDialog.h"
 #include "bow/BowP.h"
 #include "bow_archer.xpm"
 
-extern char *fallback_resources[];
-static BowResources ResourcesCreate _ArgProto((ats_t *, int *, char **));
-static void ResourcesDestroy _ArgProto((BowResources));
-static BowResources globalcres = NULL;
-static char *default_resource = "bookmark.filename: ~/.bow/bookmarks.html\n"
-"cache.directory: ~/.bow/cache\n"
-"cache.persist: true\n"
-"bow.homeURL: http://www.google.com\n"
-"html.propFontPattern: -adobe-helvetica-*-*-*-*-*-*-*-*-*-*-iso8859-1\n"
-"view.capFiles: ~/.bow/mailcap:~/.mailcap\n";
-
 static void sigigh_handler(int sig) {}
-
-/*
- * BowAddReference
- */
-FORCEINLINE void BowAddReference(BowResources cres) {
-	cres->refcount++;
-}
-
-/*
- * BowCleanup
- */
-static void BowCleanup(BowResources cres) {
-	if (cres->bc != NULL) BookmarkDestroyContext(cres->bc);
-
-	ResourcesDestroy(cres);
-
-	if (cres->logfp != NULL) fclose(cres->logfp);
-
-	GListDestroy(cres->heads);
-
-	MPPrintStatus();
-	GListPrintStatus();
-
-}
-
-/*
- * BowRemoveReference
- */
-FORCEINLINE void BowRemoveReference(BowResources cres) {
-	cres->refcount--;
-	if (cres->refcount == 0)
-		BowCleanup(cres);
-}
-
-/*
- * DeleteAction
- */
-static void DeleteAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
-	BowCleanup(globalcres);
-}
-
-/*
- * ReturnAction
- */
-static void ReturnAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
-	BowContext c;
-	char *url;
-
-	for (c = (BowContext)GListGetHead(globalcres->heads); c != NULL;
-		c = (BowContext)GListGetNext(globalcres->heads)) {
-		if (c->url == w) {
-			url = TextFieldGetString(c->url);
-			if (url == NULL || url[0] == '\0') {
-				TextFieldSetString(c->url, url);
-				break;
-			} else {
-				StackOpen(c->tstack, RequestCreate(globalcres, url, NULL));
-			}
-			break;
-		}
-	}
-}
-
-static XtActionsRec actionsList[] =
-{
-  { "ReturnAction", (XtActionProc)ReturnAction },
-  { "DeleteAction",  (XtActionProc)DeleteAction  },
-};
-
-BowResources ResourcesCreate(ats_t *ats, int *argcp, char **argv) {
-	BowResources cres;
-	MemPool mp, tmp;
-	char *f, *filename;
-	char *logfile;
-	char *dbfiles;
-	char db[1024], *p;
-	struct stat s;
-
-	mp = MPCreate();
-	if (!(cres = (BowResources)MPCGet(mp, sizeof(struct BowResourcesP))))
-		return NULL;
-
-	cres->mp = mp;
-	cres->ats = ats;
-	cres->sources = GListCreateX(mp);
-	cres->sourcehooks = GListCreateX(mp);
-	cres->renderhooks = GListCreateX(mp);
-	cres->mimes = GListCreateX(mp);
-	cres->timeouts = GListCreateX(mp);
-	cres->oldtimeouts = GListCreateX(mp);
-	cres->heads = GListCreateX(mp);
-	cres->stacks = GListCreateX(mp);
-
-	cres->cs = SchedulerCreate();
-
-	ResourceAddString(cres, "cache.Directory: /tmp");
-	ResourceAddString(cres, "http.userAgent: Bow/0.6.0-chimera_webview");
-	ResourceAddString(cres, "mailto.newhead: true");
-
-	if ((dbfiles = getenv("BOW_DBFILES")) == NULL) {
-		dbfiles = "~/.bow/resources";
-		if (!(p = getenv("HOME")))
-			p = "/tmp";
-
-		sprintf(db, "%s/.bow", p);
-		mkdir(db, 0700);
-		strcat(db, "/resources");
-		if (stat(db, &s) != 0) {
-			FILE *dbf = fopen(db, "w");
-			if (dbf) {
-				fprintf(dbf, "%s", default_resource);
-				fflush(dbf);
-				fclose(dbf);
-			}
-		}
-	}
-
-	f = dbfiles;
-	while ((filename = mystrtok(f, ':', &f)) != NULL) {
-		ResourceAddFile(cres, filename);
-	}
-
-	cres->cc = CacheCreate(cres);
-	if (ResourceGetInt(cres, "bow.maxDownloads", &cres->maxiocnt) == NULL)
-		cres->maxiocnt = 4;
-	else if (cres->maxiocnt <= 1)
-		cres->maxiocnt = 1;
-
-	if (ResourceGetBool(cres, "bow.printLoadMessages",
-		&cres->printLoadMessages) == NULL) {
-		cres->printLoadMessages = false;
-	}
-
-	if (ResourceGetBool(cres, "bow.printTaskInfo",
-		&cres->printTaskInfo) == NULL) {
-		cres->printTaskInfo = false;
-	}
-
-	/*
-	 * Initialize the Xt stuff.
-	 */
-	if (ats_window_ex(ats, "Bow", 768, 600, false, fallback_resources, actionsList, XtNumber(actionsList), true)) {
-		cres->appcon = ats->app_con;
-		cres->dpy = ats->dpy;
-		cres->ats = ats;
-		cres->bc = BookmarkCreateContext(cres);
-		InitBowBuiltins(cres);
-
-		tmp = MPCreate();
-		if ((logfile = ResourceGetFilename(cres, tmp, "bow.urlLogFile")) != NULL) {
-			cres->logfp = fopen(logfile, "a");
-		}
-
-		MPDestroy(tmp);
-		cres->plainhooks = RenderGetHooks(cres, "text/plain");
-		return(cres);
-	}
-
-	return NULL;
-}
-
-static void ResourcesDestroy(BowResources cres) {
-	BowRenderHooks *rhooks;
-	BowSourceHooks *shooks;
-	GList list;
-
-	if (cres->cc != NULL) CacheDestroy(cres->cc);
-
-	list = cres->renderhooks;
-	for (rhooks = (BowRenderHooks *)GListGetHead(list); rhooks != NULL;
-		rhooks = (BowRenderHooks *)GListGetNext(list)) {
-		if (rhooks->class_destroy != NULL) {
-			CMethod(rhooks->class_destroy)(rhooks->class_context);
-		}
-	}
-	list = cres->sourcehooks;
-	for (shooks = (BowSourceHooks *)GListGetHead(list); shooks != NULL;
-		shooks = (BowSourceHooks *)GListGetNext(list)) {
-		if (shooks->class_destroy != NULL) {
-			CMethod(shooks->class_destroy)(shooks->class_closure);
-		}
-	}
-	if (cres->db != NULL) XrmDestroyDatabase(cres->db);
-
-	MPDestroy(cres->mp);
-
-	return;
-}
 
 int main(int argc, char **argv) {
 	char base_url[255];
@@ -235,10 +35,11 @@ int main(int argc, char **argv) {
 
 	StartReaper();
 	XInitThreads();
-	XrmInitialize();
 	ats_t ui = {0};
 	ui.use_icon = bow_archer;
-	globalcres = ResourcesCreate(&ui, &argc, argv);
+	ui.width = 1024;
+	ui.height = 512;
+	bow_t globalcres = bow_create(&ui, NULL);
 	if (globalcres) {
 		/*
 		* Default base URL; this allows filenames to be used on the

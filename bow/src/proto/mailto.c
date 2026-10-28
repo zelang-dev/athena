@@ -33,8 +33,6 @@
 
 #include "common.h"
 
-#include "MyDialog.h"
-
 #include "Bow.h"
 #include "BowSource.h"
 

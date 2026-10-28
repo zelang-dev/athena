@@ -36,6 +36,7 @@ else()
 	if(BUILD_APP)
 		set(app_files	${CMAKE_CURRENT_SOURCE_DIR}/src/main.c)
 	endif(BUILD_APP)
+
 	file(GLOB lib_files		${CMAKE_CURRENT_SOURCE_DIR}/src/bow/*.c)
 	file(GLOB proto_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/proto/*.c)
 	file(GLOB plain_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/plain/*.c)

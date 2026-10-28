@@ -56,14 +56,14 @@ struct av {
 
 struct av alist[] =
 {
-  { "left", ATTRIB_LEFT },
-  { "right", ATTRIB_RIGHT },
-  { "center", ATTRIB_CENTER },
-  { "top", ATTRIB_TOP },
-  { "bottom", ATTRIB_BOTTOM },
-  { "middle", ATTRIB_MIDDLE },
-  { "all", ATTRIB_ALL },
-  { NULL, ATTRIB_UNKNOWN }
+  {"left", ATTRIB_LEFT},
+  {"right", ATTRIB_RIGHT},
+  {"center", ATTRIB_CENTER},
+  {"top", ATTRIB_TOP},
+  {"bottom", ATTRIB_BOTTOM},
+  {"middle", ATTRIB_MIDDLE},
+  {"all", ATTRIB_ALL},
+  {NULL, ATTRIB_UNKNOWN}
 };
 
 static int alist_len = sizeof(alist) / sizeof(alist[0]);
@@ -71,11 +71,7 @@ static int alist_len = sizeof(alist) / sizeof(alist[0]);
 /*
  * HTMLAttributeToID
  */
-HTMLAttribID
-HTMLAttributeToID(p, name)
-MLElement p;
-char *name;
-{
+HTMLAttribID HTMLAttributeToID(MLElement p, char *name) {
 	char *value;
 	int i;
 
@@ -92,10 +88,7 @@ char *name;
 /*
  * HTMLGetTag
  */
-HTMLTag
-HTMLGetTag(p)
-MLElement p;
-{
+HTMLTag HTMLGetTag(MLElement p) {
 	int i;
 	char *name;
 
@@ -116,10 +109,7 @@ MLElement p;
 /*
  * HTMLTagIDToTag
  */
-HTMLTag
-HTMLTagIDToTag(tagid)
-HTMLTagID tagid;
-{
+HTMLTag HTMLTagIDToTag(HTMLTagID tagid) {
 	int i;
 
 	for (i = 0; i < tlist_len; i++) {
@@ -132,11 +122,7 @@ HTMLTagID tagid;
 /*
  * HTMLFindEnv
  */
-HTMLEnv
-HTMLFindEnv(li, tagid)
-HTMLInfo li;
-HTMLTagID tagid;
-{
+HTMLEnv HTMLFindEnv(HTMLInfo li, HTMLTagID tagid) {
 	HTMLEnv env;
 	GList list;
 
@@ -152,48 +138,32 @@ HTMLTagID tagid;
 /*
  * HTMLDelayLayout
  */
-void
-HTMLDelayLayout(li)
-HTMLInfo li;
-{
+void HTMLDelayLayout(HTMLInfo li) {
 	li->delayed++;
-	return;
 }
 
 /*
  * HTMLContinueLayout
  */
-void
-HTMLContinueLayout(li)
-HTMLInfo li;
-{
+void HTMLContinueLayout(HTMLInfo li) {
 	myassert(li->delayed > 0, "Layout was not delayed.");
 
 	li->delayed--;
 
 	if (li->delayed == 0) Boxify(li, li->topenv);
-
-	return;
 }
 
 /*
  * HTMLTagToID
  */
-HTMLTagID
-HTMLTagToID(tag)
-HTMLTag tag;
-{
+HTMLTagID HTMLTagToID(HTMLTag tag) {
 	return(tag->id);
 }
 
 /*
  * HTMLPopEnv
  */
-HTMLEnv
-HTMLPopEnv(li, tagid)
-HTMLInfo li;
-HTMLTagID tagid;
-{
+HTMLEnv HTMLPopEnv(HTMLInfo li, HTMLTagID tagid) {
 	HTMLEnv c;
 
 	/* if (tagid == TAG_DOCUMENT) abort(); */
@@ -216,12 +186,7 @@ HTMLTagID tagid;
 /*
  * HTMLStartEnv
  */
-void
-HTMLStartEnv(li, tagid, p)
-HTMLInfo li;
-HTMLTagID tagid;
-MLElement p;
-{
+void HTMLStartEnv(HTMLInfo li, HTMLTagID tagid, MLElement p) {
 	char *str;
 	HTMLTag tag;
 
@@ -234,29 +199,19 @@ MLElement p;
 		p = MLCreateTag(li->hs, str, strlen(str));
 	}
 	StartTag(li, tag, p);
-	return;
 }
 
 /*
  * HTMLEndEnv
  */
-void
-HTMLEndEnv(li, tagid)
-HTMLInfo li;
-HTMLTagID tagid;
-{
+void HTMLEndEnv(HTMLInfo li, HTMLTagID tagid) {
 	EndTag(li, HTMLTagIDToTag(tagid), NULL);
-	return;
 }
 
 /*
  * HTMLGetMaxWidth
  */
-unsigned int
-HTMLGetMaxWidth(li, env)
-HTMLInfo li;
-HTMLEnv env;
-{
+unsigned int HTMLGetMaxWidth(HTMLInfo li, HTMLEnv env) {
 	HTMLEnv c;
 
 	for (c = env; c != NULL; c = c->penv) {
@@ -269,10 +224,7 @@ HTMLEnv env;
 /*
  * PrintObject
  */
-static void
-PrintObject(ho)
-HTMLObject ho;
-{
+static void PrintObject(HTMLObject ho) {
 	char *text;
 	size_t len;
 	MLElementType mt;
@@ -287,19 +239,12 @@ HTMLObject ho;
 		if (mt == ML_ENDTAG) printf("End tag: %s\n", MLTagName(ho->o.p));
 		else printf("Begin tag: %s\n", MLTagName(ho->o.p));
 	}
-
-	return;
 }
 
 /*
  * AddObject
  */
-static void
-AddObject(li, hot, obj)
-HTMLInfo li;
-HTMLObjectType hot;
-void *obj;
-{
+static void AddObject(HTMLInfo li, HTMLObjectType hot, void *obj) {
 	HTMLEnv env;
 	HTMLObject ho;
 
@@ -332,19 +277,12 @@ void *obj;
 	 */
 	GListAddTail(env->olist, ho);
 	GListAddTail(env->slist, ho);
-
-	return;
 }
 
 /*
  * DoEnd
  */
-static void
-DoEnd(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+static void DoEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *name;
 	char *str;
 
@@ -370,12 +308,7 @@ MLElement p;
 /*
  * EndTag
  */
-static void
-EndTag(li, tag, p)
-HTMLInfo li;
-HTMLTag tag;
-MLElement p;
-{
+static void EndTag(HTMLInfo li, HTMLTag tag, MLElement p) {
 	HTMLEnv etop;
 	PendingEnd *pe;
 	HTMLEnv env;
@@ -435,12 +368,7 @@ MLElement p;
 /*
  * StartTag
  */
-static void
-StartTag(li, tag, p)
-HTMLInfo li;
-HTMLTag tag;
-MLElement p;
-{
+static void StartTag(HTMLInfo li, HTMLTag tag, MLElement p) {
 	HTMLEnv env;
 	HTMLEnv etop;
 	HTMLInsertStatus status;
@@ -473,11 +401,7 @@ MLElement p;
  *
  * This is where elements from the ML scanner come into the HTML parser.
  */
-void
-HTMLHandler(closure, p)
-void *closure;
-MLElement p;
-{
+void HTMLHandler(void *closure, MLElement p) {
 	HTMLInfo li = (HTMLInfo)closure;
 	HTMLTag tag;
 	MLElementType mt;
@@ -492,27 +416,21 @@ MLElement p;
 		 * Render the parsed HTML
 		 */
 		Boxify(li, li->topenv);
-		return;
-	} else if (mt == ML_DATA) AddObject(li, HTML_ELEMENT, p);
-	else if ((tag = HTMLGetTag(p)) != NULL) {
+		bow_set_title(li->wc, NULL);
+	} else if (mt == ML_DATA) {
+		AddObject(li, HTML_ELEMENT, p);
+	} else if ((tag = HTMLGetTag(p)) != NULL) {
 		if (mt == ML_ENDTAG) EndTag(li, tag, p);
 		else StartTag(li, tag, p);
 	} else if (li->printTags) {
 		printf("Unknown tag: %s\n", MLTagName(p));
 	}
-
-	return;
 }
 
 /*
  * BoxifyObject
  */
-static bool
-BoxifyObject(li, env, obj)
-HTMLInfo li;
-HTMLEnv env;
-HTMLObject obj;
-{
+static bool BoxifyObject(HTMLInfo li, HTMLEnv env, HTMLObject obj) {
 	HTMLTag tag;
 	HTMLEnv cenv;
 	CSSSelector cs;
@@ -566,11 +484,7 @@ HTMLObject obj;
 /*
  * Unboxify
  */
-static void
-Unboxify(li, env)
-HTMLInfo li;
-HTMLEnv env;
-{
+static void Unboxify(HTMLInfo li, HTMLEnv env) {
 	HTMLObject c;
 	GList t;
 
@@ -595,11 +509,7 @@ HTMLEnv env;
 /*
  * Boxify
  */
-bool
-Boxify(li, env)
-HTMLInfo li;
-HTMLEnv env;
-{
+bool Boxify(HTMLInfo li, HTMLEnv env) {
 	HTMLObject c;
 
 	myassert(li->delayed == 0, "yikes");
@@ -624,12 +534,7 @@ HTMLEnv env;
 /*
  * HTMLEnvAddBox
  */
-void
-HTMLEnvAddBox(li, env, box)
-HTMLInfo li;
-HTMLEnv env;
-HTMLBox box;
-{
+void HTMLEnvAddBox(HTMLInfo li, HTMLEnv env, HTMLBox box) {
 	HTMLEnv c;
 
 	for (c = env; c != NULL; c = c->penv) {
@@ -638,79 +543,47 @@ HTMLBox box;
 			break;
 		}
 	}
-
-	return;
 }
 
 /*
  * HTMLDocumentEnd
  */
-static void
-HTMLDocumentEnd(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+static void HTMLDocumentEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 	HTMLFinishFlowBox(li, li->firstbox);
-	return;
 }
 
 /*
  * HTMLDocumentBegin
  */
-static void
-HTMLDocumentBegin(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
-	return;
+static void HTMLDocumentBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
 }
 
 /*
  * HTMLDocumentWidth
  */
-static unsigned int
-HTMLDocumentWidth(li, env)
-HTMLInfo li;
-HTMLEnv env;
-{
+static unsigned int HTMLDocumentWidth(HTMLInfo li, HTMLEnv env) {
 	return(HTMLGetBoxWidth(li, li->firstbox));
 }
 
 /*
  * HTMLDocumentAddBox
  */
-static void
-HTMLDocumentAddBox(li, env, box)
-HTMLInfo li;
-HTMLEnv env;
-HTMLBox box;
-{
+static void HTMLDocumentAddBox(HTMLInfo li, HTMLEnv env, HTMLBox box) {
 	HTMLLayoutBox(li, li->firstbox, box);
-	return;
 }
 
 /*
  * HTMLFinish
  */
-void
-HTMLFinish(li)
-HTMLInfo li;
-{
+void HTMLFinish(HTMLInfo li) {
 	HTMLPopEnv(li, TAG_DOCUMENT);
 	HTMLEndEnv(li, TAG_DOCUMENT);
-
-	return;
 }
 
 /*
  * HTMLStart
  */
-void
-HTMLStart(li)
-HTMLInfo li;
-{
+void HTMLStart(HTMLInfo li) {
 	HTMLStartEnv(li, TAG_DOCUMENT,
 		MLCreateTag(li->hs,
 			"<xxx-document>", strlen("<xxx-document>")));
@@ -724,18 +597,12 @@ HTMLInfo li;
 	li->firstbox->x = li->lmargin;
 	li->firstbox->y = li->rmargin;
 	HTMLSetB(li->firstbox, BOX_TOPLEVEL);
-
-	return;
 }
 
 /*
  * HTMLGetIDEnv
  */
-HTMLEnv
-HTMLGetIDEnv(env, tid)
-HTMLEnv env;
-HTMLTagID tid;
-{
+HTMLEnv HTMLGetIDEnv(HTMLEnv env, HTMLTagID tid) {
 	HTMLEnv penv;
 	HTMLTagID ptid;
 

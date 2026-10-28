@@ -1,34 +1,9 @@
-/*
- * head.c
- *
- * Copyright (C) 1993-1997, John D. Kilburg <john@cs.unlv.edu>
- *
- * The button table code written by Jim.Rees@umich.edu.
- * The messed up parts were written by john.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- */
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 
 #include "common.h"
 #include <athena.h>
-
-#include "MyDialog.h"
-
 #include "BowP.h"
 #include "../bow_archer.xpm"
 
@@ -54,122 +29,6 @@ static void OFind _ArgProto((Widget, XtPointer, XtPointer));
 static void DFind _ArgProto((Widget, XtPointer, XtPointer));
 static void Find _ArgProto((Widget, XtPointer, XtPointer));
 
-static void CreateWidgets _ArgProto((BowContext));
-
-static void AddButtons _ArgProto((BowContext, Widget, char *));
-
-static void InstallAccelerators _ArgProto((Widget));
-
-static struct ButtonTable {
-	char *name;
-	Boolean toggle;
-	Widget w;
-	void (*cb)();
-	char *accel;
-} ButtonTable[] =
-{
-  {"quit",     False, NULL, Quit,     ":Meta<KeyUp>q"},
-  {"open",	False, NULL, Open,     ":Meta<KeyUp>o"},
-  {"home",	False, NULL, Home,     ":Meta<KeyUp>h"},
-  {"back",	False, NULL, Back,     ":Meta<KeyUp>b"},
-  {"reload",   False, NULL, Reload,   ":Meta<KeyUp>r"},
-  {"cancel",   False, NULL, Cancel,   ":Meta<KeyUp>c"},
-  {"dup",	False, NULL, Dup,      ":Meta<KeyUp>c"},
-  {"help",	False, NULL, Help,     ":Meta<KeyUp>H"},
-  {"addmark",	False, NULL, AddMark,  ":Meta<KeyUp>a"},
-  {"viewmark", False, NULL, ViewMark, ":Meta<KeyUp>v"},
-  {"bookmark", False, NULL, Bookmark, ":Meta<KeyUp>m"},
-  {"find",     False, NULL, Find,     ":Meta<KeyUp>f"},
-  {"source",   True,  NULL, Source,   ":Meta<KeyUp>s"},
-  {"save",     False, NULL, Save,     ":Meta<KeyUp>S"},
-  {NULL,       False, NULL, NULL,     NULL},
-};
-
-static void AddButtons(BowContext wc, Widget box, char *list) {
-	char name[256];
-	struct ButtonTable *btp;
-	char accel[256];
-
-	while (sscanf(list, " %[^,]", name) == 1) {
-	  /*
-	   * Find the listed button and create its widget
-	   */
-		for (btp = &ButtonTable[0]; btp->name != NULL; btp++) {
-			if (!strcasecmp(btp->name, name)) {
-				if (btp->toggle) {
-					snprintf(accel, sizeof(accel) - 1,
-						"%s: toggle() notify()", btp->accel);
-					btp->w = XtVaCreateManagedWidget(btp->name,
-						toggleWidgetClass, box,
-						XtNaccelerators,
-						XtParseAcceleratorTable(accel),
-						NULL);
-				} else {
-					snprintf(accel, sizeof(accel) - 1,
-						"%s: set() notify() unset()", btp->accel);
-					btp->w = XtVaCreateManagedWidget(btp->name,
-						commandWidgetClass, box,
-						XtNaccelerators,
-						XtParseAcceleratorTable(accel),
-						NULL);
-				}
-				XtAddCallback(btp->w, XtNcallback, btp->cb, (XtPointer)wc);
-				break;
-			}
-		}
-
-		if (!strcasecmp(name, "open")) wc->open = btp->w;
-		else if (!strcasecmp(name, "back")) wc->back = btp->w;
-		else if (!strcasecmp(name, "reload")) wc->reload = btp->w;
-		else if (!strcasecmp(name, "cancel")) wc->cancel = btp->w;
-		else if (!strcasecmp(name, "quit")) wc->quit = btp->w;
-		else if (!strcasecmp(name, "home")) wc->home = btp->w;
-		else if (!strcasecmp(name, "help")) wc->help = btp->w;
-		else if (!strcasecmp(name, "dup")) wc->dup = btp->w;
-		else if (!strcasecmp(name, "addmark")) wc->addmark = btp->w;
-		else if (!strcasecmp(name, "viewmark")) wc->viewmark = btp->w;
-		else if (!strcasecmp(name, "source")) wc->source = btp->w;
-		else if (!strcasecmp(name, "save")) wc->save = btp->w;
-		else if (!strcasecmp(name, "find")) wc->find = btp->w;
-		else if (!strcasecmp(name, "bookmark")) wc->bookmark = btp->w;
-
-		/*
-		 * Skip to the next comma-delimited item in the list
-		 */
-		while (*list && *list != ',')
-			list++;
-		if (*list == ',')
-			list++;
-	}
-
-	return;
-}
-
-/*
- * InstallAccelerators
- */
-static void InstallAccelerators(Widget w) {
-	struct ButtonTable *btp;
-
-	for (btp = &ButtonTable[0]; btp->name != NULL; btp++)
-		if (btp->w)
-			XtInstallAllAccelerators(w, btp->w);
-}
-
-#define BUTTON_LIST "quit, open, home, back, reload, source, save, bookmark, dup, find, cancel"
-
-/*
- * These are initialized in fallback.c
- */
-#define offset(field) XtOffset(BowContext, field)
-static XtResource       resource_list[] =
-{
-  {"button1Box", "BoxList", XtRString, sizeof(char *),
-		offset(button1Box), XtRString, BUTTON_LIST},
-  {"button2Box", "BoxList", XtRString, sizeof(char *),
-		offset(button2Box), XtRString, NULL},
-};
-
 /*
  * HeadCreate
  *
@@ -177,94 +36,93 @@ static XtResource       resource_list[] =
  */
 static void CreateWidgets(BowContext wc) {
 	Widget paned, box, form;
+	int tool_row = 0;
 
-	wc->toplevel = XtAppCreateShell(wc->athena->title, "Bow",
-		mwApplicationShellWidgetClass,
-		wc->cres->dpy,
-		NULL, 0);
-
-	//wc->toplevel = wc->athena->topLevel;
-	wc->athena->topLevel = wc->toplevel;
+	wc->toplevel = wc->athena->topLevel;
 	MwHighlightInit(wc->athena->topLevel);
-	XtGetApplicationResources(wc->toplevel, wc,
-		resource_list, XtNumber(resource_list),
-		NULL, 0);
 
 /*
  * Split `Main window` into grid layout, Menu,
- * Button & Url field, WWW content, and Status pane
+ * Button & Url field, WWW content, and Status pane.
+ *
+ * If `webview`, no menus, show toolbar `buttons` only if set.
  */
-	wc->athena->toolheight = 30;
-	ats_menubar_set(wc->athena, 2);
-	paned = wc->athena->grid;
+	if (wc->athena->webview_set) {
+		wc->athena->grid = ats_gridthree_set(wc->toplevel, (wc->athena->web->showtoolbar ? 30 : 0), 20);
+	} else {
+		tool_row = 1;
+		wc->athena->toolheight = 30;
+		ats_menubar_set(wc->athena, 2);
 
-	static menuitem_t menu_items[] = {
-		{110, "Open", (_menu_cb)Open, "o", NULL},
-		{111, "Save", (_menu_cb)Save, "S", NULL},
-		{__ATS_SEPERATOR__},
-		{112, "Quit", (_menu_cb)Quit, "q", NULL},
-	};
+		static menuitem_t menu_items[] = {
+			{110, "Open", (_menu_cb)Open, "O", NULL},
+			{111, "Save", (_menu_cb)Save, "S", NULL},
+			{__ATS_SEPERATOR__},
+			{112, "Quit", (_menu_cb)Quit, "Q", NULL},
+		};
 
-	static menuitem_t menu_items_two[] = {
-		{113, "Bookmark", (_menu_cb)Bookmark, "m", NULL},
-		{114, "Find", (_menu_cb)Find, "f", NULL},
-		{115, "Source", (_menu_cb)Source, "V", NULL},
-		{__ATS_SEPERATOR__},
-		{116, "Help", (_menu_cb)Help, "h", NULL},
-	};
+		static menuitem_t menu_items_two[] = {
+			{113, "Bookmark", (_menu_cb)Bookmark, "M", NULL},
+			{114, "Find", (_menu_cb)Find, "F", NULL},
+			{115, "Source", (_menu_cb)Source, "V", NULL},
+			{__ATS_SEPERATOR__},
+			{116, "Help", (_menu_cb)Help, "H", NULL},
+		};
 
-	wc->athena->bar_info->override = true;
-	wc->athena->bar_info->override_data = wc;
-	if (!ats_font_set(wc->athena, lucida)
-		|| !ats_menu_set(wc->athena, 0, menu_items, 4, 1, "File")
-		|| !ats_menu_set(wc->athena, 1, menu_items_two, 5, 2, "Tools")) {
-		fprintf(stderr, "Error: can't create `font` or `menu` items!\n");
-		return;
+		wc->athena->bar_info->override = true;
+		wc->athena->bar_info->override_data = wc;
+		if (!ats_font_set(wc->athena, helvetica)
+			|| !ats_menu_set(wc->athena, 0, menu_items, 4, 1, "File")
+			|| !ats_menu_set(wc->athena, 1, menu_items_two, 5, 2, "Tools")) {
+			fprintf(stderr, "Error: can't create `font` or `menu` items!\n");
+			return;
+		}
 	}
+	paned = wc->athena->grid;
 
 /*
  * Button pane(s)
  */
-	box = ats_navigation_set(paned, 1);
-	wc->athena->app->app_data = (void *)wc;
-	ats_toolbar_set(wc->athena, box, Home, "home.xpm", "Home", true);
-	ats_toolbar_set(wc->athena, box, Back, "back.xpm", "Back", true);
-	//toolcmd = ats_toolbar_set(wc->athena, form, cb_forward, "forward.xpm", "Forward", true);
-	ats_toolbar_set(wc->athena, box, Reload, "reload.xpm", "Reload", true);
-	ats_toolbar_set(wc->athena, box, Cancel, "cancel.xpm", "Cancel", true);
-	ats_toolbar_set(wc->athena, box, Open, "fld_open.xpm", "Open", true);
-	form = ats_toolbar_set(wc->athena, box, Save, "save.xpm", "Save", true);
+	if (!wc->athena->webview_set || wc->athena->web->showtoolbar) {
+		box = ats_navigation_set(paned, tool_row);
+		wc->athena->app->app_data = (void *)wc;
+		ats_toolbar_set(wc->athena, box, Home, "home.xpm", "Home", true);
+		ats_toolbar_set(wc->athena, box, Back, "back.xpm", "Back", true);
+		//toolcmd = ats_toolbar_set(wc->athena, form, cb_forward, "forward.xpm", "Forward", true);
+		ats_toolbar_set(wc->athena, box, Reload, "reload.xpm", "Reload", true);
+		ats_toolbar_set(wc->athena, box, Cancel, "cancel.xpm", "Cancel", true);
+		ats_toolbar_set(wc->athena, box, Open, "fld_open.xpm", "Open", true);
+		form = ats_toolbar_set(wc->athena, box, Save, "save.xpm", "Save", true);
 
-	/*
-	 * URL pane
-	 */
-	int numtools = 7;
-	wc->url = ats_textfield_set(box, "", 0, 1, (wc->athena->width - (38 * numtools)), 28);
-	ats_alignfield(wc->url, form, false);
+		/*
+		 * URL pane
+		 */
+		int numtools = 7;
+		wc->url = ats_textfield_set(box, "", 0, 1, (wc->athena->width - (38 * numtools)), 28);
+		ats_alignfield(wc->url, form, false);
 
-	form = ats_toolbar_set(wc->athena, box, Go, "preview.xpm", "Go", true);
-	ats_alignfield(form, wc->url, false);
-	XtOverrideTranslations(wc->url,	XtParseTranslationTable("<Key>Return: ReturnAction()"));
+		form = ats_toolbar_set(wc->athena, box, Go, "preview.xpm", "Go", true);
+		ats_alignfield(form, wc->url, false);
+		XtOverrideTranslations(wc->url, XtParseTranslationTable("<Key>Return: ReturnAction()"));
+	}
 
 /*
  * WWW widget
  */
-	box = ats_mainarea_set(wc->athena, paned, 2);
+	box = ats_mainarea_set(wc->athena, paned, tool_row + 1);
 
 /*
  * Message `statusline` pane.
  */
-	wc->message = ats_status_set(paned, "", 3, 500, 10);
+	wc->message = ats_status_set(paned, "", tool_row + 2, 500, 10);
 	ats_alignfield(wc->message, box, false);
 
 //	paned = ats_viewport_set(box, false, false);
 	wc->tstack = StackCreateToplevel(wc, box);
-
 	XtRealizeWidget(wc->toplevel);
-	ats_icon_set(wc->athena, "athena.xpm");
-
-	wc->athena->wmDeleteMessage = XInternAtom(XtDisplay(wc->toplevel), "WM_DELETE_WINDOW", False);
-	XSetWMProtocols(wc->cres->dpy, wc->athena->win, &wc->athena->wmDeleteMessage, 1);
+	wc->athena->win = XtWindow(wc->toplevel);
+	wc->athena->web->priv.web = wc;
+	wc->athena->wmDeleteMessage = ats_display_wm(wc->cres->dpy, wc->athena->win, wc->athena->use_icon, NULL, NULL);
 	XtOverrideTranslations(wc->toplevel, XtParseTranslationTable("<Message>WM_PROTOCOLS: DeleteAction()"));
 }
 
@@ -286,9 +144,7 @@ void HeadDestroy(BowContext wc) {
  */
 static void ClearDialogValue(Widget w, XtPointer cldata, XtPointer cbdata) {
 	if ((w = XtParent(w)) != NULL)
-		XtVaSetValues(w, XtNvalue, "", NULL);;
-
-	return;
+		XtVaSetValues(w, XtNvalue, "", NULL);
 }
 
 /*
@@ -372,8 +228,7 @@ static void Reload(Widget w, XtPointer cldata, XtPointer cbdata) {
 /*
  * Cancel
  */
-static void
-Cancel(Widget w, XtPointer cldata, XtPointer cbdata) {
+static void Cancel(Widget w, XtPointer cldata, XtPointer cbdata) {
 	BowContext wc = (BowContext)cldata;
 	StackCancel(wc->tstack);
 }
@@ -671,7 +526,6 @@ void HeadCreate(BowResources cres, BowRequest *first, BowRequest *lastresort) {
 void HeadPrintMessage(BowContext wc, char *message) {
 	if (message == NULL) message = "";
 	TextFieldSetString(wc->message, message);
-	return;
 }
 
 /*
@@ -679,6 +533,6 @@ void HeadPrintMessage(BowContext wc, char *message) {
  */
 void HeadPrintURL(BowContext wc, char *url) {
 	if (url == NULL) url = "";
-	TextFieldSetString(wc->url, url);
-	return;
+	if (wc->url)
+		TextFieldSetString(wc->url, url);
 }

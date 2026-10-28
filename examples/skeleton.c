@@ -135,14 +135,14 @@ void color_box(__ATS_MENU__) {
 
 void form_prompt(__ATS_MENU__) {
 	ats_t ui = {0};
-	ui_field form[] = {
+	ats_fill form[] = {
 			{IDC_FIELD1, field_text, "Name", "Free alternative to the Motif XmTextField", 290, 40, 1},
 			{IDC_FIELD2, field_secret, "Password", "Fixed Length", 130, 0, 8},
 			{IDC_FIELD3, field_text, NULL, "No Echo", 90, 6, 4},
 			{IDC_FIELD4, field_text, NULL, "No Pending Delete", 160, 16, 10},
 	};
 
-	ats_form(&ui, "Form Fill", form, 4, (ui_form_cb)data);
+	ats_dialog_box(&ui, "Form Fill", form, 4, (ats_form_cb)data);
 	ats_active(&ui);
 	ats_destroy(&ui);
 }

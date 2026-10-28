@@ -6,7 +6,7 @@
 typedef struct timedaction_s {
 	menuitem_t item;
 	menu_bar_t *bar;
-	ui_t *app;
+	app_t *app;
 	void *data;
 } timedaction_t;
 
@@ -166,7 +166,7 @@ static Pixmap pixmap_from_rgba(Display *dpy, Drawable drawable, int width, int h
 	return pixmap;
 }
 
-FORCEINLINE size_t str_length(ui_form_t field) {
+FORCEINLINE size_t str_length(ats_form field) {
 	size_t len = 0;
 	String value = TextFieldGetString(field);
 	if (value) {
@@ -176,57 +176,57 @@ FORCEINLINE size_t str_length(ui_form_t field) {
 	return len;
 }
 
-FORCEINLINE ui_bool str_is_regex(const char *pattern, ui_str_t match) {
+FORCEINLINE bool str_is_regex(const char *pattern, ats_str match) {
 	return regex_match(pattern, (const char *)match) == 0;
 }
 
-FORCEINLINE ui_bool is_ValidEmail(ui_str_t text) {
+FORCEINLINE bool is_ValidEmail(ats_str text) {
 	const char *emailRegEx = "A[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9]"
 		"(?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?";
 	return str_is_regex(emailRegEx, text);
 }
 
-FORCEINLINE ui_bool is_ValidUrl(ui_str_t text) {
+FORCEINLINE bool is_ValidUrl(ats_str text) {
 	return str_is_regex("(http|https)://((\\w)*|([0-9]*)|([-|_])*)+([\\.|/]((\\w)*|([0-9]*)|([-|_])*))+", text);
 }
 
-ui_bool is_ValidPassword(ui_form_t field) {
-	ui_field_str(passwordValue, field);
-	ui_bool capitalResult = str_is_regex(".*[A-Z]+.*", passwordValue);
-	ui_bool smallResult = str_is_regex(".*[a-z]+.*", passwordValue);
-	ui_bool numberResult = str_is_regex(".*[0-9]+.*", passwordValue);
+bool is_ValidPassword(ats_form field) {
+	field_str(passwordValue, field);
+	bool capitalResult = str_is_regex(".*[A-Z]+.*", passwordValue);
+	bool smallResult = str_is_regex(".*[a-z]+.*", passwordValue);
+	bool numberResult = str_is_regex(".*[0-9]+.*", passwordValue);
 
 	return capitalResult && smallResult && numberResult;
 }
 
-static FORCEINLINE ui_bool is_MinLength(ui_form_t text, ui_field form) {
-	return (0 == form.min) ? (ui_bool)true : (int)str_length(text) >= form.min;
+static FORCEINLINE bool is_MinLength(ats_form text, ats_fill form) {
+	return (0 == form.min) ? (bool)true : (int)str_length(text) >= form.min;
 }
 
-static FORCEINLINE ui_bool is_MaxLength(ui_form_t text, ui_field form) {
-	return (0 == form.max) ? (ui_bool)true : (int)str_length(text) <= form.max;
+static FORCEINLINE bool is_MaxLength(ats_form text, ats_fill form) {
+	return (0 == form.max) ? (bool)true : (int)str_length(text) <= form.max;
 }
 
-static FORCEINLINE ui_bool is_EmailValid(ui_form_t field, ui_field form) {
-	ui_field_str(value, field);
-	return form.kind == field_email ? is_ValidEmail(value) : (ui_bool)true;
+static FORCEINLINE bool is_EmailValid(ats_form field, ats_fill form) {
+	field_str(value, field);
+	return form.kind == field_email ? is_ValidEmail(value) : (bool)true;
 }
 
-static FORCEINLINE ui_bool is_UrlValid(ui_form_t field, ui_field form) {
-	ui_field_str(value, field);
-	return form.kind == field_url ? is_ValidUrl(value) : (ui_bool)true;
+static FORCEINLINE bool is_UrlValid(ats_form field, ats_fill form) {
+	field_str(value, field);
+	return form.kind == field_url ? is_ValidUrl(value) : (bool)true;
 }
 
-static FORCEINLINE ui_bool is_PasswordValid(ui_form_t text, ui_field form) {
-	return (form.kind == field_secret) ? is_ValidPassword(text) : (ui_bool)true;
+static FORCEINLINE bool is_PasswordValid(ats_form text, ats_fill form) {
+	return (form.kind == field_secret) ? is_ValidPassword(text) : (bool)true;
 }
 
-FORCEINLINE ui_bool str_field_valid(ui_form_t field, ui_field form) {
-	ui_bool minimunLengthValidly = is_MinLength(field, form);
-	ui_bool maximumLengthValidity = is_MaxLength(field, form);
-	ui_bool emailValidity = is_EmailValid(field, form);
-	ui_bool passwordValidity = is_PasswordValid(field, form);
-	ui_bool urlValidity = is_UrlValid(field, form);
+FORCEINLINE bool str_field_valid(ats_form field, ats_fill form) {
+	bool minimunLengthValidly = is_MinLength(field, form);
+	bool maximumLengthValidity = is_MaxLength(field, form);
+	bool emailValidity = is_EmailValid(field, form);
+	bool passwordValidity = is_PasswordValid(field, form);
+	bool urlValidity = is_UrlValid(field, form);
 	return (minimunLengthValidly && maximumLengthValidity && emailValidity && passwordValidity && urlValidity);
 }
 
@@ -234,7 +234,7 @@ static void hotkey_action(Widget w, XEvent *event, String *params, Cardinal *num
 	if (*num_params == 0)
 		return;
 
-	ui_t *app = (ui_t *)main_athena_info->app;
+	app_t *app = (app_t *)main_athena_info->app;
 	menu_bar_t *menubar = main_athena_info->bar_info;
 	int i, r, number_items, number_menu = menubar->num_menus;
 	for (r = 0; r < number_menu; r++) {
@@ -263,7 +263,7 @@ static void _hotkey(ats_t *ats, int k) {
 	if (k > 123)
 		return;
 
-	ui_t *app = (ui_t *)ats->app;
+	app_t *app = (app_t *)ats->app;
 	menu_bar_t *menubar = ats->bar_info;
 	int i, r, number_items, number_menu = menubar->num_menus;
 	for (r = 0; r < number_menu; r++) {
@@ -367,16 +367,13 @@ void ats_icon_set(ats_t *ui, const char *filepath) {
 }
 
 static void WMProtocols(Widget w, XEvent *ev, String *params, Cardinal *nparams) {
-	if (ev->type == ClientMessage
-		&& !strcmp(XGetAtomName(XtDisplay(w), ev->xclient.message_type), "WM_PROTOCOLS")) {
-	}
 }
 
 void verify_form(Widget self, XtPointer client, XtPointer data) {
 	ats_t *ui = (ats_t *)client;
-	ui_field form, *fill = (ui_field *)ui->app->app_array;
+	ats_fill form, *fill = (ats_fill *)ui->app->app_array;
 	int len, i, numFields = ui->app->code;
-	ui_form_cb verify = (ui_form_cb)ui->user_data;
+	ats_form_cb verify = (ats_form_cb)ui->user_data;
 	char *value;
 	Widget field;
 
@@ -447,8 +444,8 @@ FORCEINLINE void cancel_form(Widget self, XtPointer client, XtPointer data) {
 
 static void tab_editable_field(Widget self, XtPointer client, XtPointer data) {
 	ats_t *ui = (ats_t *)client;
-	ui_field *fill = (ui_field *)ui->app->app_array;
-	ui_form_t field;
+	ats_fill *fill = (ats_fill *)ui->app->app_array;
+	ats_form field;
 	int i, numFields = ui->app->code;
 	for (i = 0; i < numFields; i++) {
 		if (self == fill[i].index)
@@ -539,7 +536,7 @@ FORCEINLINE ats_wnd ats_richtext_set(ats_wnd on, int width, int height) {
  }
 
  FORCEINLINE ats_wnd ats_field_set(ats_t *ui, ats_wnd on, ats_wnd alignto, char *initial, int x, int y, int width,
-	 ui_field_type kind, _platform_cb activate) {
+	 field_types kind, _platform_cb activate) {
 	ats_wnd text = XtVaCreateManagedWidget("sans-serif", textfieldWidgetClass, on,
 		XtNwidth, width,
 		XtNstring, initial,
@@ -597,11 +594,13 @@ FORCEINLINE void ats_alignfield(ats_wnd self, ats_wnd to, bool is_vert) {
 		XtVaSetValues(self,	XtNright, XawRubber, XtNfromHoriz, to, NULL);
 }
 
-FORCEINLINE ats_wnd ats_viewportfull_set(const char *tag, ats_wnd on, ats_wnd alignto,
-	bool force_bars, bool allow_horizontal, bool is_vert) {
+FORCEINLINE ats_wnd ats_viewportfull_set(const char *tag, ats_wnd on, ats_wnd alignto, int width,
+	int height, bool force_bars, bool allowHoriz, bool alignVert) {
 	return XtVaCreateManagedWidget(tag,
 		viewportWidgetClass, on,
-		XtNallowHoriz, allow_horizontal,
+		XtNallowHoriz, allowHoriz,
+		XtNwidth, width,
+		XtNheight, height,
 		XtNallowVert, True,
 		XtNuseBottom, True,
 		XtNuseRight, True,
@@ -609,7 +608,7 @@ FORCEINLINE ats_wnd ats_viewportfull_set(const char *tag, ats_wnd on, ats_wnd al
 		XtNborder, 0,
 		XtNborderWidth, 0,
 		XtNbackground, 0xffffff,
-		(is_vert ? XtNfromVert : XtNfromHoriz), alignto,
+		(alignVert ? XtNfromVert : XtNfromHoriz), alignto,
 		NULL, 0);
 }
 
@@ -934,17 +933,12 @@ FORCEINLINE ats_wnd ats_dialogwindow_set(ats_wnd on, const char *tag, unsigned l
 	return dialog;
 }
 
-ats_wnd ats_modalwindow_set(ats_wnd on, const char *tagtitle) {
-	Display *dpy = XtDisplay(on);
-	Window win = XtWindow(on);
-	XWindowAttributes wa;
-
-	XGetWindowAttributes(dpy, win, &wa);
-	return XtVaAppCreateShell(tagtitle, tagtitle, overrideShellWidgetClass, dpy,
-		XtNx, wa.x + 1, XtNy, wa.y + 1, NULL);
+FORCEINLINE ats_wnd ats_modalwindow_set(ats_wnd on, const char *tagtitle) {
+	return XtVaAppCreateShell(tagtitle, tagtitle, overrideShellWidgetClass, XtDisplay(on),
+		XtNx, 25, XtNy, 25, NULL);
 }
 
-int ats_form(ats_t *ui, const char *title, Form *fill, int numFields, ui_form_cb verify) {
+int ats_dialog_box(ats_t *ui, const char *title, Form *fill, int numFields, ats_form_cb verify) {
 	int i, y = 0, max_width = 0, spacing = 30;
 
 	/* calculate form width based off longest field width */
@@ -1306,12 +1300,12 @@ void ats_editfile(ats_wnd self, XtPointer parent, XtPointer filepath) {
 	}
 }
 
-void ats_save_dialog(ui_t *self, _platform_cb save_handler) {
+void ats_save_dialog(app_t *self, _platform_cb save_handler) {
 	//XawAsciiSaveAsFile(XawTextGetSource(self), data);
 	//ResetSourceChanged(self);
 }
 
-void ats_open_dialog(ui_t *self, _platform_cb open_handler) {
+void ats_open_dialog(app_t *self, _platform_cb open_handler) {
 	ats_t ui = {0};
 	char *filter = "*";
 	char *dir = "./";
@@ -1583,7 +1577,8 @@ int ats_handler(ats_t *ui) {
 				ui->x = ui->xev.xmotion.x, ui->y = ui->xev.xmotion.y;
 				break;
 			case Expose:
-				XGetWindowAttributes(ui->dpy, ui->win, &(ui->bar_info->gwa));
+				if (ui->bar_info)
+					XGetWindowAttributes(ui->dpy, ui->win, &(ui->bar_info->gwa));
 				break;
 			case ClientMessage:
 				if (ui->xev.xclient.data.l[0] == ui->wmDeleteMessage) {
@@ -1634,7 +1629,7 @@ void ats_athena_set(ats_t *ui, char **xpm_icon, const char *title, int width, in
 }
 
 FORCEINLINE int ats_window(ats_t *ui, const char *title, int width, int height, int alloc_buffer) {
-	return ats_window_ex(ui, title, width, height, alloc_buffer, NULL, NULL, 0, false);
+	return ats_window_ex(ui, title, width, height, alloc_buffer, NULL, NULL, 0, false, false);
 }
 
 /* xtErrorHandler */
@@ -1647,8 +1642,12 @@ static FORCEINLINE void xtWarningHandler(String msg) {
 	fprintf(stderr, "Caught: %s\n", msg);
 }
 
-int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc_buffer,
+int ats_subwindow_ex(ats_t *ui, const char *title, int width, int height, int alloc_buffer,
 	String *resources, XtActionList add_actions, Cardinal num_actions, bool catch_err) {
+}
+
+int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc_buffer,
+	String *resources, XtActionList add_actions, Cardinal num_actions, bool catch_err, bool bypass) {
 	int argc = 0;
 	char **argv = NULL;
 
@@ -1664,6 +1663,7 @@ int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc
 	if (main_athena_info == NULL) {
 		XInitThreads();
 		XtToolkitThreadInitialize();
+		XrmInitialize();
 		ui->topLevel = XtVaOpenApplication(&ui->app_con, ui->title, NULL, 0,
 			&argc, argv, (resources ? resources : fallback), mwApplicationShellWidgetClass,
 			XtNwidth, ui->width, XtNheight, ui->height,
@@ -1716,33 +1716,35 @@ int ats_window_ex(ats_t *ui, const char *title, int width, int height, int alloc
 			XawFocusInstallActions(ui->app_con);
 		}
 
-		XtRealizeWidget(ui->topLevel);
-		ui->win = XtWindow(ui->topLevel);
-		if (catch_err)
-			XUnmapWindow(ui->dpy, ui->win);
+		if (!bypass) {
+			XtRealizeWidget(ui->topLevel);
+			ui->win = XtWindow(ui->topLevel);
+		}
 	}
 
-	XSelectInput(ui->dpy, ui->win, ExposureMask | KeyPressMask | KeyReleaseMask
-		| ButtonPressMask | ButtonReleaseMask | PointerMotionMask | StructureNotifyMask);
+	if (!bypass) {
+		XSelectInput(ui->dpy, ui->win, ExposureMask | KeyPressMask | KeyReleaseMask
+			| ButtonPressMask | ButtonReleaseMask | PointerMotionMask | StructureNotifyMask);
 
-	ui->wmDeleteMessage = XInternAtom(ui->dpy, "WM_DELETE_WINDOW", False);
-	XSetWMProtocols(ui->dpy, ui->win, &ui->wmDeleteMessage, 1);
-	if (alloc_buffer == -1) {
-		XSizeHints hints;
-		hints.flags = PSize | PMinSize | PMaxSize;
-		hints.min_width = hints.max_width = hints.base_width = width;
-		hints.min_height = hints.max_height = hints.base_height = height;
-		XSetWMNormalHints(ui->dpy, ui->win, &hints);
-	}
+		ui->wmDeleteMessage = XInternAtom(ui->dpy, "WM_DELETE_WINDOW", False);
+		XSetWMProtocols(ui->dpy, ui->win, &ui->wmDeleteMessage, 1);
+		if (alloc_buffer == -1) {
+			XSizeHints hints;
+			hints.flags = PSize | PMinSize | PMaxSize;
+			hints.min_width = hints.max_width = hints.base_width = width;
+			hints.min_height = hints.max_height = hints.base_height = height;
+			XSetWMNormalHints(ui->dpy, ui->win, &hints);
+		}
 
-	ats_icon_set(ui, ATHENA_ICON);
-	XStoreName(ui->dpy, ui->win, ui->title);
-	if (!catch_err)
+		ats_icon_set(ui, ATHENA_ICON);
+		XStoreName(ui->dpy, ui->win, ui->title);
 		XMapWindow(ui->dpy, ui->win);
+	}
 
 	if (!ui->buf) {
 		ui->wnd = ui->topLevel;
-		XSync(ui->dpy, 0);
+		if (!bypass)
+			XSync(ui->dpy, 0);
 	} else {
 		ui->img = XCreateImage(ui->dpy, DefaultVisual(ui->dpy, 0), 24, ZPixmap, 0,
 			(char *)ui->buf, ui->width, ui->height, 32, 0);

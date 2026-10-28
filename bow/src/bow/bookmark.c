@@ -28,8 +28,6 @@
 #include "BowP.h"
 #include "ml.h"
 
-#include "MyDialog.h"
-
 typedef struct {
 	char *title;
 	char *url;
@@ -600,7 +598,7 @@ BookmarkContext BookmarkCreateContext(BowResources cres) {
 	w = ats_buttonfull_set("rmgroup", fw, gvw, w, "Remove Group", BMRMGroup, (XtPointer)bc);
 
 	/* Mark widgets */
-	mvw = ats_viewportfull_set("markview", fw, w, false, false, true);
+	mvw = ats_viewportfull_set("markview", fw, w, 400, 100, false, false, true);
 	bc->mlw = ats_list_set("marklist", mvw, BMMarkList, (XtPointer)bc);
 	w = ats_buttonfull_set("addmark", fw, mvw, NULL, "Add Mark", BMAddMark, (XtPointer)bc);
 	w = ats_buttonfull_set("rmmark", fw, mvw, w, "Remove Mark", BMRMMark, (XtPointer)bc);

@@ -25,9 +25,6 @@
 #include <X11/StringDefs.h>
 #include <X11/Shell.h>
 
-
-#include "MyDialog.h"
-
 #include "BowP.h"
 
 typedef struct {
