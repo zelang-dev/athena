@@ -262,7 +262,7 @@ static void tooltip_show(Widget w, XtPointer p, XEvent *event, Boolean *n)
                         XtNheight, &height, (char *)0);
 		XTranslateCoordinates(XtDisplay(w),
 			XtWindow(w), DefaultRootWindow(XtDisplay(w)),
-			0, height+10,
+			0, height+5,
 			&x, &y,
 			&child);
                 XtVaGetValues(tw->tooltip.plabel,

@@ -612,7 +612,7 @@ FORCEINLINE ats_wnd ats_viewportfull_set(const char *tag, ats_wnd on, ats_wnd al
 		NULL, 0);
 }
 
-FORCEINLINE ats_wnd ats_viewport_set(ats_wnd on, bool force_bars, bool allow_horizontal) {
+FORCEINLINE ats_wnd ats_viewport_set(ats_wnd on, int row, bool force_bars, bool allow_horizontal) {
 	return XtVaCreateManagedWidget("viewport",
 		viewportWidgetClass, on,
 		XtNallowHoriz, allow_horizontal,
@@ -622,18 +622,21 @@ FORCEINLINE ats_wnd ats_viewport_set(ats_wnd on, bool force_bars, bool allow_hor
 		XtNforceBars, force_bars,
 		XtNborder, 0,
 		XtNborderWidth, 0,
+		XtNgridy, row,
+		XtNxLayout, "100%",
+		XtNborderWidth, 0,
 		XtNbackground, 0xffffff,
 		NULL, 0);
 }
 
 ats_wnd ats_mainarea_set(ats_t *ui, ats_wnd on, int row) {
-	XtResizeWidget(ui->topLevel, ui->width, ui->height + 80, 0);
 	return XtVaCreateManagedWidget("mainarea",
 		mwRudegridWidgetClass, on,
 		XtNgridy, row,
 		XtNx, 0,
 		XtNborder, 0,
 		XtNborderWidth, 0,
+		XtNorientation, XtorientVertical,
 		XtNxLayout, "100%",
 		NULL);
 }
@@ -1393,16 +1396,13 @@ void ats_active(ats_t *ui) {
 					ui->av.state = STATE_STOPPED;
 				pthread_mutex_unlock(&ui->av.media_mutex);
 			}
-		} else if (ui->webview_set && ui->xev.type == ConfigureNotify) {
+		} else if (ui->webview_set && ui->xev.type == ConfigureNotify && ui->web->priv.inspector_window) {
 			XConfigureEvent xce = ui->xev.xconfigure;
-			if (ui->webview_set && xce.width != ui->web->width) {
-				int numtools = 4;
+			if (xce.width != ui->web->width) {
+				int numtools = 7;
 				ui->web->width = xce.width;
-				if (ui->web->priv.inspector_window)
-					XtResizeWidget((Widget)ui->web->priv.inspector_window, (ui->web->width - (38 * numtools)), 28, 1);
-
-				//if (ui->web->priv.ats->user_data)
-				//	XtMoveWidget((Widget)ui->web->priv.ats->user_data, ui->web->width - 38, 0);
+				XtResizeWidget((Widget)ui->web->priv.inspector_window,
+					(ui->web->width - (40 * numtools)), 28, 0);
 			}
 		}
 	}
@@ -1549,6 +1549,17 @@ int ats_handler(ats_t *ui) {
 		XtAppNextEvent(ui->app_con, &ui->xev);
 		XtDispatchEvent(&ui->xev);
 		switch (ui->xev.type) {
+			case ConfigureNotify:
+				if (ui->webview_set && ui->web->priv.inspector_window) {
+					XConfigureEvent xce = ui->xev.xconfigure;
+					if (xce.width != ui->web->width) {
+						int numtools = 7;
+						ui->web->width = xce.width;
+						XtResizeWidget((Widget)ui->web->priv.inspector_window,
+							(ui->web->width - (40 * numtools)), 28, 0);
+					}
+				}
+				break;
 			case KeyPress:
 			case KeyRelease:
 				int m = ui->xev.xkey.state;

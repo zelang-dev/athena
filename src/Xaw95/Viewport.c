@@ -1050,10 +1050,7 @@ static Boolean GetGeometry(w, width, height)
     return (result == XtGeometryYes);
 }
 
-static XtGeometryResult PreferredGeometry(w, constraints, reply)
-    Widget w;
-    XtWidgetGeometry *constraints, *reply;
-{
+static XtGeometryResult PreferredGeometry(Widget w, XtWidgetGeometry *constraints, XtWidgetGeometry *reply) {
     if (((ViewportWidget)w)->viewport.child != NULL)
 	return XtQueryGeometry( ((ViewportWidget)w)->viewport.child,
 			       constraints, reply );
@@ -1062,20 +1059,7 @@ static XtGeometryResult PreferredGeometry(w, constraints, reply)
 }
 
 
-void
-#if NeedFunctionPrototypes
-XawViewportSetLocation (Widget gw,
-#if NeedWidePrototypes
-			double xoff, double yoff)
-#else
-			float xoff, float yoff)
-#endif
-#else
-XawViewportSetLocation (gw, xoff, yoff)
-    Widget gw;
-    float  xoff,yoff;
-#endif
-{
+void XawViewportSetLocation (Widget gw, float xoff, float yoff) {
     ViewportWidget w = (ViewportWidget) gw;
     Widget child = w->viewport.child;
     Position x, y;
@@ -1097,20 +1081,7 @@ XawViewportSetLocation (gw, xoff, yoff)
     MoveChild (w, -x, -y);
 }
 
-void
-#if NeedFunctionPrototypes
-XawViewportSetCoordinates (Widget gw,
-#if NeedWidePrototypes
-			   int x, int y)
-#else
-			   Position x, Position y)
-#endif
-#else
-XawViewportSetCoordinates (gw, x, y)
-    Widget gw;
-    Position x, y;
-#endif
-{
+void XawViewportSetCoordinates (Widget gw, Position x, Position y) {
     ViewportWidget w = (ViewportWidget) gw;
     Widget child = w->viewport.child;
 

@@ -50,7 +50,7 @@ static void CreateWidgets(BowContext wc) {
 		wc->athena->grid = ats_gridthree_set(wc->toplevel, (wc->athena->web->showtoolbar ? 30 : 0), 20);
 	} else {
 		tool_row = 1;
-		wc->athena->toolheight = 30;
+		wc->athena->toolheight = 28;
 		ats_menubar_set(wc->athena, 2);
 
 		static menuitem_t menu_items[] = {
@@ -85,22 +85,27 @@ static void CreateWidgets(BowContext wc) {
 	if (!wc->athena->webview_set || wc->athena->web->showtoolbar) {
 		box = ats_navigation_set(paned, tool_row);
 		wc->athena->app->app_data = (void *)wc;
-		ats_toolbar_set(wc->athena, box, Home, "home.xpm", "Home", true);
-		ats_toolbar_set(wc->athena, box, Back, "back.xpm", "Back", true);
-		//toolcmd = ats_toolbar_set(wc->athena, form, cb_forward, "forward.xpm", "Forward", true);
-		ats_toolbar_set(wc->athena, box, Reload, "reload.xpm", "Reload", true);
-		ats_toolbar_set(wc->athena, box, Cancel, "cancel.xpm", "Cancel", true);
-		ats_toolbar_set(wc->athena, box, Open, "fld_open.xpm", "Open", true);
-		form = ats_toolbar_set(wc->athena, box, Save, "save.xpm", "Save", true);
+		ats_toolbar_set(wc->athena, box, Home, "home.xpm", "Home", false);
+		ats_toolbar_set(wc->athena, box, Back, "back.xpm", "Back", false);
+		//toolcmd = ats_toolbar_set(wc->athena, form, cb_forward, "forward.xpm", "Forward", false);
+		ats_toolbar_set(wc->athena, box, Reload, "reload.xpm", "Reload", false);
+		ats_toolbar_set(wc->athena, box, Cancel, "cancel.xpm", "Cancel", false);
+		ats_toolbar_set(wc->athena, box, Open, "fld_open.xpm", "Open", false);
+		form = ats_toolbar_set(wc->athena, box, Save, "save.xpm", "Save", false);
 
 		/*
 		 * URL pane
 		 */
 		int numtools = 7;
-		wc->url = ats_textfield_set(box, "", 0, 1, (wc->athena->width - (38 * numtools)), 28);
+		wc->url = ats_textfield_set(box, "", 0, 1, (wc->athena->width - (40 * numtools)), 26);
+		XtVaSetValues(wc->url, XtNborderColor, 0xffffff, NULL);
 		ats_alignfield(wc->url, form, false);
+		wc->athena->webview_set = true;
+		wc->athena->web->width = wc->athena->width;
+		wc->athena->web->height = wc->athena->height;
+		wc->athena->web->priv.inspector_window = wc->url;
 
-		form = ats_toolbar_set(wc->athena, box, Go, "preview.xpm", "Go", true);
+		form = ats_toolbar_set(wc->athena, box, Go, "preview.xpm", "Go", false);
 		ats_alignfield(form, wc->url, false);
 		XtOverrideTranslations(wc->url, XtParseTranslationTable("<Key>Return: ReturnAction()"));
 	}
@@ -116,8 +121,8 @@ static void CreateWidgets(BowContext wc) {
 	wc->message = ats_status_set(paned, "", tool_row + 2, 500, 10);
 	ats_alignfield(wc->message, box, false);
 
-//	paned = ats_viewport_set(box, false, false);
-	wc->tstack = StackCreateToplevel(wc, box);
+	paned = ats_viewport_set(box, 0, false, false);
+	wc->tstack = StackCreateToplevel(wc, paned);
 	XtRealizeWidget(wc->toplevel);
 	wc->athena->win = XtWindow(wc->toplevel);
 	wc->athena->web->priv.context = wc;

@@ -592,7 +592,7 @@ BookmarkContext BookmarkCreateContext(BowResources cres) {
 
 	/* group widgets */
 	fw = ats_formwindow_set(bc->bw, 0);
-	gvw = ats_viewport_set(fw, false, false);
+	gvw = ats_viewport_set(fw, 0,  false, false);
 	bc->glw = ats_listfull_set("grouplist", gvw, NULL, 0, 1, 40, 2, true, true, BMGroupList, (XtPointer)bc);
 	w = ats_buttonfull_set("addgroup", fw, gvw, NULL, "Add Group", BMAddGroup, (XtPointer)bc);
 	w = ats_buttonfull_set("rmgroup", fw, gvw, w, "Remove Group", BMRMGroup, (XtPointer)bc);

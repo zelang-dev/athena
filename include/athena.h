@@ -730,7 +730,7 @@ C_API void ats_keybutton_set(ats_wnd on, XtEventHandler action, void *data);
 
 C_API ats_wnd ats_statusline_set(ats_wnd on, ats_wnd alignto, const char *initial, int x, int y, int width);
 C_API ats_wnd ats_status_set(ats_wnd on, const char *initial, int row, int width, int height);
-C_API ats_wnd ats_viewport_set(ats_wnd on, bool force_bars, bool allow_horizontal);
+C_API ats_wnd ats_viewport_set(ats_wnd on, int row, bool force_bars, bool allow_horizontal);
 C_API ats_wnd ats_viewportfull_set(const char *tag, ats_wnd on, ats_wnd alignto, int width,
 	int height, bool force_bars, bool allowHoriz, bool alignVert);
 C_API ats_wnd ats_mainarea_set(ats_t *ui, ats_wnd on, int row);
