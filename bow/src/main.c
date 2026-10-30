@@ -1,6 +1,5 @@
 #include <athena.h>
 #include "bow/BowP.h"
-#include "bow_archer.xpm"
 
 static void sigigh_handler(int sig) {}
 
@@ -14,11 +13,12 @@ int main(int argc, char **argv) {
 	StartReaper();
 	XInitThreads();
 	ats_t ui = {0};
-	ui.use_icon = bow_archer;
+	ui.title = "Bow";
 	ui.width = 1024;
 	ui.height = 512;
 	bow_t globalcres = bow_create(&ui);
 	if (globalcres) {
+		ui.web->priv.web = globalcres;
 		bow_window(globalcres, (argc > 1 ? argv[argc - 1] : NULL), NULL);
 
 		/*

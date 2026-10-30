@@ -89,15 +89,16 @@ static void CreateWidgets(BowContext wc) {
 		ats_toolbar_set(wc->athena, box, Back, "back.xpm", "Back", false);
 		//toolcmd = ats_toolbar_set(wc->athena, form, cb_forward, "forward.xpm", "Forward", false);
 		ats_toolbar_set(wc->athena, box, Reload, "reload.xpm", "Reload", false);
-		ats_toolbar_set(wc->athena, box, Cancel, "cancel.xpm", "Cancel", false);
-		ats_toolbar_set(wc->athena, box, Open, "fld_open.xpm", "Open", false);
-		form = ats_toolbar_set(wc->athena, box, Save, "save.xpm", "Save", false);
+		form = ats_toolbar_set(wc->athena, box, Cancel, "cancel.xpm", "Cancel", false);
+		if (!wc->athena->webview_set) {
+			ats_toolbar_set(wc->athena, box, Open, "fld_open.xpm", "Open", false);
+			form = ats_toolbar_set(wc->athena, box, Save, "save.xpm", "Save", false);
+		}
 
 		/*
 		 * URL pane
 		 */
-		int numtools = 7;
-		wc->url = ats_textfield_set(box, "", 0, 1, (wc->athena->width - (40 * numtools)), 26);
+		wc->url = ats_textfield_set(box, "", 0, 1, (wc->athena->width - (40 * (wc->athena->numtools + 1))), 26);
 		XtVaSetValues(wc->url, XtNborderColor, 0xffffff, NULL);
 		ats_alignfield(wc->url, form, false);
 		wc->athena->webview_set = true;
@@ -125,6 +126,10 @@ static void CreateWidgets(BowContext wc) {
 	wc->tstack = StackCreateToplevel(wc, paned);
 	XtRealizeWidget(wc->toplevel);
 	wc->athena->win = XtWindow(wc->toplevel);
+	wc->athena->app->app_data = wc->toplevel;
+	wc->athena->app->wnd = paned;
+	wc->athena->app->name = wc->athena->title;
+	wc->athena->web->priv.ats = wc->athena;
 	wc->athena->web->priv.context = wc;
 	wc->athena->wmDeleteMessage = ats_display_wm(wc->cres->dpy, wc->athena->win, wc->athena->use_icon, NULL, NULL);
 	XtOverrideTranslations(wc->toplevel, XtParseTranslationTable("<Message>WM_PROTOCOLS: DeleteAction()"));

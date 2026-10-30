@@ -564,7 +564,7 @@ struct ats_info_s {
 	webview_t web[1];
 #if __linux__
 	bool webview_set, icon_set, dragdrop_set, buttons_vert;
-	int screen, toolheight, autohide_visible;
+	int screen, toolheight, autohide_visible, numtools;
 	long long mouse_moved_time;
 	XtIntervalId autohide_id;
 	Pixel color;
@@ -949,16 +949,13 @@ WEBVIEW_API int webview_run(const char *title, const char *url, int width, int h
 WEBVIEW_API int webview_loop(webview_t *w, int blocking);
 WEBVIEW_API int webview_eval(webview_t *w, const char *js);
 WEBVIEW_API int webview_inject_css(webview_t *w, const char *css);
-WEBVIEW_API void webview_set_fullscreen(webview_t *w, int fullscreen);
-WEBVIEW_API void webview_set_color(webview_t *w, uint8_t r, uint8_t g,
-	uint8_t b, uint8_t a);
 WEBVIEW_API void webview_dialog(webview_t *w,
 	enum webview_dialog_type dlgtype, int flags,
 	const char *title, const char *arg,
 	char *result, size_t resultsz);
 WEBVIEW_API void webview_dispatch(webview_t *w, webview_dispatch_fn fn,
 	void *arg);
-WEBVIEW_API void webview_exit(webview_t *w);
+WEBVIEW_API void webview_destroy(webview_t *w);
 WEBVIEW_API void webview_debug(const char *format, ...);
 WEBVIEW_API void webview_print_log(const char *s);
 

@@ -24,6 +24,9 @@
 #include "url.h"
 #include <tls.h>
 #include <athena.h>
+#include <math.h>
+#include "quickjs.h"
+#include "quickjs-libc.h"
 
 typedef struct BowResourcesP   *BowResources;
 typedef struct BowContextP     *BowContext;

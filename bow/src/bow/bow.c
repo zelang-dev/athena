@@ -204,7 +204,8 @@ bow_t bow_create(ats_t *ui) {
 	if (!ResourceGetBool(res, "bow.printTaskInfo", &res->printTaskInfo))
 		res->printTaskInfo = false;
 
-	if (ats_window_ex(ui, "Bow", ui->width, ui->height, false, fallback_resources,
+	ui->use_icon = bow_archer;
+	if (ats_window_ex(ui, ui->title, ui->width, ui->height, false, fallback_resources,
 		actionsList, XtNumber(actionsList), true, true)) {
 		if (!globalcres)
 			globalcres = res;
@@ -222,7 +223,6 @@ bow_t bow_create(ats_t *ui) {
 
 		MPDestroy(tmp);
 		res->plainhooks = RenderGetHooks(res, "text/plain");
-		ui->web->priv.web = res;
 		return(res);
 	}
 

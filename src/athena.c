@@ -1399,10 +1399,9 @@ void ats_active(ats_t *ui) {
 		} else if (ui->webview_set && ui->xev.type == ConfigureNotify && ui->web->priv.inspector_window) {
 			XConfigureEvent xce = ui->xev.xconfigure;
 			if (xce.width != ui->web->width) {
-				int numtools = 7;
 				ui->web->width = xce.width;
 				XtResizeWidget((Widget)ui->web->priv.inspector_window,
-					(ui->web->width - (40 * numtools)), 28, 0);
+					(ui->web->width - (40 * ui->numtools)), 28, 0);
 			}
 		}
 	}
@@ -1553,10 +1552,9 @@ int ats_handler(ats_t *ui) {
 				if (ui->webview_set && ui->web->priv.inspector_window) {
 					XConfigureEvent xce = ui->xev.xconfigure;
 					if (xce.width != ui->web->width) {
-						int numtools = 7;
 						ui->web->width = xce.width;
 						XtResizeWidget((Widget)ui->web->priv.inspector_window,
-							(ui->web->width - (40 * numtools)), 28, 0);
+							(ui->web->width - (40 * ui->numtools)), 28, 0);
 					}
 				}
 				break;
@@ -1839,7 +1837,8 @@ ats_wnd ats_toolbar_set(ats_t *ui, ats_wnd on, _platform_cb button, char *imagef
 		XtNforeground, color, NULL);
 
 	XtVaSetValues(w, XtNbitmap, MwLoadPixmap(XtDisplay(on), color, imagefile), NULL);
-	if (ui->bar_info && ui->bar_info->override && ui->app->app_data)
+	if (ui->app->app_data && ((ui->bar_info && ui->bar_info->override))
+		|| (!ui->web->priv.context && ui->web->showtoolbar && ui->web->priv.web))
 		XtAddCallback(w, XtNcallback, button, (XtPointer)ui->app->app_data);
 	else
 		XtAddCallback(w, XtNcallback, button, (XtPointer)ui);
@@ -1847,6 +1846,7 @@ ats_wnd ats_toolbar_set(ats_t *ui, ats_wnd on, _platform_cb button, char *imagef
 	if (tip && showtip)
 		ats_tooltip_set(ui, w, tip);
 
+	ui->numtools++;
 	return w;
 }
 
@@ -2129,4 +2129,4 @@ int64_t ats_time(void) {
 	return time.tv_sec * 1000 + (time.tv_nsec / 1000000);
 }
 
-//#include "webview-athena.c"
+#include "webview-athena.c"

@@ -29,6 +29,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(BUILD_SHARED_LIBS "Build the library as a shared (dynamically-linked) " OFF)
 option(BUILD_NATIVE_XAW "Linux: Build using Native X11 Athena Widget Toolkit " OFF)
 option(BUILD_QUICKJS_NG "Build `fork` QuickJS-NG, not QuickJS, for `JavaScript` runtime" ON)
+option(BUILD_JS_ONLY "Build QuickJS-NG bypassing `CMakeLists.txt`, no executables" ON)
 option(BUILD_APP "Build standalone `Browser` App" OFF)
 
 if (WIN32 OR APPLE)
@@ -83,47 +84,6 @@ else()
 	find_package(Threads REQUIRED)
 	find_package(ZLIB REQUIRED)
 
-	if(BUILD_QUICKJS_NG)
-		find_package(quickjs QUIET)
-		if(NOT quickjs_FOUND)
-			set(ENV{QJS_BUILD_EXAMPLES} "OFF")
-			set(ENV{QJS_BUILD_LIBC} "ON")
-			FetchContent_Declare(quickjs
-				URL https://github.com/quickjs-ng/quickjs/archive/refs/tags/v0.17.0.zip
-				URL_MD5 502b324207f8080d8fe76ea27e809537
-			)
-			FetchContent_MakeAvailable(quickjs)
-		endif()
-		set(JAVASCRIPT qjs)
-	else()
-		FetchContent_Declare(quick_js
-			GIT_REPOSITORY https://github.com/bellard/quickjs.git
-			GIT_TAG master
-		)
-
-		set(QUICKJS_SOURCES
-			${quickjs_SOURCE_DIR}/quickjs.c
-			${quickjs_SOURCE_DIR}/libregexp.c
-			${quickjs_SOURCE_DIR}/libunicode.c
-			${quickjs_SOURCE_DIR}/cutils.c
-			${quickjs_SOURCE_DIR}/dtoa.c
-			${quickjs_SOURCE_DIR}/quickjs-libc.c
-		)
-
-		FetchContent_GetProperties(quick_js)
-		if(NOT quick_js_POPULATED)
-			FetchContent_Populate(quick_js)
-			if(BUILD_SHARED_LIBS)
-				add_library(quick_js SHARED ${QUICKJS_SOURCES})
-			else()
-				add_library(quick_js STATIC ${QUICKJS_SOURCES})
-			endif()
-			target_compile_definitions(quick_js PRIVATE _GNU_SOURCE CONFIG_VERSION="master")
-			#target_include_directories(quick_js PUBLIC ${quickjs_SOURCE_DIR})
-		endif()
-		set(JAVASCRIPT quick_js)
-	endif()
-
 	file(GLOB mowitz_files
 		${CMAKE_CURRENT_SOURCE_DIR}/src/Mowitz/*.c)
 	set(athena_files
@@ -176,12 +136,6 @@ else()
 		PRIVATE $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}
 		$<INSTALL_INTERFACE:${OPENSSL_INCLUDE_DIR})
 
-	if(BUILD_QUICKJS_NG)
-		target_include_directories(${PROJECT_NAME}
-			PRIVATE $<BUILD_INTERFACE:${quickjs_INCLUDE_DIRS}
-			$<INSTALL_INTERFACE:${quickjs_INCLUDE_DIRS})
-	endif()
-
 	if(BUILD_NATIVE_XAW)
 		target_compile_definitions(${PROJECT_NAME}
 			PUBLIC MOWITZ_DATA="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena"
@@ -193,7 +147,6 @@ else()
 			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m Threads::Threads
 			TIFF::TIFF avif ${AOM_LIBRARIES} ${WebP_LIBRARY} ${WebP_DECODER_LIBRARY}
 			ALSA::ALSA avformat avcodec swscale avutil swresample ${FFMPEG_LIBRARIES}
-			${JAVASCRIPT}
 			)
 	else()
 		target_compile_definitions(${PROJECT_NAME}
@@ -205,10 +158,12 @@ else()
 			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m Threads::Threads
 			TIFF::TIFF avif ${AOM_LIBRARIES} ${WebP_LIBRARY} ${WebP_DECODER_LIBRARY}
 			ALSA::ALSA avformat avcodec swscale avutil swresample ${FFMPEG_LIBRARIES}
-			${JAVASCRIPT}
 			)
 	endif(BUILD_NATIVE_XAW)
 endif()
+
+add_subdirectory(bow)
+target_link_libraries(${PROJECT_NAME} bow)
 
 add_library(ATHENA::WIDGETS ALIAS ${PROJECT_NAME})
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -222,8 +177,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 if(NOT CMAKE_VERSION VERSION_LESS 3.27.0)
 	set_target_properties(${PROJECT_NAME} PROPERTIES DLL_NAME_WITH_SOVERSION TRUE)
 endif()
-
-add_subdirectory(bow)
 
 set(_fmt TGZ)
 if(WIN32)
@@ -291,9 +244,9 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
 	DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}" )
 
 if(BUILD_NATIVE_XAW)
-	set(EXPORTER ${PROJECT_NAME} ${JAVASCRIPT})
+	set(EXPORTER ${PROJECT_NAME})
 else()
-	set(EXPORTER ${PROJECT_NAME} ${JAVASCRIPT} Xaw95)
+	set(EXPORTER ${PROJECT_NAME} Xaw95)
 endif(BUILD_NATIVE_XAW)
 
 message("-- Linux: Location for `fonts, xpm` and other required files:\t${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena")

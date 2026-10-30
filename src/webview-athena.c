@@ -8,18 +8,9 @@ struct hist {
 };
 
 int webview_create(ats_t *ui, webview_t *w) {
-	Widget toolcmd;
-	ui->use_icon = icon_32x32;
 	ui->webview_set = true;
-	if (ats_window(ui, w->title, w->width, w->height, false)) {
-		ui->app->app_data = (void *)w->priv.window;
-		ui->app->name = w->title;
-		ui->app->wnd = ui->topLevel;
-		ui->app->ats = ui;
-		ui->wnd = ui->topLevel;
-		w->priv.ats = ui;
-		w->priv.ats->win = ui->win;
-		w->priv.ats->dpy = ui->dpy;
+	if ((w->priv.web = bow_create(ui))) {
+		bow_window(w->priv.web, w->url, NULL);
 		return 1;
 	}
 
@@ -29,30 +20,7 @@ int webview_create(ats_t *ui, webview_t *w) {
 int webview_loop(webview_t *w, int blocking) {
 	blocking = 1;
 	if (w->priv.ats) {
-		XFlush(w->priv.ats->dpy);
-		for (;;) {
-			XtAppNextEvent(w->priv.ats->app_con, &w->priv.ats->xev);
-			XtDispatchEvent(&w->priv.ats->xev);
-			if (w->priv.ats->xev.xclient.type == ClientMessage
-				&& w->priv.ats->xev.xclient.data.l[0] == w->priv.ats->wmDeleteMessage) {
-				break;
-			} else if (w->priv.ats->xev.type == ConfigureNotify) {
-				XConfigureEvent xce = w->priv.ats->xev.xconfigure;
-				/* This event type is generated for a variety of
-				   happenings, so check whether the window has been
-				   resized. */
-				if (xce.width != w->width) {
-					int numtools = 4;
-					w->width = xce.width;
-					if (w->priv.inspector_window)
-						XtResizeWidget((Widget)w->priv.inspector_window, (w->width - (38 * numtools)), 28, 1);
-
-					//if (w->priv.ats->user_data)
-					//	XtMoveWidget((Widget)w->priv.ats->user_data, w->width - 38, 0);
-				}
-			}
-		}
-		XtUnrealizeWidget(w->priv.ats->topLevel);
+		ats_active(w->priv.ats);
 		blocking = 0;
 	}
 
@@ -61,13 +29,6 @@ int webview_loop(webview_t *w, int blocking) {
 
 FORCEINLINE void webview_set_title(webview_t *w, const char *title) {
 	bow_set_title(w->priv.context, title);
-}
-
-FORCEINLINE void webview_set_fullscreen(webview_t *w, int fullscreen) {
-}
-
-FORCEINLINE void webview_set_color(webview_t *w, uint8_t r, uint8_t g,
-	uint8_t b, uint8_t a) {
 }
 
 FORCEINLINE void webview_dialog(webview_t *w,
@@ -80,14 +41,13 @@ FORCEINLINE int webview_eval(webview_t *w, const char *js) {
 	return 0;
 }
 
-FORCEINLINE void webview_dispatch(webview_t *w, webview_dispatch_fn fn,
-	void *arg) {
+FORCEINLINE void webview_dispatch(webview_t *w, webview_dispatch_fn fn,	void *arg) {
 }
 
-FORCEINLINE void webview_exit(webview_t *w) {
+FORCEINLINE void webview_destroy(webview_t *w) {
 	if (w->priv.ats) {
-		XtDestroyApplicationContext(w->priv.ats->app_con);
-		fwfree(w->priv.forwhist);
+		ats_close(w->priv.ats);
+		w->priv.ats = NULL;
 	}
 }
 
@@ -98,10 +58,10 @@ FORCEINLINE int ats_webview(ats_t *ui, const char *title, const char *url,
 		return 0;
 	}
 
+	ui->title = title;
+	ui->width = width;
+	ui->height = height;
 	ui->web->url = url;
-	ui->web->title = title;
-	ui->web->width = width;
-	ui->web->height = height;
 	ui->web->resizable = 1;
 	ui->web->showtoolbar = showtoolbar;
 	ui->web->debug = 1;
@@ -109,11 +69,11 @@ FORCEINLINE int ats_webview(ats_t *ui, const char *title, const char *url,
 }
 
 FORCEINLINE void ats_webactive(ats_t *ui) {
-	webview_loop(ui->web, 1);
+		webview_loop(ui->web, 1);
 }
 
 FORCEINLINE void ats_webdestroy(ats_t *ui) {
-	webview_exit(ui->web);
+	webview_destroy(ui->web);
 }
 
 WEBVIEW_API int webview_run(const char *title, const char *url, int width, int height) {
