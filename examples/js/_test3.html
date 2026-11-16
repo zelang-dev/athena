@@ -1,0 +1,20 @@
+<body id="main_body">
+  <table cellpadding="10" border="1">
+    <tr><td>Motion Capture Canvas Frame Target</td></tr>
+  </table>
+
+<script>
+  console.log("Setting up continuous real-time pointer tracking hooks...");
+
+  const appBody = globalThis.document;
+
+  // Real-time tracking of hardware coordinates mapped into JavaScript execution contexts
+  appBody.addEventListener("mousemove", (event) => {
+     console.log("-> JavaScript processing movement coordinates: X:", event.clientX, "Y:", event.clientY);
+  });
+
+  appBody.addEventListener("click", (event) => {
+     console.log("-> Element Click registered at target location:", event.clientX, event.clientY);
+  });
+</script>
+</body>

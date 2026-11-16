@@ -31,23 +31,22 @@
 #include "BowP.h"
 
 struct BowRenderP {
-	MemPool            mp;              /* memory pool */
-	BowRenderHooks rh;              /* renderer hooks */
-	BowRenderHooks orh;             /* override renderer hooks */
-	void *rc;             /* renderer context */
-	void *orc;            /* override renderer context */
+	MemPool            mp;	/* memory pool */
+	BowRenderHooks rh;		/* renderer hooks */
+	BowRenderHooks orh;		/* override renderer hooks */
+	void *rc;				/* renderer context */
+	void *orc;				/* override renderer context */
 	BowContext     wc;
 	BowGUI         wd;
 	BowSink        wp;
-	BowRenderActionProc rap;        /* kludge */
-	void *rapc;           /* kludge context */
+	BowRenderActionProc rap;	/* kludge */
+	void *rapc;					/* kludge context */
 };
 
 /*
  * RenderDestroy
  */
-void RenderDestroy(BowRender wn)
-{
+void RenderDestroy(BowRender wn) {
 	if (wn->rh.destroy != NULL)
 		CMethod(wn->rh.destroy)(wn->rc);
 	MPDestroy(wn->mp);
@@ -56,7 +55,7 @@ void RenderDestroy(BowRender wn)
 /*
  * RenderAdd
  */
-void RenderAdd(BowRender wn){
+void RenderAdd(BowRender wn) {
 	if (wn->rh.add != NULL)
 		CMethod(wn->rh.add)(wn->rc);
 }
@@ -64,11 +63,9 @@ void RenderAdd(BowRender wn){
 /*
  * RenderEnd
  */
-void RenderEnd(BowRender wn)
-{
+void RenderEnd(BowRender wn) {
 	if (wn->rh.end != NULL)
 		CMethod(wn->rh.end)(wn->rc);
-
 }
 
 /*
@@ -94,28 +91,17 @@ int RenderSearch(BowRender wn, char *key, int mode) {
 /*
  * RenderCancel
  */
-void RenderCancel(wn)
-BowRender wn;
-{
+void RenderCancel(BowRender wn) {
 	if (wn->rh.cancel != NULL) {
 		CMethodVoid(wn->rh.cancel)(wn->rc);
 	}
-	return;
 }
 
 /*
  * RenderCreate
  */
-BowRender RenderCreate(wc, wd, wp, rh, orh, orc, state, rap, rapc)
-BowContext wc;
-BowGUI wd;
-BowSink wp;
-BowRenderHooks *rh, *orh;
-void *orc;
-void *state;
-BowRenderActionProc rap;
-void *rapc;
-{
+BowRender RenderCreate(BowContext wc, BowGUI wd, BowSink wp, BowRenderHooks *rh, BowRenderHooks *orh,
+	void *orc, void *state, BowRenderActionProc rap, void *rapc) {
 	BowRender wn;
 	MemPool mp;
 
@@ -151,20 +137,14 @@ void *rapc;
 	return(wn);
 }
 
-void *RenderGetState(wn)
-BowRender wn;
-{
+void *RenderGetState(BowRender wn) {
 	if (wn->rh.getstate != NULL) {
 		return(CMethodVoidPtr(wn->rh.getstate)(wn->rc));
 	}
 	return(NULL);
 }
 
-void RenderAction(wn, wr, action)
-BowRender wn;
-BowRequest *wr;
-char *action;
-{
+void RenderAction(BowRender wn, BowRequest *wr, char *action) {
 	if (wn->rap == NULL) {
 		if (strcmp("download", action) == 0) DownloadOpen(wn->wc->cres, wr);
 		else if (strcmp("external", action) == 0) ViewOpen(wn->wc->cres, wr);
@@ -172,65 +152,39 @@ char *action;
 	} else {
 		CMethod(wn->rap)(wn->rapc, wn, wr, action);
 	}
-
-	return;
 }
 
-BowGUI RenderToGUI(wn)
-BowRender wn;
-{
+BowGUI RenderToGUI(BowRender wn) {
 	return(wn->wd);
 }
 
-BowSink RenderToSink(wn)
-BowRender wn;
-{
+BowSink RenderToSink(BowRender wn) {
 	return(wn->wp);
 }
 
-BowContext RenderToContext(wn)
-BowRender wn;
-{
+BowContext RenderToContext(BowRender wn) {
 	return(wn->wc);
 }
 
-void RenderSendMessage(wn, message)
-BowRender wn;
-char *message;
-{
+void RenderSendMessage(BowRender wn, char *message) {
 	HeadPrintMessage(wn->wc, message);
-	return;
 }
 
-void RenderExpose(wn, x, y, width, height)
-BowRender wn;
-int x, y;
-unsigned int width, height;
-{
+void RenderExpose(BowRender wn, int x, int y, unsigned int width, unsigned int height) {
 	if (wn->rh.expose != NULL) {
 		CMethodBool(wn->rh.expose)(wn->rc, x, y, width, height);
 	}
-	return;
 }
 
-void RenderSelect(wn, x, y, action)
-BowRender wn;
-int x, y;
-char *action;
-{
+void RenderSelect(BowRender wn, int x, int y, char *action) {
 	if (wn->orc != NULL && wn->orh.select != NULL) {
 		CMethodBool(wn->orh.select)(wn->orc, x, y, action);
 	} else if (wn->rh.select != NULL) {
 		CMethodBool(wn->rh.select)(wn->rc, x, y, action);
 	}
-
-	return;
 }
 
-void RenderMotion(wn, x, y)
-BowRender wn;
-int x, y;
-{
+void RenderMotion(BowRender wn, int x, int y) {
 	if (wn->orc != NULL && wn->orh.motion != NULL) {
 		CMethodBool(wn->orh.motion)(wn->orc, x, y);
 	}

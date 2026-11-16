@@ -126,10 +126,7 @@ const void *a, *b;
 /*
  * DirEOF
  */
-static void
-DirEOF(fi)
-FileInfo *fi;
-{
+static void DirEOF(FileInfo *fi) {
 	int i;
 	char *f;
 	char **sa = fi->di.sa;
@@ -172,10 +169,7 @@ FileInfo *fi;
 /*
  * DirRead
  */
-static void
-DirRead(closure)
-void *closure;
-{
+static void DirRead(void *closure) {
 	FileInfo *fi = (FileInfo *)closure;
 	DIRSTUFF *de;
 	int salen;
@@ -236,10 +230,7 @@ void *closure;
 /*
  * FileRead
  */
-static void
-FileRead(closure)
-void *closure;
-{
+static void FileRead(void *closure) {
 	int readlen;
 	FileInfo *fi = (FileInfo *)closure;
 
@@ -276,10 +267,7 @@ void *closure;
 /*
  * FileCancel
  */
-static void
-FileCancel(closure)
-void *closure;
-{
+static void FileCancel(void *closure) {
 	FileInfo *fi = (FileInfo *)closure;
 
 	fi->stopped = true;
@@ -302,29 +290,19 @@ void *closure;
 /*
  * FileDestroy
  */
-static void
-FileDestroy(closure)
-void *closure;
-{
+static void FileDestroy(void *closure) {
 	FileInfo *fi = (FileInfo *)closure;
 
 	FileCancel(fi);
 	if (fi->data != NULL) free(fi->data);
 	if (fi->mh != NULL) MIMEDestroyHeader(fi->mh);
 	MPDestroy(fi->mp);
-
-	return;
 }
 
 /*
  * FileInit
  */
-static void *
-FileInit(ws, wr, class_closure)
-BowSource ws;
-BowRequest *wr;
-void *class_closure;
-{
+static void *FileInit(BowSource ws, BowRequest *wr, void *class_closure) {
 	FileInfo *fi;
 	struct stat s, as, *rs;
 	BowTaskProc func;
@@ -416,13 +394,7 @@ void *class_closure;
 	return(fi);
 }
 
-static void
-FileGetData(closure, data, len, mh)
-void *closure;
-byte **data;
-size_t *len;
-MIMEHeader *mh;
-{
+static void FileGetData(void *closure, byte **data, size_t *len, MIMEHeader *mh) {
 	FileInfo *fi = (FileInfo *)closure;
 
 	*data = fi->data;
@@ -435,10 +407,7 @@ MIMEHeader *mh;
 /*
  * InitModule_File
  */
-void
-InitModule_File(cres)
-BowResources cres;
-{
+void InitModule_File(BowResources cres) {
 	BowSourceHooks ph;
 
 	memset(&ph, 0, sizeof(ph));

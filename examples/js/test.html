@@ -1,0 +1,23 @@
+<center>
+    <table border="3" cellpadding="10" bgcolor="pink">
+        <tr><td><font face="sans-serif">Testing All Registered Listeners</font></td></tr>
+    </table>
+</center>
+
+<!-- Element tracking standard programmatic listener hooks -->
+<button id="standard-btn">Formal Hook Button</button>
+
+<!-- Element containing standard inline code snippets to parse -->
+<button id="inline-btn" onclick="console.log('Executed legacy inline alick string pipeline!');">Inline Hook Button</button>
+
+<script>
+    console.log('Setting up active JavaScript environments...');
+    var btn = document.getElementById("standard-btn");
+    if (btn) {
+        btn.addEventListener("click", function() {
+            console.log('Executed standard block cleanly!');
+        });
+    }
+
+ 	btn.dispatchEvent('standard-btn', 'click');
+</script>

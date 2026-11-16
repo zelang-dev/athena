@@ -41,15 +41,13 @@ static void ResourcesDestroy(BowResources cres) {
 		XrmDestroyDatabase(cres->db);
 
 	MPDestroy(cres->mp);
-
-	return;
 }
 
 static void Cleanup(BowResources cres) {
 	if (cres->bc != NULL)
 		BookmarkDestroyContext(cres->bc);
 
-	ResourcesDestroy(cres);
+	bow_free(cres);
 
 	if (cres->logfp != NULL) fclose(cres->logfp);
 
@@ -57,7 +55,6 @@ static void Cleanup(BowResources cres) {
 
 	MPPrintStatus();
 	GListPrintStatus();
-
 }
 
 /*
@@ -139,29 +136,60 @@ void bow_window(bow_t web, const char *url, char *secondary_url) {
 		(secondary_url ? RequestCreate(web, (char *)secondary_url, base_url) : NULL));
 }
 
+bow_t bow_alloc(void) {
+	bow_t res = NULL;
+	MemPool mp = MPCreate();
+	if (!(res = (bow_t)MPCGet(mp, sizeof(struct BowResourcesP))))
+		return NULL;
+
+	res->mp = mp;
+	res->ats = NULL;
+	res->qjs = NULL;
+	res->js_data = NULL;
+	res->sources = NULL;
+	res->sourcehooks = NULL;
+	res->renderhooks = NULL;
+	res->mimes = NULL;
+	res->timeouts = NULL;
+	res->oldtimeouts = NULL;
+	res->heads = NULL;
+	res->stacks = NULL;
+	res->cs = NULL;
+	return res;
+}
+
+FORCEINLINE void bow_free(bow_t web) {
+	if (!web)
+		return;
+
+	if (web->js_data)
+		free(web->js_data);
+
+	web->js_data = NULL;
+	ResourcesDestroy(web);
+}
+
 bow_t bow_create(ats_t *ui) {
 	bow_t res;
-	MemPool mp, tmp;
+	MemPool tmp;
 	char *f, *filename;
 	char *logfile;
 	char *dbfiles;
 	char db[1024], *p;
 	struct stat s;
 
-	mp = MPCreate();
-	if (!(res = (bow_t)MPCGet(mp, sizeof(struct BowResourcesP))))
+	if (!(res = bow_alloc()))
 		return NULL;
 
-	res->mp = mp;
 	res->ats = ui;
-	res->sources = GListCreateX(mp);
-	res->sourcehooks = GListCreateX(mp);
-	res->renderhooks = GListCreateX(mp);
-	res->mimes = GListCreateX(mp);
-	res->timeouts = GListCreateX(mp);
-	res->oldtimeouts = GListCreateX(mp);
-	res->heads = GListCreateX(mp);
-	res->stacks = GListCreateX(mp);
+	res->sources = GListCreateX(res->mp);
+	res->sourcehooks = GListCreateX(res->mp);
+	res->renderhooks = GListCreateX(res->mp);
+	res->mimes = GListCreateX(res->mp);
+	res->timeouts = GListCreateX(res->mp);
+	res->oldtimeouts = GListCreateX(res->mp);
+	res->heads = GListCreateX(res->mp);
+	res->stacks = GListCreateX(res->mp);
 
 	res->cs = SchedulerCreate();
 

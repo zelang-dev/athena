@@ -67,8 +67,18 @@ else()
 
 	find_package(OpenGL QUIET COMPONENTS GLX)
 	find_package(TIFF REQUIRED)
-	find_package(LIBAVIF REQUIRED COMPONENTS AOM)
-	find_package(WebP REQUIRED)
+	find_package(LIBAVIF QUIET COMPONENTS AOM)
+	if(NOT LIBAVIF_FOUND)
+		message(FATAL_ERROR "Avif not found, installation required:\n
+		`sudo apt install libavif-dev`\n
+		`dnf install libavif-devel`\n")
+	endif()
+	find_package(WebP QUIET)
+	if(NOT WebP_FOUND)
+		message(FATAL_ERROR "WebP not found, installation required:\n
+		`sudo apt install libwebp-dev`\n
+		`dnf install libwebp-devel`\n")
+	endif()
 	find_package(FFmpeg QUIET)
 	if(NOT FFmpeg_FOUND)
 		message(FATAL_ERROR "FFmpeg not found, installation required:\n
@@ -113,28 +123,28 @@ else()
 		PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 	target_include_directories(${PROJECT_NAME}
-		PRIVATE $<BUILD_INTERFACE:${WebP_INCLUDE_DIRS}
-		$<INSTALL_INTERFACE:${WebP_INCLUDE_DIRS})
+		PRIVATE $<BUILD_INTERFACE:${WebP_INCLUDE_DIRS}>
+		$<INSTALL_INTERFACE:${WebP_INCLUDE_DIRS}>)
 
 	target_include_directories(${PROJECT_NAME}
-		PRIVATE $<BUILD_INTERFACE:${libavif_INCLUDE_DIRS}
-		$<INSTALL_INTERFACE:${libavif_INCLUDE_DIRS})
+		PRIVATE $<BUILD_INTERFACE:${libavif_INCLUDE_DIRS}>
+		$<INSTALL_INTERFACE:${libavif_INCLUDE_DIRS}>)
 
 	target_include_directories(${PROJECT_NAME}
-		PRIVATE $<BUILD_INTERFACE:${TIFF_INCLUDE_DIRS}
-		$<INSTALL_INTERFACE:${TIFF_INCLUDE_DIRS})
+		PRIVATE $<BUILD_INTERFACE:${TIFF_INCLUDE_DIRS}>
+		$<INSTALL_INTERFACE:${TIFF_INCLUDE_DIRS}>)
 
 	target_include_directories(${PROJECT_NAME}
-		PRIVATE $<BUILD_INTERFACE:${${FFMPEG_INCLUDE_DIRS}}
-		$<INSTALL_INTERFACE:${${FFMPEG_INCLUDE_DIRS}})
+		PRIVATE $<BUILD_INTERFACE:${${FFMPEG_INCLUDE_DIRS}}>
+		$<INSTALL_INTERFACE:${${FFMPEG_INCLUDE_DIRS}}>)
 
 	target_include_directories(${PROJECT_NAME}
-		PRIVATE $<BUILD_INTERFACE:${${ALSA_INCLUDE_DIRS}}
-		$<INSTALL_INTERFACE:${${ALSA_INCLUDE_DIRS}})
+		PRIVATE $<BUILD_INTERFACE:${${ALSA_INCLUDE_DIRS}}>
+		$<INSTALL_INTERFACE:${${ALSA_INCLUDE_DIRS}}>)
 
 	target_include_directories(${PROJECT_NAME}
-		PRIVATE $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}
-		$<INSTALL_INTERFACE:${OPENSSL_INCLUDE_DIR})
+		PRIVATE $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}>
+		$<INSTALL_INTERFACE:${OPENSSL_INCLUDE_DIR}>)
 
 	if(BUILD_NATIVE_XAW)
 		target_compile_definitions(${PROJECT_NAME}
@@ -143,7 +153,6 @@ else()
 			PUBLIC NATIVE_XAW=1)
 		target_link_libraries(${PROJECT_NAME}
 			Xaw X11::Xmu X11::Xt Xpm X11::X11 OpenGL::GL OpenGL::GLU
-			#Xaw X11::Xmu X11::Xt Xpm X11::X11
 			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m Threads::Threads
 			TIFF::TIFF avif ${AOM_LIBRARIES} ${WebP_LIBRARY} ${WebP_DECODER_LIBRARY}
 			ALSA::ALSA avformat avcodec swscale avutil swresample ${FFMPEG_LIBRARIES}
@@ -154,7 +163,6 @@ else()
 			PUBLIC DEFAULT_PIXPATH="${CMAKE_INSTALL_FULL_DATAROOTDIR}/athena/pixmaps")
 		target_link_libraries(${PROJECT_NAME}
 			Xaw95 X11::Xmu X11::Xt Xpm X11::X11 OpenGL::GL OpenGL::GLU
-			#Xaw95 X11::Xmu X11::Xt Xpm X11::X11
 			${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} opentls crypto dl m Threads::Threads
 			TIFF::TIFF avif ${AOM_LIBRARIES} ${WebP_LIBRARY} ${WebP_DECODER_LIBRARY}
 			ALSA::ALSA avformat avcodec swscale avutil swresample ${FFMPEG_LIBRARIES}
@@ -218,7 +226,7 @@ set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PROJECT_NAME}")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY ${PROJECT_NAME})
 
 set(CPACK_PACKAGE_CONTACT "lstubbs@zelang.dev")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Lawrence Stubbs <${CPACK_PACKAGE_CONTACT}>")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Lawrence Stubbs ${CPACK_PACKAGE_CONTACT}")
 set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${PROJECT__ARCH}")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libasound2-dev,libavcodec-dev,libavformat-dev,libswscale-dev,libavutil-dev,libglx-dev,libglu1-mesa-dev,libx11-dev,libxt-dev")

@@ -38,7 +38,7 @@ struct HTMLTagP {
 	HTMLTagAddBoxProc a;
 	HTMLTagWidthProc w;
 
-	/* flags for whatever seems convienent to make a flag */
+	/* flags for whatever seems convenient to make a flag */
 	HTMLMarkupFlags mflags;
 
 	/* markup handling functions */
@@ -175,7 +175,7 @@ static struct HTMLTagP tlist[] =
   { "style", TAG_STYLE, NULL, NULL, NULL, NULL, NULL,
 	MARKUP_CLAMP,
 	NULL, NULL, NULL },
-  { "script", TAG_SCRIPT, NULL, NULL, NULL, NULL, NULL,
+  { "script", TAG_SCRIPT, HTMLScript, HTMLScriptEnd, HTMLScriptExec, NULL, NULL,
 	MARKUP_CLAMP,
 	NULL, NULL, NULL },
   { "base", TAG_BASE, HTMLBase, NULL, NULL, NULL, NULL,

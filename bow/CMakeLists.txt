@@ -43,8 +43,8 @@ else()
 			set(ENV{QJS_BUILD_EXAMPLES} "OFF")
 			set(ENV{QJS_BUILD_LIBC} "ON")
 			FetchContent_Declare(quickjs
-				URL https://github.com/quickjs-ng/quickjs/archive/refs/tags/v0.17.0.zip
-				URL_MD5 502b324207f8080d8fe76ea27e809537
+				URL https://github.com/quickjs-ng/quickjs/archive/refs/tags/v0.18.0.zip
+				URL_MD5 607b15e9adc0d0ab0b563112fe5a09e8
 			)
 			if(BUILD_JS_ONLY)
 				set(JAVASCRIPT quickjs)
@@ -99,6 +99,8 @@ else()
 			GIT_REPOSITORY https://github.com/bellard/quickjs.git
 			GIT_TAG master
 		)
+
+		FetchContent_GetProperties(quickjs)
 		set(QUICKJS_SOURCES
 			${quickjs_SOURCE_DIR}/quickjs.c
 			${quickjs_SOURCE_DIR}/libregexp.c
@@ -107,7 +109,8 @@ else()
 			${quickjs_SOURCE_DIR}/dtoa.c
 			${quickjs_SOURCE_DIR}/quickjs-libc.c
 		)
-		FetchContent_GetProperties(quickjs)
+
+		file(STRINGS ${quickjs_SOURCE_DIR}/VERSION quickjs_h)
 		if(NOT quickjs_POPULATED)
 			FetchContent_Populate(quickjs)
 			if(BUILD_SHARED_LIBS)
@@ -116,10 +119,9 @@ else()
 				add_library(quickjs STATIC ${QUICKJS_SOURCES})
 			endif()
 			set_property(TARGET quickjs PROPERTY C_STANDARD 99)
-			target_compile_definitions(quickjs PRIVATE _GNU_SOURCE CONFIG_VERSION="master")
+			target_compile_definitions(quickjs PRIVATE _GNU_SOURCE CONFIG_VERSION="${quickjs_h}")
 			target_include_directories(quickjs PRIVATE ${quickjs_SOURCE_DIR})
 		endif()
-		file(STRINGS ${quickjs_SOURCE_DIR}/VERSION quickjs_h)
 		set_target_properties(${JAVASCRIPT} PROPERTIES
 			VERSION ${quickjs_h}
 			SOVERSION ${quickjs_h}
@@ -154,6 +156,9 @@ else()
 
 	if(BUILD_NATIVE_XAW)
 		target_compile_definitions(${PROJECT_NAME} PUBLIC NATIVE_XAW=1)
+	endif()
+	if(BUILD_QUICKJS_NG)
+		target_compile_definitions(${PROJECT_NAME} PUBLIC USE_QUICKJS_NG=1)
 	endif()
 
 	if(BUILD_SHARED_LIBS)

@@ -138,6 +138,8 @@ static struct BowType def_mtlist[] =
   { "text/html", "html" },
   { "text/html", "htm" },
   { "text/plain", "txt" },
+  { "text/javascript", "mjs" },
+  { "text/javascript", "js" },
   { "image/gif", "gif" },
   { "image/xbm", "xbm" },
   { "image/x-svg", "svg" },

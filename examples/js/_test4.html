@@ -1,0 +1,25 @@
+<body id="main_body">
+  <!-- Legacy table layout width/height parameters mapped inside calculation passes -->
+  <table width="600" cellpadding="12" id="table_container">
+    <tr id="row_1">
+      <td id="cell_alpha">Alpha Item Block</td>
+      <td id="cell_beta">Beta Item Block</td>
+    </tr>
+  </table>
+
+<script>
+  console.log("Exposing hardware layout collision bindings...");
+  const bodyNode = this.document;
+
+  // Track movement across calculated element boundaries
+  bodyNode.addEventListener("mousemove", (event) => {
+     console.log("Mouse pointer over element target ID:", event.targetId, "Coordinates:", event.clientX, event.clientY);
+  });
+
+  // Track explicit clicks hitting precise target IDs determined by C calculations
+  bodyNode.addEventListener("click", (event) => {
+     console.log("!!! Target selection triggered explicitly on element ID:", event.targetId);
+  });
+ bodyNode.dispatchEvent('main_body', 'click');
+</script>
+</body>

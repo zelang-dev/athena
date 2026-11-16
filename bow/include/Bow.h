@@ -20,15 +20,18 @@
 #ifndef __BOW_H__
 #define __BOW_H__ 1
 
+#ifndef _GNU_SOURCE
+#	define _GNU_SOURCE
+#endif
+
 #include "common.h"
 #include "url.h"
 #include <tls.h>
 #include <athena.h>
-#include <math.h>
 #include "quickjs.h"
 #include "quickjs-libc.h"
 
-typedef struct BowResourcesP   *BowResources;
+typedef struct BowResourcesP *BowResources;
 typedef struct BowContextP     *BowContext;
 
 typedef struct BowTaskP      *BowTask;

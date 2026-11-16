@@ -17,8 +17,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#ifndef __BOWP_H__
-#define __BOWP_H__
+#ifndef __BOW_P_H__
+#define __BOW_P_H__
 
 #include "common.h"
 
@@ -33,85 +33,82 @@ typedef struct BowCacheP *BowCache;
 typedef struct BookmarkContextP *BookmarkContext;
 typedef struct BowSchedulerP *BowScheduler;
 
-struct BowContextP
-{
-  MemPool mp;
+struct BowContextP {
+	MemPool mp;
 
-  Widget toplevel;
-  Widget file;
-  Widget www;
-  Widget open;
-  Widget back;
-  Widget reload;
-  Widget cancel;
-  Widget quit;
-  Widget home;
-  Widget addmark;
-  Widget viewmark;
-  Widget message;
-  Widget dup;
-  Widget source;
-  Widget save;
-  Widget openpop;
-  Widget savepop;
-  Widget findpop;
-  Widget bookpop;
-  Widget url;
-  Widget help;
-  Widget bookmark;
-  Widget find;
+	Widget toplevel;
+	Widget file;
+	Widget www;
+	Widget open;
+	Widget back;
+	Widget reload;
+	Widget cancel;
+	Widget quit;
+	Widget home;
+	Widget addmark;
+	Widget viewmark;
+	Widget message;
+	Widget dup;
+	Widget source;
+	Widget save;
+	Widget openpop;
+	Widget savepop;
+	Widget findpop;
+	Widget bookpop;
+	Widget url;
+	Widget help;
+	Widget bookmark;
+	Widget find;
 
-  BowStack       tstack;  /* top stack */
-  BowStack       cstack;  /* current stack */
-  MemPool            tmp;
+	BowStack       tstack;  /* top stack */
+	BowStack       cstack;  /* current stack */
+	MemPool			tmp;
 
-  BowResources cres;
-
-  char *button1Box;           /* list of widgets in the first button box */
-  char *button2Box;           /* list of widgets in the second button box */
-  ats_t *athena;				  /* `athena` handle */
+	BowResources cres;
+	ats_t *athena;			/* `athena` handle */
 };
 
 /*
  * Bow runtime context
  */
-struct BowResourcesP
-{
-  int              maxiocnt;          /* maximum IOs */
-  bool             printLoadMessages;
-  bool             printTaskInfo;
-  MemPool          mp;                /* memory pool */
-  XrmDatabase      db;                /* message database */
+struct BowResourcesP {
+	int              maxiocnt;          /* maximum IOs */
+	bool             printLoadMessages;
+	bool             printTaskInfo;
+	MemPool          mp;                /* memory pool */
+	XrmDatabase      db;                /* message database */
 
-  BowCache     cc;
+	BowCache     cc;
 
-  /* Lists of stuff we need to know about */
-  GList            sourcehooks;       /* list of registered sources */
-  GList            renderhooks;       /* list of registered renderers */
-  GList            mimes;             /* list of mimes */
-  GList            renderers;         /* list of active renderers */
-  GList            sources;           /* list of active sources */
-  GList            timeouts;          /* list of timeouts */
-  GList            oldtimeouts;       /* list of old timeouts */
-  GList            heads;             /* list of heads */
-  GList            stacks;            /* list of stacks */
+	/* Lists of stuff we need to know about */
+	GList            sourcehooks;       /* list of registered sources */
+	GList            renderhooks;       /* list of registered renderers */
+	GList            mimes;             /* list of mimes */
+	GList            renderers;         /* list of active renderers */
+	GList            sources;           /* list of active sources */
+	GList            timeouts;          /* list of timeouts */
+	GList            oldtimeouts;       /* list of old timeouts */
+	GList            heads;             /* list of heads */
+	GList            stacks;            /* list of stacks */
 
-  /* */
-  void             (*authui_callback)();
-  void             *authui_closure;
+	/* */
+	void			(*authui_callback)();
+	void 			*authui_closure;
 
-  XtAppContext     appcon;            /* X application context */
-  size_t           id;                /* next unique ID */
+	XtAppContext     appcon;            /* X application context */
+	size_t           id;                /* next unique ID */
 
-  Display          *dpy;
+	Display *dpy;
 
-  BowScheduler cs;                /* task scheduler context */
-  BowContext   bmcontext;         /* head associated with bookmarks */
-  BowRenderHooks  *plainhooks;    /* plain text renderer */
-  BookmarkContext  bc;                /* bookmark routines context */
-  FILE             *logfp;            /* log file */
-  int              refcount;          /* reference count */
-  ats_t 		   *ats;			  /* `athena` handle */
+	BowScheduler 	cs;					/* task scheduler context */
+	BowContext   	bmcontext;			/* head associated with bookmarks */
+	BowRenderHooks 	*plainhooks;		/* plain text renderer */
+	BookmarkContext  bc;				/* bookmark routines context */
+	FILE *logfp;			/* log file */
+	int	refcount;          	/* reference count */
+	ats_t *ats;				/* `athena` handle */
+	Bow_QJS *qjs;			/* `Bow_QJS` integration global handle */
+	void *js_data;			/* `data` from `qjs_fetchfile/qjs_readfile` */
 };
 
 /*
@@ -133,13 +130,13 @@ BowSourceHooks *CacheGetHooks _ArgProto((BowCache));
  * data.c
  */
 void SourceGetData _ArgProto((BowSource,
-			      byte **, size_t *, MIMEHeader *));
+	byte **, size_t *, MIMEHeader *));
 
 /*
  * gui.c
  */
 BowGUI GUICreateToplevel _ArgProto((BowContext, Widget,
-					GUISizeCallback, void *));
+	GUISizeCallback, void *));
 void GUIReset _ArgProto((BowGUI));
 void GUIAddRender _ArgProto((BowGUI, BowRender));
 
@@ -155,13 +152,13 @@ void BookmarkShow _ArgProto((BookmarkContext));
  * head.c
  */
 void HeadCreate _ArgProto((BowResources, BowRequest *,
-			   BowRequest *));
+	BowRequest *));
 void HeadDestroy _ArgProto((BowContext));
 void HeadPrintMessage _ArgProto((BowContext, char *));
 void HeadPrintURL _ArgProto((BowContext, char *));
 
 Widget CreateDialog _ArgProto((Widget, char *,
-			       void (*)(), void (*)(), void (*)(), XtPointer));
+	void (*)(), void (*)(), void (*)(), XtPointer));
 Widget GetDialogWidget _ArgProto((Widget));
 
 /*

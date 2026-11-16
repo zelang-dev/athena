@@ -1255,6 +1255,35 @@ FORCEINLINE void ResetSourceChanged(Widget widget) {
 	source_changed = FALSE;
 }
 
+ats_wnd ats_ascii_set(ats_wnd on, ats_str tagtitle, char *buffer, ats_editmode mode,
+	ats_texttype type, int width, int height) {
+	Widget textwindow = XtVaCreateManagedWidget(tagtitle, asciiTextWidgetClass, on,
+		XtNtype, type,
+		XtNeditType, mode,
+		XtNscrollVertical, XawtextScrollWhenNeeded,
+		XtNscrollHorizontal, XawtextScrollWhenNeeded,
+		XtNwidth, width,
+		XtNheight, height,
+		XtNshowGrip, True,
+		XtNstring, buffer,
+		XtNfont, (main_athena_info && main_athena_info->font
+			? main_athena_info->font
+			: XLoadQueryFont(XtDisplayOfObject(on), helvetica)),
+		XtNborder, 0,
+		XtNborderWidth, 0,
+		XtNborderColor, ATHENA_COLOR,
+		XtNbackground, 0xFFFFFF,
+		NULL);
+
+	return textwindow;
+}
+
+ats_wnd ats_console(ats_wnd on, ats_str title, char *buffer, int width, int height) {
+
+	Widget textwindow = ats_ascii_set(on, title, buffer, XawtextRead, XawAsciiString, width, height);
+	return textwindow;
+}
+
 void ats_editfile(ats_wnd self, XtPointer parent, XtPointer filepath) {
 	ats_t ui = {0};
 	Cardinal num_args = 0;
@@ -1267,23 +1296,7 @@ void ats_editfile(ats_wnd self, XtPointer parent, XtPointer filepath) {
 
 	ui.use_icon = editor_xpm;
 	if (ats_window(&ui, filepath, 400, 400, false)) {
-		XtSetArg(arglist[num_args], XtNtype, XawAsciiFile); num_args++;
-		XtSetArg(arglist[num_args], XtNeditType, XawtextEdit); num_args++;
-		XtSetArg(arglist[num_args], XtNscrollVertical, XawtextScrollWhenNeeded); num_args++;
-		XtSetArg(arglist[num_args], XtNscrollHorizontal, XawtextScrollWhenNeeded); num_args++;
-		XtSetArg(arglist[num_args], XtNwidth, 400); num_args++;
-		XtSetArg(arglist[num_args], XtNheight, 400); num_args++;
-		XtSetArg(arglist[num_args], XtNshowGrip, True); num_args++;
-		XtSetArg(arglist[num_args], XtNstring, filepath); num_args++;
-		XtSetArg(arglist[num_args], XtNfont, main_athena_info->font); num_args++;
-		XtSetArg(arglist[num_args],	XtNborderWidth, 0); num_args++;
-		XtSetArg(arglist[num_args],	XtNborder, 0); num_args++;
-		XtSetArg(arglist[num_args],	XtNborderColor, ATHENA_COLOR); num_args++;
-		XtSetArg(arglist[num_args], XtNbackground, 0xFFFFFF); num_args++;
-		Widget textwindow = XtCreateManagedWidget("editWindow", asciiTextWidgetClass,
-			ui.topLevel, arglist, num_args);
-
-		XtSetValues(textwindow, arglist, num_args);
+		Widget textwindow = ats_ascii_set(ui.topLevel, "editfile", filepath, XawtextEdit, XawAsciiFile, 400, 400);
 		ResetSourceChanged(textwindow);
 
 		ui.wnd = ui.topLevel;

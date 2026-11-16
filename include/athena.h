@@ -12,6 +12,14 @@
 #	define trace 		Statement(fprintf(stderr, "%s:%d Trace \n", __FILE__, __LINE__);)
 #endif
 
+#ifndef trim_at
+#	define trim_at(str, pos) (char *)((uintptr_t)(str) + (pos))
+#endif
+
+#ifndef is_empty
+#	define is_empty(ptr) 				((void *)(ptr) == NULL)
+#endif
+
 #ifndef casting
 	/* Cast ~val~, a `non-pointer` to `pointer` like value,
 	makes reference if variable. */
@@ -23,8 +31,17 @@
 #endif
 
 #ifdef __linux__
-#define lucida "lucidasans-bold-8"
+
+#ifndef _GNU_SOURCE
+#	define _GNU_SOURCE
+#endif
+
+#define lucida "lucidasans-8"
+#define lucida_bold "lucidasans-bold-8"
 #define helvetica "-*-helvetica-medium-r-normal-*-12-*-*-*-*-*-iso8859-*"
+#define helvetica_normal "-*-helvetica-medium-r-normal-*-14-*-*-*-*-*-iso8859-*"
+#define helvetica_bold "-*-helvetica-bold-r-normal-*-16-*-*-*-*-*-iso8859-1"
+#define helvetica_italic "-*-helvetica-medium-o-normal-*-14-*-*-*-*-*-iso8859-1"
 #define times "-*-times-medium-r-*-*-12-*-*-*-*-*-*"
 #define courier "-*-courier-medium-r-*-*-14-*-*-*-*-*-*"
 #define __ATS_MENU__ 	app_t *self, void *data
@@ -312,6 +329,12 @@
 #include <ctype.h>
 
 #include <libgen.h>
+#include <errno.h>
+#include <math.h>
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 #include <pthread.h>
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -349,6 +372,17 @@ enum {
 };
 
 typedef __attribute__((noreturn)) void (*_noreturn_cb)(char *);
+
+/*
+ * - `XawtextRead` read only
+ * - `XawtextAppend` append
+ * - `XawtextEdit` read/write */
+typedef XawTextEditType ats_editmode;
+
+/*
+ * - `XawAsciiFile` buffer has filename, opened in `ats_editmode`
+ * - `XawAsciiString` display buffer, modifiable based on `ats_editmode` */
+typedef XawAsciiType ats_texttype;
 
 typedef Widget ats_wnd;
 typedef XFontStruct *ats_font;
@@ -447,9 +481,24 @@ typedef struct {
 	int is_video;
 } app_t;
 
+typedef struct Bow_QJS_Info Bow_QJS;
+typedef struct JS_ShadowDOM JS_Dom;
+typedef struct JS_AsyncTask JS_Task;
+typedef struct JS_ESMPromise JS_Promise;
+typedef struct JS_EventsList JS_Listener;
+typedef struct JS_CSS_Styles JS_CSSVariable;
+typedef struct JS_Mutation JS_Observer;
+typedef struct JS_CanvasAction JS_Canvas;
 typedef struct BowResourcesP *BowResources;
 typedef struct BowStackP *BowStack;
 typedef struct BowContextP *BowContext;
+
+#ifdef USE_QUICKJS_NG
+typedef struct JSValue JSValue;
+#else
+typedef uint64_t JSValue;
+#endif
+
 typedef BowResources bow_t;
 typedef BowContext bowview_t;
 typedef BowStack bowdata_t;
@@ -823,6 +872,10 @@ C_API ats_wnd ats_tabsgrid_set(char *title, ats_wnd on, const char *yLayout);
 C_API ats_wnd ats_boxwindow_set(ats_wnd on, int row);
 C_API ats_wnd ats_boxspace_set(ats_wnd on, int vertical, int horizontal);
 
+C_API ats_wnd ats_ascii_set(ats_wnd on, ats_str tagtitle, char *buffer, ats_editmode mode,
+	ats_texttype type, int width, int height);
+C_API ats_wnd ats_console(ats_wnd on, ats_str title, char *buffer, int width, int height);
+
 /* Set and return `formWidgetClass` layout handle for `on` onto `row`. All window/widgets assigned
  * can be aligned to each other, will automatically be resized to match/fit window dimensions. */
 C_API ats_wnd ats_formwindow_set(ats_wnd on, int row);
@@ -868,6 +921,30 @@ C_API void bow_window(bow_t web, const char *url, char *secondary_url);
 C_API char *bow_tag(bowview_t ctx, char *anchor);
 C_API void bow_set_title(bowview_t ctx, const char *name);
 C_API bow_t bow_create(ats_t *ui);
+
+C_API bool qjs_init(bow_t web);
+C_API void qjs_exec(bow_t web, ats_str script, bool is_file);
+C_API void qjs_free(bow_t web);
+
+C_API bool qjs_func(bow_t web, void *func, const char *name, int args);
+C_API bool qjs_func_set(bow_t web, const char *namespace);
+C_API char *qjs_get_file(const char *path_url);
+
+C_API bool qjs_hook(bow_t web, JSValue this, void *func, const char *name, int args);
+C_API bool qjs_hook_set(bow_t web, JSValue this, const char *namespace);
+
+C_API char *qjs_get_buf(bow_t web, unsigned long *size);
+C_API void qjs_set_buf(bow_t web, char *data, unsigned long size);
+C_API void qjs_free_buf(bow_t web);
+C_API bool qjs_is_running(bow_t web);
+C_API bool qjs_is_module(const char *filepath);
+C_API JS_Dom *qjs_parse(bow_t web, const char *html);
+C_API void qjs_run_script(bow_t web, JS_Dom *parsed, const char *js, bool is_module);
+C_API void qjs_click_event(Widget w, XtPointer data, XEvent *ev, Boolean *cont);
+C_API void qjs_exit(void);
+
+C_API bow_t bow_alloc(void);
+C_API void bow_free(bow_t web);
 
 #define DEFAULT_URL                                                            \
   "data:text/"                                                                 \

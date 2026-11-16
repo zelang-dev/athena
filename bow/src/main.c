@@ -26,6 +26,9 @@ int main(int argc, char **argv) {
 		 */
 		ats_handler(globalcres->ats);
 		ats_close(globalcres->ats);
+		if (qjs_is_running(globalcres))
+			qjs_exit();
+
 		return 0;
 	}
 

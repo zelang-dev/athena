@@ -30,60 +30,56 @@
 #include "BowP.h"
 #include "mime.h"
 
-typedef enum
-{
-  SinkStateWaiting,       /* waiting for beginning of data */
-  SinkStateLoading,       /* waiting for completion of data */
-  SinkStateComplete,      /* has received all data */
-  SinkStateCancelled,     /* has been cancelled */
-  SinkStateIgnore,        /* ignore callbacks for this sink */
-  SinkStateDestroyed      /* dead */
+typedef enum {
+	SinkStateWaiting,       /* waiting for beginning of data */
+	SinkStateLoading,       /* waiting for completion of data */
+	SinkStateComplete,      /* has received all data */
+	SinkStateCancelled,     /* has been cancelled */
+	SinkStateIgnore,        /* ignore callbacks for this sink */
+	SinkStateDestroyed      /* dead */
 } SinkState;
 
-typedef enum
-{
-  SourceStateWaiting,
-  SourceStateBlocked,
-  SourceStateComplete,
-  SourceStateLame,
-  SourceStateLoading
+typedef enum {
+	SourceStateWaiting,
+	SourceStateBlocked,
+	SourceStateComplete,
+	SourceStateLame,
+	SourceStateLoading
 } SourceState;
 
-struct BowSinkP
-{
-  MemPool           mp;
-  SinkState         state;
-  BowSource     ws;
-  BowSinkHooks  dhooks;
-  void              *closure;
-  BowTask       wt;
-  int               debug;
+struct BowSinkP {
+	MemPool           mp;
+	SinkState         state;
+	BowSource     ws;
+	BowSinkHooks  dhooks;
+	void *closure;
+	BowTask       wt;
+	int               debug;
 };
 
-struct BowSourceP
-{
-  MemPool           mp;
-  BowResources  cres;
-  BowSourceHooks shooks;
-  void              *closure;
-  GList		    sinks;
+struct BowSourceP {
+	MemPool           mp;
+	BowResources  cres;
+	BowSourceHooks shooks;
+	void *closure;
+	GList		    sinks;
 
-  int               debugcount;
+	int               debugcount;
 
-  /* only used if the source is blocked.  do not free in this module. */
-  BowRequest    *wr;
+	/* only used if the source is blocked.  do not free in this module. */
+	BowRequest *wr;
 
-  /* Various status goodies */
-  SourceState       sstate;             /* transfer state */
-  bool              cachable;           /* can this be cached? */
-  bool              fromcache;          /* was this fetched from cache? */
+	/* Various status goodies */
+	SourceState       sstate;             /* transfer state */
+	bool              cachable;           /* can this be cached? */
+	bool              fromcache;          /* was this fetched from cache? */
 };
 
 /*
  * Private functions
  */
 static BowSource SourceCreate _ArgProto((BowResources,
-					     BowRequest *));
+	BowRequest *));
 void SourceDestroy _ArgProto((BowSource));
 static void SourceInitTask _ArgProto((void *));
 static void SourceEndTask _ArgProto((void *));
@@ -92,62 +88,51 @@ static char *GetSourceInfo _ArgProto((BowSource, char *));
 static void StartBlockedSource _ArgProto((BowResources));
 static int StartSource _ArgProto((BowResources, BowSource));
 static BowSource TryMemoryCache _ArgProto((BowResources,
-					       BowRequest *));
+	BowRequest *));
 static void ChangeSinkState _ArgProto((BowSink, BowTaskProc,
-				       SinkState));
+	SinkState));
 
 /*
  * ChangeSinkState
  *
  * Should check for reasonable transitions?
  */
-static void
-ChangeSinkState(wp, func, newstate)
-BowSink wp;
-BowTaskProc func;
-SinkState newstate;
-{
-  if (wp->wt != NULL)
-  {
-    TaskRemove(wp->ws->cres, wp->wt);
-    wp->wt = NULL;
-  }
-  wp->state = newstate;
-  if (func != NULL) wp->wt = TaskSchedule(wp->ws->cres, func, wp);
+static void ChangeSinkState(BowSink wp, BowTaskProc func, SinkState newstate) {
+	if (wp->wt != NULL) {
+		TaskRemove(wp->ws->cres, wp->wt);
+		wp->wt = NULL;
+	}
+	wp->state = newstate;
+	if (func != NULL) wp->wt = TaskSchedule(wp->ws->cres, func, wp);
 
-  return;
+	return;
 }
 
 /*
  * SourceDestroy
  */
-void
-SourceDestroy(ws)
-BowSource ws;
-{
-  BowSink c;
-  BowResources cres = ws->cres;
+void SourceDestroy(BowSource ws) {
+	BowSink c;
+	BowResources cres = ws->cres;
 
-  if (cres->printLoadMessages)
-  {
-    fprintf (stderr, "Source Destroy %s\n", ws->wr->url);
-  }
+	if (cres->printLoadMessages) {
+		fprintf(stderr, "Source Destroy %s\n", ws->wr->url);
+	}
 
-  for (c = (BowSink)GListGetHead(ws->sinks); c != NULL;
-       c = (BowSink)GListGetNext(ws->sinks))
-  {
-    myassert(c->state == SinkStateDestroyed, "Sink not destroyed");
+	for (c = (BowSink)GListGetHead(ws->sinks); c != NULL;
+		c = (BowSink)GListGetNext(ws->sinks)) {
+		myassert(c->state == SinkStateDestroyed, "Sink not destroyed");
 
-    if (c->wt != NULL) TaskRemove(cres, c->wt);
-    MPDestroy(c->mp);
-  }
+		if (c->wt != NULL) TaskRemove(cres, c->wt);
+		MPDestroy(c->mp);
+	}
 
-  if (ws->closure != NULL) CMethod(ws->shooks.destroy)(ws->closure);
-  GListRemoveItem(cres->sources, ws);
-  MPDestroy(ws->wr->mp);
-  MPDestroy(ws->mp);
+	if (ws->closure != NULL) CMethod(ws->shooks.destroy)(ws->closure);
+	GListRemoveItem(cres->sources, ws);
+	MPDestroy(ws->wr->mp);
+	MPDestroy(ws->mp);
 
-  return;
+	return;
 }
 
 /*
@@ -155,204 +140,168 @@ BowSource ws;
  *
  * This function gobbles up 'wr'.
  */
-static BowSource
-SourceCreate(cres, wr)
-BowResources cres;
-BowRequest *wr;
-{
-  BowSource c;
-  int count;
-  BowSource ws;
-  MemPool mp;
+static BowSource SourceCreate(BowResources cres, BowRequest *wr) {
+	BowSource c;
+	int count;
+	BowSource ws;
+	MemPool mp;
 
-  mp = MPCreate();
-  ws = (BowSource)MPCGet(mp, sizeof(struct BowSourceP));
-  ws->mp = mp;
-  ws->cres = cres;
-  ws->cachable = true;
-  ws->sstate = SourceStateWaiting;
-  ws->sinks = GListCreateX(mp);
-  ws->wr = wr;
+	mp = MPCreate();
+	ws = (BowSource)MPCGet(mp, sizeof(struct BowSourceP));
+	ws->mp = mp;
+	ws->cres = cres;
+	ws->cachable = true;
+	ws->sstate = SourceStateWaiting;
+	ws->sinks = GListCreateX(mp);
+	ws->wr = wr;
 
-  /*
-   * Count the number of loading and waiting (active) sources.  If there are
-   * already some number (maxiocnt) of active sources then block this
-   * source.
-   */
-  count = 0;
-  for (c = (BowSource)GListGetHead(cres->sources); c != NULL;
-       c = (BowSource)GListGetNext(cres->sources))
-  {
-    if (c->sstate == SourceStateLoading || c->sstate == SourceStateWaiting)
-    {
-      count++;
-      if (count == cres->maxiocnt)
-      {
-	ws->sstate = SourceStateBlocked;
-	GListAddHead(cres->sources, ws);
-	if (cres->printLoadMessages)
-	{
-	  fprintf (stderr, "Source Block %s\n", wr->url);
+	/*
+	 * Count the number of loading and waiting (active) sources.  If there are
+	 * already some number (maxiocnt) of active sources then block this
+	 * source.
+	 */
+	count = 0;
+	for (c = (BowSource)GListGetHead(cres->sources); c != NULL;
+		c = (BowSource)GListGetNext(cres->sources)) {
+		if (c->sstate == SourceStateLoading || c->sstate == SourceStateWaiting) {
+			count++;
+			if (count == cres->maxiocnt) {
+				ws->sstate = SourceStateBlocked;
+				GListAddHead(cres->sources, ws);
+				if (cres->printLoadMessages) {
+					fprintf(stderr, "Source Block %s\n", wr->url);
+				}
+				return(ws);
+			}
+		}
 	}
+
+	GListAddHead(cres->sources, ws);
+
+	if (StartSource(cres, ws) == -1) return(NULL);
+
 	return(ws);
-      }
-    }
-  }
-
-  GListAddHead(cres->sources, ws);
-
-  if (StartSource(cres, ws) == -1) return(NULL);
-
-  return(ws);
 }
 
 /*
  * StartSource
  */
-static int
-StartSource(cres, ws)
-BowResources cres;
-BowSource ws;
-{
-  BowSourceHooks *hooks;
-  BowRequest *wr = ws->wr;
-  char *detail = "error";
+static int StartSource(BowResources cres, BowSource ws) {
+	BowSourceHooks *hooks;
+	BowRequest *wr = ws->wr;
+	char *detail = "error";
 
-  /*
-   * Look in the cache if the reload flag isn't set.  Copy the cache
-   * source hooks to be used later.
-   */
-  if (!wr->reload && wr->input_data == NULL && cres->cc != NULL)
-  {
-    hooks = CacheGetHooks(cres->cc);
-    if (hooks != NULL)
-    {
-      ws->closure = CMethodVoidPtr(hooks->init)(ws, wr, hooks->class_closure);
-      if (ws->closure != NULL)
-      {
-	memcpy(&(ws->shooks), hooks, sizeof(ws->shooks));
-	ws->fromcache = true;
-	detail = "Cache";
-      }
-    }
-  }
+	/*
+	 * Look in the cache if the reload flag isn't set.  Copy the cache
+	 * source hooks to be used later.
+	 */
+	if (!wr->reload && wr->input_data == NULL && cres->cc != NULL) {
+		hooks = CacheGetHooks(cres->cc);
+		if (hooks != NULL) {
+			ws->closure = CMethodVoidPtr(hooks->init)(ws, wr, hooks->class_closure);
+			if (ws->closure != NULL) {
+				memcpy(&(ws->shooks), hooks, sizeof(ws->shooks));
+				ws->fromcache = true;
+				detail = "Cache";
+			}
+		}
+	}
 
-  /*
-   * Cache could not be attempted or the cache grab failed.  Try the
-   * real handler.
-   */
-  if (ws->closure == NULL)
-  {
-    ws->closure = CMethodVoidPtr(wr->hooks.init)(ws,
-                                                 wr, wr->hooks.class_closure);
-    memcpy(&(ws->shooks), &(wr->hooks), sizeof(ws->shooks));
-    if (ws->closure != NULL) detail = wr->hooks.name;
-  }
+	/*
+	 * Cache could not be attempted or the cache grab failed.  Try the
+	 * real handler.
+	 */
+	if (ws->closure == NULL) {
+		ws->closure = CMethodVoidPtr(wr->hooks.init)(ws,
+			wr, wr->hooks.class_closure);
+		memcpy(&(ws->shooks), &(wr->hooks), sizeof(ws->shooks));
+		if (ws->closure != NULL) detail = wr->hooks.name;
+	}
 
-  /*
-   * Couldn't start a source.  Just give up and return nothing.
-   */
-  if (ws->closure == NULL)
-  {
-    if (cres->printLoadMessages)
-    {
-      fprintf (stderr, "Source StartFailed %s\n", wr->url);
-    }
-    SourceDestroy(ws);
+	/*
+	 * Couldn't start a source.  Just give up and return nothing.
+	 */
+	if (ws->closure == NULL) {
+		if (cres->printLoadMessages) {
+			fprintf(stderr, "Source StartFailed %s\n", wr->url);
+		}
+		SourceDestroy(ws);
 
-    return(-1);
-  }
+		return(-1);
+	}
 
-  ws->sstate = SourceStateWaiting;
+	ws->sstate = SourceStateWaiting;
 
-  if (cres->printLoadMessages)
-  {
-    fprintf (stderr, "Source StartSuccess(%s) %s\n", detail, wr->url);
-  }
+	if (cres->printLoadMessages) {
+		fprintf(stderr, "Source StartSuccess(%s) %s\n", detail, wr->url);
+	}
 
-  return(0);
+	return(0);
 }
 
 /*
  * StartBlockedSource
  */
-static void
-StartBlockedSource(cres)
-BowResources cres;
-{
-  BowSource c;
+static void StartBlockedSource(BowResources cres) {
+	BowSource c;
 
-  for (c = (BowSource)GListGetHead(cres->sources); c != NULL; )
-  {
-    if (c->sstate == SourceStateBlocked)
-    {
-      if (cres->printLoadMessages)
-      {
-	fprintf (stderr, "Source StartBlocked %s\n", c->wr->url);
-      }
-      if (StartSource(cres, c) == 0) break;
-      else c = (BowSource)GListGetHead(cres->sources);
-    }
-    else c = (BowSource)GListGetNext(cres->sources);
-  }
+	for (c = (BowSource)GListGetHead(cres->sources); c != NULL; ) {
+		if (c->sstate == SourceStateBlocked) {
+			if (cres->printLoadMessages) {
+				fprintf(stderr, "Source StartBlocked %s\n", c->wr->url);
+			}
+			if (StartSource(cres, c) == 0) break;
+			else c = (BowSource)GListGetHead(cres->sources);
+		} else c = (BowSource)GListGetNext(cres->sources);
+	}
 
-  return;
+	return;
 }
 
 /*
  * SourceEndTask
  */
-static void
-SourceEndTask(closure)
-void *closure;
-{
-  BowSink wp = (BowSink)closure;
+static void SourceEndTask(void *closure) {
+	BowSink wp = (BowSink)closure;
 
-  myassert(wp->state == SinkStateComplete, "Sink not complete!");
+	myassert(wp->state == SinkStateComplete, "Sink not complete!");
 
-  wp->wt = NULL;
+	wp->wt = NULL;
 
-  CMethod(wp->dhooks.end)(wp->closure);
+	CMethod(wp->dhooks.end)(wp->closure);
 
-  return;
+	return;
 }
 
 /*
  * SourceInitTask
  */
-static void
-SourceInitTask(closure)
-void *closure;
-{
-  BowSink wp = (BowSink)closure;
-  BowSource ws = wp->ws;
-  int debug;
+static void SourceInitTask(void *closure) {
+	BowSink wp = (BowSink)closure;
+	BowSource ws = wp->ws;
+	int debug;
 
-  wp->wt = NULL;
+	wp->wt = NULL;
 
-  myassert(wp->state == SinkStateWaiting, "Sink not waiting");
+	myassert(wp->state == SinkStateWaiting, "Sink not waiting");
 
-  debug = wp->debug;
-  if (CMethodInt(wp->dhooks.init)(wp, wp->closure) != 0)
-  {
-    /*
-     * Don't make any references to 'wp'.  The init routine probably
-     * wants to do a Cancel or Destroy.
-     */
-    if (ws->cres->printLoadMessages)
-    {
-      fprintf (stderr, "Sink(%d) Init failed %s\n", debug, ws->wr->url);
-    }
-    return;
-  }
+	debug = wp->debug;
+	if (CMethodInt(wp->dhooks.init)(wp, wp->closure) != 0) {
+	  /*
+	   * Don't make any references to 'wp'.  The init routine probably
+	   * wants to do a Cancel or Destroy.
+	   */
+		if (ws->cres->printLoadMessages) {
+			fprintf(stderr, "Sink(%d) Init failed %s\n", debug, ws->wr->url);
+		}
+		return;
+	}
 
-  if (wp->ws->sstate == SourceStateComplete)
-  {
-    ChangeSinkState(wp, SourceEndTask, SinkStateComplete);
-  }
-  else ChangeSinkState(wp, NULL, SinkStateLoading);
+	if (wp->ws->sstate == SourceStateComplete) {
+		ChangeSinkState(wp, SourceEndTask, SinkStateComplete);
+	} else ChangeSinkState(wp, NULL, SinkStateLoading);
 
-  return;
+	return;
 }
 
 /*
@@ -361,58 +310,47 @@ void *closure;
  * Rummage around in the list of current downloads to see if what we need
  * is already being downloaded.
  */
-static BowSource
-TryMemoryCache(cres, wr)
-BowResources cres;
-BowRequest *wr;
-{
-  BowSource ws;
-  char *content;
+static BowSource TryMemoryCache(BowResources cres, BowRequest *wr) {
+	BowSource ws;
+	char *content;
 
-  /*
-   * Input data can make the output different everytime don't even
-   * try to find something that has been cached.
-   */
-  if (wr->input_data != NULL) return(NULL);
+	/*
+	 * Input data can make the output different everytime don't even
+	 * try to find something that has been cached.
+	 */
+	if (wr->input_data != NULL) return(NULL);
 
-  for (ws = (BowSource)GListGetHead(cres->sources); ws != NULL;
-       ws = (BowSource)GListGetNext(cres->sources))
-  {
-    /*
-     * Obviously the URL has to match.
-     */
-    if (RequestCompareURL(ws->wr, wr))
-    {
-      /*
-       * Check to make sure the source is usable and then check to make sure
-       * that the same content-types are desired.
-       */
-      if (ws->sstate != SourceStateLame && ws->cachable)
-      {
-	if (RequestCompareAccept(ws->wr, wr)) return(ws);
-	if (cres->printLoadMessages)
-	{
-	  fprintf (stderr, "MemCache AcceptListDifferent %s\n", wr->url);
+	for (ws = (BowSource)GListGetHead(cres->sources); ws != NULL;
+		ws = (BowSource)GListGetNext(cres->sources)) {
+	 /*
+	  * Obviously the URL has to match.
+	  */
+		if (RequestCompareURL(ws->wr, wr)) {
+		  /*
+		   * Check to make sure the source is usable and then check to make sure
+		   * that the same content-types are desired.
+		   */
+			if (ws->sstate != SourceStateLame && ws->cachable) {
+				if (RequestCompareAccept(ws->wr, wr)) return(ws);
+				if (cres->printLoadMessages) {
+					fprintf(stderr, "MemCache AcceptListDifferent %s\n", wr->url);
+				}
+			} else if (cres->printLoadMessages) {
+				fprintf(stderr, "MemCache ");
+				switch (ws->sstate) {
+					case SourceStateWaiting: fprintf(stderr, "StateWaiting: "); break;
+					case SourceStateBlocked: fprintf(stderr, "StateBlocked: "); break;
+					case SourceStateComplete: fprintf(stderr, "StateComplete: "); break;
+					case SourceStateLame: fprintf(stderr, "StateLame: "); break;
+					case SourceStateLoading: fprintf(stderr, "StateLoading: "); break;
+					default: fprintf(stderr, "EvilState(%d): ", ws->sstate);
+				}
+				fprintf(stderr, "%s\n", ws->wr->url);
+			}
+		}
 	}
-      }
-      else if (cres->printLoadMessages)
-      {
-	fprintf (stderr, "MemCache ");
-	switch (ws->sstate)
-	{
-	  case SourceStateWaiting: fprintf (stderr, "StateWaiting: "); break;
-	  case SourceStateBlocked: fprintf (stderr, "StateBlocked: "); break;
-	  case SourceStateComplete: fprintf (stderr, "StateComplete: "); break;
-	  case SourceStateLame: fprintf (stderr, "StateLame: "); break;
-	  case SourceStateLoading: fprintf (stderr, "StateLoading: "); break;
-	  default: fprintf (stderr, "EvilState(%d): ", ws->sstate);
-	}
-	fprintf (stderr, "%s\n", ws->wr->url);
-      }
-    }
-  }
 
-  return(NULL);
+	return(NULL);
 }
 
 /*
@@ -423,232 +361,182 @@ BowRequest *wr;
  * is marked (Lame) so that the in-memory version won't be used again.
  * A blocked source is started.
  */
-void
-SourceStop(ws, reason)
-BowSource ws;
-char *reason;
-{
-  if (ws->sstate == SourceStateLame) return;
+void SourceStop(BowSource ws, char *reason) {
+	if (ws->sstate == SourceStateLame) return;
 
-  if (ws->cres->printLoadMessages)
-  {
-    fprintf (stderr, "Source Stop %s\n", ws->wr->url);
-  }
+	if (ws->cres->printLoadMessages) {
+		fprintf(stderr, "Source Stop %s\n", ws->wr->url);
+	}
 
-  ws->sstate = SourceStateLame;
+	ws->sstate = SourceStateLame;
 
-  StartBlockedSource(ws->cres);
+	StartBlockedSource(ws->cres);
 
-  return;
+	return;
 }
 
 /*
  * SourceEnd
  */
-void
-SourceEnd(ws)
-BowSource ws;
-{
-  BowSink c;
+void SourceEnd(BowSource ws) {
+	BowSink c;
 
-  myassert(ws->sstate == SourceStateLoading, "End source in wrong state");
+	myassert(ws->sstate == SourceStateLoading, "End source in wrong state");
 
-  if (ws->cres->printLoadMessages)
-  {
-    fprintf (stderr, "Source End %s\n", ws->wr->url);
-  }
+	if (ws->cres->printLoadMessages) {
+		fprintf(stderr, "Source End %s\n", ws->wr->url);
+	}
 
-  ws->sstate = SourceStateComplete;
+	ws->sstate = SourceStateComplete;
 
-  for (c = (BowSink)GListGetHead(ws->sinks); c != NULL;
-       c = (BowSink)GListGetNext(ws->sinks))
-  {
-    if (c->state == SinkStateLoading)
-    {
-      ChangeSinkState(c, SourceEndTask, SinkStateComplete);
-    }
-  }
+	for (c = (BowSink)GListGetHead(ws->sinks); c != NULL;
+		c = (BowSink)GListGetNext(ws->sinks)) {
+		if (c->state == SinkStateLoading) {
+			ChangeSinkState(c, SourceEndTask, SinkStateComplete);
+		}
+	}
 
-  if (ws->cres->cc != NULL && ws->cachable && !ws->fromcache)
-  {
-    CacheWrite(ws->cres->cc, ws);
-  }
+	if (ws->cres->cc != NULL && ws->cachable && !ws->fromcache) {
+		CacheWrite(ws->cres->cc, ws);
+	}
 
-  StartBlockedSource(ws->cres);
+	StartBlockedSource(ws->cres);
 
-  return;
+	return;
 }
 
 /*
  * SourceAddTask
  */
-static void
-SourceAddTask(closure)
-void *closure;
-{
-  BowSink wp = (BowSink)closure;
+static void SourceAddTask(void *closure) {
+	BowSink wp = (BowSink)closure;
 
-  myassert(wp->state == SinkStateLoading, "Sink not loading!");
+	myassert(wp->state == SinkStateLoading, "Sink not loading!");
 
-  wp->wt = NULL;
+	wp->wt = NULL;
 
-  CMethod(wp->dhooks.add)(wp->closure);
+	CMethod(wp->dhooks.add)(wp->closure);
 
-  return;
+	return;
 }
 
 /*
  * SourceAdd
  */
-void
-SourceAdd(ws)
-BowSource ws;
-{
-  BowSink c;
+void SourceAdd(BowSource ws) {
+	BowSink c;
 
-  myassert(ws->sstate == SourceStateLoading, "Add source in wrong state");
+	myassert(ws->sstate == SourceStateLoading, "Add source in wrong state");
 
-  if (ws->cres->printLoadMessages)
-  {
-    fprintf (stderr, "Source Add %s\n", ws->wr->url);
-  }
+	if (ws->cres->printLoadMessages) {
+		fprintf(stderr, "Source Add %s\n", ws->wr->url);
+	}
 
-  for (c = (BowSink)GListGetHead(ws->sinks); c != NULL;
-       c = (BowSink)GListGetNext(ws->sinks))
-  {
-    if (c->state == SinkStateLoading)
-    {
-      ChangeSinkState(c, SourceAddTask, SinkStateLoading);
-    }
-  }
+	for (c = (BowSink)GListGetHead(ws->sinks); c != NULL;
+		c = (BowSink)GListGetNext(ws->sinks)) {
+		if (c->state == SinkStateLoading) {
+			ChangeSinkState(c, SourceAddTask, SinkStateLoading);
+		}
+	}
 
-  return;
+	return;
 }
 
 /*
  * SourceInit
  */
-void
-SourceInit(ws, usecache)
-BowSource ws;
-bool usecache;
-{
-  BowSink c;
-  char *url;
+void SourceInit(BowSource ws, bool usecache) {
+	BowSink c;
+	char *url;
 
-  myassert(ws->sstate == SourceStateWaiting, "Init source in wrong state.");
-  ws->cachable = usecache;
+	myassert(ws->sstate == SourceStateWaiting, "Init source in wrong state.");
+	ws->cachable = usecache;
 
-  ws->sstate = SourceStateLoading;
+	ws->sstate = SourceStateLoading;
 
-  myassert((url = GetSourceInfo(ws, "x-url")) != NULL, "URL is NULL");
-  myassert(GetSourceInfo(ws, "content-type") != NULL, "Content-type is NULL");
+	myassert((url = GetSourceInfo(ws, "x-url")) != NULL, "URL is NULL");
+	myassert(GetSourceInfo(ws, "content-type") != NULL, "Content-type is NULL");
 
-  if (ws->cres->printLoadMessages)
-  {
-    fprintf (stderr, "Source Init %s\n", url);
-  }
+	if (ws->cres->printLoadMessages) {
+		fprintf(stderr, "Source Init %s\n", url);
+	}
 
-  /*
-   * Check to see if any sinks are listening
-   */
-  if ((c = (BowSink)GListGetHead(ws->sinks)) == NULL)
-  {
-    if (ws->cres->printLoadMessages)
-    {
-      fprintf (stderr, "No sinks for source!  Bad bug! (%s)\n", url);
-    }
-    return;
-  }
+	/*
+	 * Check to see if any sinks are listening
+	 */
+	if ((c = (BowSink)GListGetHead(ws->sinks)) == NULL) {
+		if (ws->cres->printLoadMessages) {
+			fprintf(stderr, "No sinks for source!  Bad bug! (%s)\n", url);
+		}
+		return;
+	}
 
-  /*
-   * This is broken.  The document may not be cacheable and so new
-   * sources should be created for each sink.  This is the first
-   * time we know if the document is cacheable.  Fix later.
-   */
-  for (; c != NULL;
-       c = (BowSink)GListGetNext(ws->sinks))
-  {
-    /*
-     * This check has to be done since the sink may have been cancelled
-     * or othwise messed with before this.
-     */
-    if (c->state == SinkStateWaiting)
-    {
-      ChangeSinkState(c, SourceInitTask, SinkStateWaiting);
-    }
-  }
+	/*
+	 * This is broken.  The document may not be cacheable and so new
+	 * sources should be created for each sink.  This is the first
+	 * time we know if the document is cacheable.  Fix later.
+	 */
+	for (; c != NULL;
+		c = (BowSink)GListGetNext(ws->sinks)) {
+	 /*
+	  * This check has to be done since the sink may have been cancelled
+	  * or othwise messed with before this.
+	  */
+		if (c->state == SinkStateWaiting) {
+			ChangeSinkState(c, SourceInitTask, SinkStateWaiting);
+		}
+	}
 
-  return;
+	return;
 }
 
 /*
  * SourceSendMessage
  */
-void
-SourceSendMessage(ws, message)
-BowSource ws;
-char *message;
-{
-  BowSink c;
+void SourceSendMessage(BowSource ws, char *message) {
+	BowSink c;
 
-  for (c = (BowSink)GListGetHead(ws->sinks); c != NULL;
-       c = (BowSink)GListGetNext(ws->sinks))
-  {
-    if (c->state == SinkStateWaiting || c->state == SinkStateLoading ||
-	c->state == SinkStateComplete)
-    {
-      CMethod(c->dhooks.message)(c->closure, message);
-    }
-  }
+	for (c = (BowSink)GListGetHead(ws->sinks); c != NULL;
+		c = (BowSink)GListGetNext(ws->sinks)) {
+		if (c->state == SinkStateWaiting || c->state == SinkStateLoading ||
+			c->state == SinkStateComplete) {
+			CMethod(c->dhooks.message)(c->closure, message);
+		}
+	}
 
-  return;
+	return;
 }
 
 /*
  * SourceToResources
  */
-BowResources
-SourceToResources(ws)
-BowSource ws;
-{
-  return(ws->cres);
+BowResources SourceToResources(BowSource ws) {
+	return(ws->cres);
 }
 
 /*
  * SourceGetData
  */
-void
-SourceGetData(ws, data, len, mh)
-BowSource ws;
-byte **data;
-size_t *len;
-MIMEHeader *mh;
-{
-  if (ws->shooks.getdata != NULL)
-  {
-    CMethod(ws->shooks.getdata)(ws->closure, data, len, mh);
-  }
-  return;
+void SourceGetData(BowSource ws, byte **data, size_t *len, MIMEHeader *mh) {
+	if (ws->shooks.getdata != NULL) {
+		CMethod(ws->shooks.getdata)(ws->closure, data, len, mh);
+	}
+	return;
 }
 
 /*
  * GetSourceInfo
  */
-static char *
-GetSourceInfo(ws, name)
-BowSource ws;
-char *name;
-{
-  byte *data;
-  size_t len;
-  MIMEHeader mh;
-  char *value;
+static char *GetSourceInfo(BowSource ws, char *name) {
+	byte *data;
+	size_t len;
+	MIMEHeader mh;
+	char *value;
 
-  SourceGetData(ws, &data, &len, &mh);
-  if (mh == NULL) return(NULL);
-  if (MIMEGetField(mh, name, &value) != 0) return(NULL);
-  return(value);
+	SourceGetData(ws, &data, &len, &mh);
+	if (mh == NULL) return(NULL);
+	if (MIMEGetField(mh, name, &value) != 0) return(NULL);
+	return(value);
 }
 
 /*
@@ -656,197 +544,157 @@ char *name;
  *
  * Create a sink for a source.  'wr' is eaten by this function.
  */
-BowSink
-SinkCreate(cres, wr)
-BowResources cres;
-BowRequest *wr;
-{
-  BowSource ws = NULL;
-  BowSink wp;
-  MemPool mp;
-  char *detail;
+BowSink SinkCreate(BowResources cres, BowRequest *wr) {
+	BowSource ws = NULL;
+	BowSink wp;
+	MemPool mp;
+	char *detail;
 
-  if (wr->reload || (ws = TryMemoryCache(cres, wr)) == NULL)
-  {
-    if ((ws = SourceCreate(cres, wr)) == NULL)
-    {
-      if (cres->printLoadMessages)
-      {
-	fprintf (stderr, "Sink Create Failed %s\n", wr->url);
-      }
-      return(NULL);
-    }
-    detail = "New";
-  }
-  else
-  {
-    /*
-     * This can be thrown out since the 'ws' obtained from TryMemoryCache
-     * contains an identical copy.
-     */
-    RequestDestroy(wr);
-    detail = "Cache";
-  }
+	if (wr->reload || (ws = TryMemoryCache(cres, wr)) == NULL) {
+		if ((ws = SourceCreate(cres, wr)) == NULL) {
+			if (cres->printLoadMessages) {
+				fprintf(stderr, "Sink Create Failed %s\n", wr->url);
+			}
+			return(NULL);
+		}
+		detail = "New";
+	} else {
+	  /*
+	   * This can be thrown out since the 'ws' obtained from TryMemoryCache
+	   * contains an identical copy.
+	   */
+		RequestDestroy(wr);
+		detail = "Cache";
+	}
 
-  mp = MPCreate();
-  wp = (BowSink)MPCGet(mp, sizeof(struct BowSinkP));
-  wp->mp = mp;
-  wp->state = SinkStateWaiting;
-  wp->ws = ws;
-  wp->debug = ws->debugcount++;
-  memset(&wp->dhooks, 1, sizeof(wp->dhooks));
+	mp = MPCreate();
+	wp = (BowSink)MPCGet(mp, sizeof(struct BowSinkP));
+	wp->mp = mp;
+	wp->state = SinkStateWaiting;
+	wp->ws = ws;
+	wp->debug = ws->debugcount++;
+	memset(&wp->dhooks, 1, sizeof(wp->dhooks));
 
-  GListAddTail(ws->sinks, wp);
+	GListAddTail(ws->sinks, wp);
 
-  if (cres->printLoadMessages)
-  {
-    fprintf (stderr, "Sink(%d) Create %s %s\n", wp->debug,
-	     detail, ws->wr->url);
-  }
+	if (cres->printLoadMessages) {
+		fprintf(stderr, "Sink(%d) Create %s %s\n", wp->debug,
+			detail, ws->wr->url);
+	}
 
-  return(wp);
+	return(wp);
 }
 
 /*
  * SinkSetHooks
  */
-void
-SinkSetHooks(wp, hooks, closure)
-BowSink wp;
-BowSinkHooks *hooks;
-void *closure;
-{
+void SinkSetHooks(BowSink wp, BowSinkHooks *hooks, void *closure) {
   /*
    * If there are no hooks then ignore this sink.  If there are hooks then
    * reset it for another go around.
    */
-  if (hooks == NULL)
-  {
-    ChangeSinkState(wp, NULL, SinkStateIgnore);
-    wp->closure = NULL;
-    memset(&wp->dhooks, 1, sizeof(wp->dhooks)); /* 0 causes trouble */
-  }
-  else
-  {
-    myassert(hooks->init != NULL, "Init function is NULL.");
-    myassert(hooks->add != NULL, "Add function is NULL.");
-    myassert(hooks->end != NULL, "End function is NULL.");
-    myassert(hooks->message != NULL, "Message function is NULL.");
+	if (hooks == NULL) {
+		ChangeSinkState(wp, NULL, SinkStateIgnore);
+		wp->closure = NULL;
+		memset(&wp->dhooks, 1, sizeof(wp->dhooks)); /* 0 causes trouble */
+	} else {
+		myassert(hooks->init != NULL, "Init function is NULL.");
+		myassert(hooks->add != NULL, "Add function is NULL.");
+		myassert(hooks->end != NULL, "End function is NULL.");
+		myassert(hooks->message != NULL, "Message function is NULL.");
 
-    memcpy(&wp->dhooks, hooks, sizeof(wp->dhooks));
-    wp->closure = closure;
+		memcpy(&wp->dhooks, hooks, sizeof(wp->dhooks));
+		wp->closure = closure;
 
-    if (wp->ws->sstate == SourceStateLoading ||
-	wp->ws->sstate == SourceStateComplete)
-    {
-      ChangeSinkState(wp, SourceInitTask, SinkStateWaiting);
-    }
-    else ChangeSinkState(wp, NULL, SinkStateWaiting);
-  }
+		if (wp->ws->sstate == SourceStateLoading ||
+			wp->ws->sstate == SourceStateComplete) {
+			ChangeSinkState(wp, SourceInitTask, SinkStateWaiting);
+		} else ChangeSinkState(wp, NULL, SinkStateWaiting);
+	}
 
-  return;
+	return;
 }
 
 /*
  * SinkDestroyTask
  */
-static void
-SinkDestroyTask(closure)
-void *closure;
-{
-  BowSink wp = (BowSink)closure;
-  BowSource ws = wp->ws;
-  BowSink c;
+static void SinkDestroyTask(void *closure) {
+	BowSink wp = (BowSink)closure;
+	BowSource ws = wp->ws;
+	BowSink c;
 
-  myassert(wp->state == SinkStateDestroyed, "Sink has been undestroyed");
+	myassert(wp->state == SinkStateDestroyed, "Sink has been undestroyed");
 
-  wp->wt = NULL;
+	wp->wt = NULL;
 
-  if ((c = (BowSink)GListGetHead(ws->sinks)) == NULL)
-  {
-    fprintf (stderr, "SinkDestroyTask: source has no sinks!\n");
-    return;
-  }
+	if ((c = (BowSink)GListGetHead(ws->sinks)) == NULL) {
+		fprintf(stderr, "SinkDestroyTask: source has no sinks!\n");
+		return;
+	}
 
-  for (; c != NULL;
-       c = (BowSink)GListGetNext(ws->sinks))
-  {
-    if (c->state != SinkStateDestroyed) break;
-  }
-  if (c == NULL) SourceDestroy(ws);
+	for (; c != NULL;
+		c = (BowSink)GListGetNext(ws->sinks)) {
+		if (c->state != SinkStateDestroyed) break;
+	}
+	if (c == NULL) SourceDestroy(ws);
 
-  return;
+	return;
 }
 
 /*
  * SinkDestroy
  */
-void
-SinkDestroy(wp)
-BowSink wp;
-{
-  BowSource ws = wp->ws;
+void SinkDestroy(BowSink wp) {
+	BowSource ws = wp->ws;
 
-  myassert(wp->state != SinkStateDestroyed, "Sink already destroyed");
+	myassert(wp->state != SinkStateDestroyed, "Sink already destroyed");
 
-  if (ws->cres->printLoadMessages)
-  {
-    fprintf (stderr, "Sink(%d) Destroy %s\n", wp->debug, ws->wr->url);
-  }
+	if (ws->cres->printLoadMessages) {
+		fprintf(stderr, "Sink(%d) Destroy %s\n", wp->debug, ws->wr->url);
+	}
 
-  ChangeSinkState(wp, SinkDestroyTask, SinkStateDestroyed);
+	ChangeSinkState(wp, SinkDestroyTask, SinkStateDestroyed);
 
-  return;
+	return;
 }
 
 /*
  * SinkWasReloaded
  */
-bool
-SinkWasReloaded(wp)
-BowSink wp;
-{
-  return(wp->ws->wr->reload);
+bool SinkWasReloaded(BowSink wp) {
+	return(wp->ws->wr->reload);
 }
 
 /*
  * SinkToResources
  */
-BowResources
-SinkToResources(wp)
-BowSink wp;
-{
-  return(wp->ws->cres);
+BowResources SinkToResources(BowSink wp) {
+	return(wp->ws->cres);
 }
 
 /*
  * SinkGetData
  */
 void SinkGetData(BowSink wp, byte **data, size_t *len, MIMEHeader *mh) {
-  if (wp->ws->shooks.getdata != NULL)
-  {
-    CMethod(wp->ws->shooks.getdata)(wp->ws->closure, data, len, mh);
-  }
-  return;
+	if (wp->ws->shooks.getdata != NULL) {
+		CMethod(wp->ws->shooks.getdata)(wp->ws->closure, data, len, mh);
+	}
+	return;
 }
 
 /*
  * SinkGetInfo
  */
-char *
-SinkGetInfo(wp, name)
-BowSink wp;
-char *name;
-{
-  byte *data;
-  size_t len;
-  MIMEHeader mh;
-  char *value;
+char *SinkGetInfo(BowSink wp, char *name) {
+	byte *data;
+	size_t len;
+	MIMEHeader mh;
+	char *value;
 
-  SinkGetData(wp, &data, &len, &mh);
-  if (mh == NULL) return(NULL);
-  if (MIMEGetField(mh, name, &value) != 0) return(NULL);
-  return(value);
+	SinkGetData(wp, &data, &len, &mh);
+	if (mh == NULL) return(NULL);
+	if (MIMEGetField(mh, name, &value) != 0) return(NULL);
+	return(value);
 }
 
 /*
@@ -856,56 +704,45 @@ char *name;
  * the source to stop sending input.  The callbacks are
  * no longer called for the sink after this function.
  */
-static void
-SinkCancelTask(closure)
-void *closure;
-{
-  BowSink wp = (BowSink)closure;
-  BowSource ws = wp->ws;
-  BowSink c;
+static void SinkCancelTask(void *closure) {
+	BowSink wp = (BowSink)closure;
+	BowSource ws = wp->ws;
+	BowSink c;
 
-  wp->wt = NULL;
+	wp->wt = NULL;
 
-  myassert(wp->state == SinkStateCancelled, "Sink not cancelled\n");
+	myassert(wp->state == SinkStateCancelled, "Sink not cancelled\n");
 
-  /*
-   * Check to see if all sinks are cancelled.  If so then stop the source.
-   */
-  for (c = (BowSink)GListGetHead(ws->sinks); c != NULL;
-       c = (BowSink)GListGetNext(ws->sinks))
-  {
-    if (c->state != SinkStateCancelled && c->state != SinkStateDestroyed)
-    {
-      break;
-    }
-  }
-  if (c == NULL)
-  {
-    if (ws->shooks.stop != NULL && ws->closure != NULL)
-    {
-      CMethod(ws->shooks.stop)(ws->closure);
-    }
-    SourceStop(ws, "");
-  }
+	/*
+	 * Check to see if all sinks are cancelled.  If so then stop the source.
+	 */
+	for (c = (BowSink)GListGetHead(ws->sinks); c != NULL;
+		c = (BowSink)GListGetNext(ws->sinks)) {
+		if (c->state != SinkStateCancelled && c->state != SinkStateDestroyed) {
+			break;
+		}
+	}
+	if (c == NULL) {
+		if (ws->shooks.stop != NULL && ws->closure != NULL) {
+			CMethod(ws->shooks.stop)(ws->closure);
+		}
+		SourceStop(ws, "");
+	}
 
-  return;
+	return;
 }
 
 /*
  * SinkCancel
  */
-void
-SinkCancel(wp)
-BowSink wp;
-{
-  myassert(wp->state != SinkStateDestroyed, "Sink can't be cancelled\n");
+void SinkCancel(BowSink wp) {
+	myassert(wp->state != SinkStateDestroyed, "Sink can't be cancelled\n");
 
-  if (wp->ws->cres->printLoadMessages)
-  {
-    fprintf (stderr, "Sink(%d) Cancel %s\n", wp->debug, wp->ws->wr->url);
-  }
+	if (wp->ws->cres->printLoadMessages) {
+		fprintf(stderr, "Sink(%d) Cancel %s\n", wp->debug, wp->ws->wr->url);
+	}
 
-  ChangeSinkState(wp, SinkCancelTask, SinkStateCancelled);
+	ChangeSinkState(wp, SinkCancelTask, SinkStateCancelled);
 
-  return;
+	return;
 }

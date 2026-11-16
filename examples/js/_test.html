@@ -1,0 +1,19 @@
+<center><table border="5" cellpadding="12" bgcolor="orange"><tr><td>Event Attributes Matrix Verification</td></tr></table></center>
+
+<div id="test-node"
+     onclick="document.write('Caught: Click Attribute');"
+     onmouseover="document.write('Caught: Hover Attribute');"
+     onkeydown="document.write('Caught: KeyPress Attribute');">
+     Target Element Window
+</div>
+
+<script>
+    document.write("Booting structural validation context logs matching engine: " + sysConfig.engine);
+
+    var el = document.getElementById("test-node");
+    if(el) {
+        el.addEventListener("onchange", function() {
+            document.write("Caught: Programmatic addEventListener Change trigger event loop!");
+        });
+    }
+</script>

@@ -1,0 +1,21 @@
+<body id="main_body">
+  <table border="5">
+    <tr><td>Hardware Input Target Box</td></tr>
+  </table>
+
+<script>
+  console.log("Adding continuous engine input event listeners...");
+
+  // Capture real window clicks forwarded by X11
+  const bodyNode = globalThis.document;
+  bodyNode.addEventListener("click", (event) => {
+    console.log("-> JavaScript caught CLICK at:", event.clientX, event.clientY);
+  });
+
+  // Capture native keystrokes forwarded by X11
+  const windowMock = { id: "window" };
+  globalThis.document.addEventListener.call(windowMock, "keydown", (event) => {
+    console.log("-> JavaScript caught KEYDOWN hardware code:", event.keyCode);
+  });
+</script>
+</body>

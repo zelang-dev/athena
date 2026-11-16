@@ -86,10 +86,10 @@ WEBVIEW_API int webview_run(const char *title, const char *url, int width, int h
 
 WEBVIEW_API void webview_debug(const char *format, ...) {
 #ifdef USE_DEBUG
-	char buf[4096];
+	char buf[4096] = {0};
 	va_list ap;
 	va_start(ap, format);
-	vsnprintf(buf, sizeof(buf), format, ap);
+	vsnprintf(buf, sizeof(buf) - 1, format, ap);
 	webview_print_log(buf);
 	va_end(ap);
 #endif

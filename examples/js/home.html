@@ -1,0 +1,19 @@
+<table>
+  <tr bgcolor="#ff0000" cellspacing="5">
+    <td>Hello World!</td>
+  <!-- Notice missing unclosed tags here; Lexbor auto-corrects them cleanly -->
+</table>
+
+<script>
+  console.log("Reading DOM tree from JavaScript dynamically...");
+  console.log("Root element Type:", globalThis.document.body);
+
+  // Drill into child nodes constructed from Lexbor native hierarchy tree mappings
+  const body = globalThis.document.body;
+  console.log("Body node tag matching name:", body.tagName);
+
+  // Verify asynchronous macro/microtask pipeline execution
+  Promise.resolve().then(() => {
+    console.log("Async macro-task sync event fired successfully via event loop!");
+  });
+</script>

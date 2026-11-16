@@ -100,8 +100,7 @@ bool SinkWasReloaded _ArgProto((BowSink));
  * request.c
  */
 BowRequest *RequestCreate _ArgProto((BowResources, char *, char *));
-int RequestAddRegexContent _ArgProto((BowResources,
-				      BowRequest *, char *));
+int RequestAddRegexContent _ArgProto((BowResources, BowRequest *, char *));
 void RequestAddContent _ArgProto((BowRequest *, char *));
 void RequestDestroy _ArgProto((BowRequest *));
 void RequestReload _ArgProto((BowRequest *, bool));

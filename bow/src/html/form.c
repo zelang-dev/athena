@@ -126,19 +126,13 @@ static void HandleSubmit _ArgProto((HTMLInfo, FormState *, InputState *,
 /*
  * Functions
  */
-static XFontStruct *
-GetFont(w)
-Widget w;
-{
+static XFontStruct *GetFont(Widget w) {
 	XFontStruct *font;
 	XtVaGetValues(w, XtNfont, &font, NULL);
 	return(font);
 }
 
-static char *
-GetAsciiText(w)
-Widget w;
-{
+static char *GetAsciiText(Widget w) {
 	char *s;
 
 	XtVaGetValues(w, XtNstring, &s, NULL);
@@ -148,13 +142,7 @@ Widget w;
 /*
  * NameValueToURLEncoded
  */
-static char *
-NameValueToURLEncoded(mp, names, values, count)
-MemPool mp;
-char **names;
-char **values;
-int count;
-{
+static char *NameValueToURLEncoded(MemPool mp, char **names, char **values, int count) {
 	int i;
 	char *finfo;
 	char *sep;
@@ -189,13 +177,7 @@ int count;
 /*
  * HandleSubmit
  */
-static void
-HandleSubmit(li, fs, ci, action)
-HTMLInfo li;
-FormState *fs;
-InputState *ci;
-char *action;
-{
+static void HandleSubmit(HTMLInfo li, FormState *fs, InputState *ci, char *action) {
 	InputState *xi;
 	int i;
 	char **names;
@@ -322,11 +304,7 @@ char *action;
 /*
  * SubmitCallback
  */
-static void
-SubmitCallback(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void SubmitCallback(Widget w, XtPointer cldata, XtPointer cbdata) {
 	InputState *ci = (InputState *)cldata;
 	FormState *fs = ci->fs;
 	HTMLInfo li = fs->li;
@@ -341,22 +319,14 @@ XtPointer cldata, cbdata;
  *
  * Do something about this later.
  */
-static void
-ResetCallback(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void ResetCallback(Widget w, XtPointer cldata, XtPointer cbdata) {
 	return;
 }
 
 /*
  * SmeCallback
  */
-static void
-SmeCallback(w, cldata, cbdata)
-Widget w;
-XtPointer cldata, cbdata;
-{
+static void SmeCallback(Widget w, XtPointer cldata, XtPointer cbdata) {
 	InputState *ci = (InputState *)cldata;
 	String str;
 	OptionState *co;
@@ -380,11 +350,7 @@ XtPointer cldata, cbdata;
 /*
  * SetupInput
  */
-static void
-SetupInput(li, box)
-HTMLInfo li;
-HTMLBox box;
-{
+static void SetupInput(HTMLInfo li, HTMLBox box) {
 	InputState *ci = (InputState *)box->closure;
 
   /*
@@ -396,6 +362,8 @@ HTMLBox box;
 			(Dimension)(box->height - 5),
 			(Dimension)1);
 		XtManageChild(ci->w);
+		trace;
+		li->wc;
 	}
 
 	return;
@@ -404,13 +372,8 @@ HTMLBox box;
 /*
  * CreateInputBox
  */
-static HTMLBox
-CreateInputBox(li, env, ci, width, height)
-HTMLInfo li;
-HTMLEnv env;
-InputState *ci;
-unsigned int width, height;
-{
+static HTMLBox CreateInputBox(HTMLInfo li, HTMLEnv env, InputState *ci,
+	unsigned int width, unsigned int height) {
 	HTMLBox box;
 
 	box = HTMLCreateBox(li, env);
@@ -429,12 +392,7 @@ unsigned int width, height;
 /*
  * CreateInputState
  */
-static InputState *
-CreateInputState(fs, p, type)
-FormState *fs;
-MLElement p;
-InputType type;
-{
+static InputState *CreateInputState(FormState *fs, MLElement p, InputType type) {
 	InputState *ci;
 
 	ci = (InputState *)MPCGet(fs->li->mp, sizeof(InputState));
@@ -450,11 +408,7 @@ InputType type;
 /*
  * DestroyInput
  */
-static void
-DestroyInput(li, box)
-HTMLInfo li;
-HTMLBox box;
-{
+static void DestroyInput(HTMLInfo li, HTMLBox box) {
 	InputState *ci = (InputState *)box->closure;
 
 	if (ci->id == INPUT_RADIO) GListRemoveItem(ci->fs->rslist, ci);
@@ -471,12 +425,7 @@ HTMLBox box;
 /*
  * CreateHidden
  */
-static void
-CreateHidden(fs, env, p)
-FormState *fs;
-HTMLEnv env;
-MLElement p;
-{
+static void CreateHidden(FormState *fs, HTMLEnv env, MLElement p) {
 	CreateInputState(fs, p, INPUT_HIDDEN);
 	return;
 }
