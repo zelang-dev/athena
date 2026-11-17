@@ -9,7 +9,7 @@
 
 <script>
   console.log("Exposing hardware layout collision bindings...");
-  const bodyNode = this.document;
+  const bodyNode = document.getElementById("cell_alpha");
 
   // Track movement across calculated element boundaries
   bodyNode.addEventListener("mousemove", (event) => {
@@ -20,6 +20,7 @@
   bodyNode.addEventListener("click", (event) => {
      console.log("!!! Target selection triggered explicitly on element ID:", event.targetId);
   });
+ bodyNode.dispatchEvent('cell_alpha', 'mousemove');
  bodyNode.dispatchEvent('main_body', 'click');
 </script>
 </body>

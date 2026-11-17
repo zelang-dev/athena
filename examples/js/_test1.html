@@ -2,16 +2,21 @@
 <body id="main_body" onload="console.log('Legacy Window onload macro fired!');">
 <table border="2" cellspacing="4">
   <tr bgcolor="#00ff00">
-    <td id="click_target" onclick="console.log('Inline Element click macro processing event context:', event.type);">Click Box Content
+    <td id="click_target" onclick="console.log('Inline Element click macro processing event context:');">
+		Click Box Content
+
 </table>
 
 <script>
   console.log("Analyzing mapped document object structures...");
+  const bodyNode = globalThis.document;
 
   // Programmatically bind standard event handlers via the injected engine method hooks
-  const targetElement = globalThis.document.childNodes[0];
-  targetElement.addEventListener("customHover", (e) => {
+  bodyNode.addEventListener("onclick", (e) => {
     console.log("Received programmatic listener notification event type:", e.type, "on target:", e.targetId);
   });
+
+  bodyNode.dispatchEvent('click_target', 'click');
+  this.dispatchEvent('main_body', 'onload');
 </script>
 </body>

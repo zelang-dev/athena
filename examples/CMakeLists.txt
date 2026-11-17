@@ -2,6 +2,8 @@
 set(TARGET_LIST
 	athena_ui
 	skeleton
+	csstest
+	html5test
 )
 
 foreach (TARGET ${TARGET_LIST})
@@ -16,3 +18,7 @@ foreach (TARGET ${TARGET_LIST})
 		SOVERSION ${PROJECT_VERSION_MAJOR}
 	)
 endforeach()
+
+if(NOT EXISTS "${BUILD_DIR}/js")
+	file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/js DESTINATION ${BUILD_DIR})
+endif()
