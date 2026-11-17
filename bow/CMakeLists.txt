@@ -95,12 +95,12 @@ else()
 			file(COPY ${quickjs_SOURCE_DIR}/quickjs-libc.h DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include)
 		endif()
 	else()
-		FetchContent_Declare(quickjs
+		FetchContent_Declare(${JAVASCRIPT}
 			GIT_REPOSITORY https://github.com/bellard/quickjs.git
 			GIT_TAG master
 		)
 
-		FetchContent_GetProperties(quickjs)
+		FetchContent_MakeAvailable(${JAVASCRIPT})
 		set(QUICKJS_SOURCES
 			${quickjs_SOURCE_DIR}/quickjs.c
 			${quickjs_SOURCE_DIR}/libregexp.c
@@ -110,18 +110,15 @@ else()
 			${quickjs_SOURCE_DIR}/quickjs-libc.c
 		)
 
-		file(STRINGS ${quickjs_SOURCE_DIR}/VERSION quickjs_h)
-		if(NOT quickjs_POPULATED)
-			FetchContent_Populate(quickjs)
-			if(BUILD_SHARED_LIBS)
-				add_library(quickjs SHARED ${QUICKJS_SOURCES})
-			else()
-				add_library(quickjs STATIC ${QUICKJS_SOURCES})
-			endif()
-			set_property(TARGET quickjs PROPERTY C_STANDARD 99)
-			target_compile_definitions(quickjs PRIVATE _GNU_SOURCE CONFIG_VERSION="${quickjs_h}")
-			target_include_directories(quickjs PRIVATE ${quickjs_SOURCE_DIR})
+		if(BUILD_SHARED_LIBS)
+			add_library(${JAVASCRIPT} SHARED ${QUICKJS_SOURCES})
+		else()
+			add_library(${JAVASCRIPT} STATIC ${QUICKJS_SOURCES})
 		endif()
+		set_property(TARGET ${JAVASCRIPT} PROPERTY C_STANDARD 99)
+		target_include_directories(quickjs PRIVATE ${quickjs_SOURCE_DIR})
+		file(STRINGS ${quickjs_SOURCE_DIR}/VERSION quickjs_h)
+		target_compile_definitions(quickjs PRIVATE _GNU_SOURCE CONFIG_VERSION="${quickjs_h}")
 		set_target_properties(${JAVASCRIPT} PROPERTIES
 			VERSION ${quickjs_h}
 			SOVERSION ${quickjs_h}
