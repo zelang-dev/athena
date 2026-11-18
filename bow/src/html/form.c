@@ -20,13 +20,6 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-
-#include <stdio.h>
-#include <ctype.h>
-
-#include <stdlib.h>
-#include <string.h>
-
 #include <athena.h>
 
 #include "html.h"
@@ -57,7 +50,8 @@ typedef enum {
 	INPUT_HIDDEN,
 	INPUT_IMAGE,
 	INPUT_TEXTAREA,
-	INPUT_SELECT
+	INPUT_SELECT,
+	INPUT_BUTTON
 } InputType;
 
 struct InputStateP {
@@ -362,11 +356,7 @@ static void SetupInput(HTMLInfo li, HTMLBox box) {
 			(Dimension)(box->height - 5),
 			(Dimension)1);
 		XtManageChild(ci->w);
-		trace;
-		li->wc;
 	}
-
-	return;
 }
 
 /*
@@ -488,12 +478,7 @@ static void CreateText(FormState *fs, HTMLEnv env, MLElement p, InputType type) 
 /*
  * CreateCheckbox
  */
-static void
-CreateCheckbox(fs, env, p)
-FormState *fs;
-HTMLEnv env;
-MLElement p;
-{
+static void CreateCheckbox(FormState *fs, HTMLEnv env, MLElement p) {
 	Widget w;
 	Boolean state;
 	HTMLBox box;
@@ -511,19 +496,12 @@ MLElement p;
 	ci = CreateInputState(fs, p, INPUT_CHECKBOX);
 	box = CreateInputBox(fs->li, env, ci, 15, 15);
 	ci->w = w;
-
-	return;
 }
 
 /*
  * CreateRadio
  */
-static void
-CreateRadio(fs, env, p)
-FormState *fs;
-HTMLEnv env;
-MLElement p;
-{
+static void CreateRadio(FormState *fs, HTMLEnv env, MLElement p) {
 	Widget w;
 	Boolean state;
 	char *name;
@@ -556,20 +534,12 @@ MLElement p;
 		GListAddHead(fs->rslist, ci);
 		XtVaSetValues(w, XtNstate, True, NULL);
 	} else XtVaSetValues(w, XtNradioGroup, peer->w, NULL);
-
-	return;
 }
 
 /*
  * CreateCommand
  */
-static void
-CreateCommand(fs, env, p, type)
-FormState *fs;
-HTMLEnv env;
-MLElement p;
-InputType type;
-{
+static void CreateCommand(FormState *fs, HTMLEnv env, MLElement p, InputType type) {
 	Arg args[10];
 	int argcnt;
 	int width, height;
@@ -581,7 +551,7 @@ InputType type;
 	HTMLBox box;
 
 	argcnt = 0;
-	name = type == INPUT_SUBMIT ? "submit" : "reset";
+	name = type == INPUT_BUTTON ? "button" : (type == INPUT_SUBMIT ? "submit" : "reset");
 	if ((value = MLFindAttribute(p, "value")) != NULL) {
 		value = MPStrDup(fs->li->mp, value);
 		HTMLStringSpacify(value, strlen(value));
@@ -601,6 +571,7 @@ InputType type;
 		width = XTextWidth(font, value, strlen(value)) + 10;
 		height = font->ascent + font->descent + 3;
 	}
+
 	ci = CreateInputState(fs, p, type);
 	box = CreateInputBox(fs->li, env, ci, width, height);
 	ci->w = w;
@@ -609,9 +580,9 @@ InputType type;
 		XtAddCallback(w, XtNcallback, SubmitCallback, (XtPointer)ci);
 	} else if (type == INPUT_RESET) {
 		XtAddCallback(w, XtNcallback, ResetCallback, (XtPointer)ci);
+	} else if (type == INPUT_BUTTON) {
+		env->closure = box;
 	}
-
-	return;
 }
 
 /*
@@ -623,25 +594,14 @@ InputType type;
 /*
  * HandleFormEnd
  */
-void
-HTMLFormEnd(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+void HTMLFormEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 	HTMLAddLineBreak(li, env);
-	return;
 }
 
 /*
  * HandleFormBegin
  */
-void
-HTMLFormBegin(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+void HTMLFormBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
 	FormState *fs;
 
 	HTMLAddLineBreak(li, env);
@@ -654,19 +614,61 @@ MLElement p;
 	fs->action = MLFindAttribute(p, "action");
 
 	env->closure = fs;
+}
 
-	return;
+/*
+ * HTMLButton
+ */
+void HTMLButton(HTMLInfo li, HTMLEnv env, MLElement p) {
+	char *type;
+	HTMLEnv fenv;
+	FormState *fs;
+
+	if ((fenv = HTMLGetIDEnv(env, TAG_BUTTON)) == NULL)
+		return;
+
+	fs = (FormState *)MPCGet(li->mp, sizeof(FormState));
+	fs->p = p;
+	fs->li = li;
+	fs->islist = GListCreateX(li->mp);
+	fs->rslist = GListCreateX(li->mp);
+	fs->action = MLFindAttribute(p, "action");
+	env->closure = fs;
+
+	type = MLFindAttribute(p, "type");
+	if (type == NULL || strcasecmp(type, "button") == 0) {
+		CreateCommand(fs, env, p, INPUT_BUTTON);
+	} else if (strcasecmp(type, "reset") == 0) {
+		CreateCommand(fs, env, p, INPUT_RESET);
+	} else if (strcasecmp(type, "submit") == 0) {
+		CreateCommand(fs, env, p, INPUT_SUBMIT);
+	}
+}
+
+/*
+ * HTMLButtonEnd
+ */
+void HTMLButtonEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
+	HTMLEnv fenv;
+	XFontStruct *font;
+
+	if ((fenv = HTMLGetIDEnv(env, TAG_BUTTON)) == NULL)
+		return;
+
+	char *btext = HTMLGetEnvText(li->mp, env);
+	if (btext) {
+		HTMLBox box = (HTMLBox)env->closure;
+		InputState *ci = (InputState *)box->closure;
+		XtVaSetValues(ci->w, XtNlabel, btext, NULL);
+		XtVaGetValues(ci->w, XtNfont, &font, NULL);
+		box->width = XTextWidth(font, btext, strlen(btext)) + 20;
+	}
 }
 
 /*
  * HTMLInput
  */
-void
-HTMLInput(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+void HTMLInput(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *type;
 	HTMLEnv fenv;
 	FormState *fs;
@@ -688,19 +690,12 @@ MLElement p;
 	} else if (strcasecmp(type, "submit") == 0) {
 		CreateCommand(fs, env, p, INPUT_SUBMIT);
 	}
-
-	return;
 }
 
 /*
  * HTMLTextareaEnd
  */
-void
-HTMLTextareaEnd(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+void HTMLTextareaEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 	HTMLEnv fenv;
 	FormState *fs;
 	char *tatext;
@@ -741,8 +736,6 @@ MLElement p;
 	ci = CreateInputState(fs, obj->o.p, INPUT_TEXTAREA);
 	box = CreateInputBox(fs->li, env, ci, width, height);
 	ci->w = w;
-
-	return;
 }
 
 /*
@@ -754,12 +747,7 @@ MLElement p;
 /*
  * MakeSelectWidget
  */
-static void
-MakeSelectWidget(li, fs, env)
-HTMLInfo li;
-FormState *fs;
-HTMLEnv env;
-{
+static void MakeSelectWidget(HTMLInfo li, FormState *fs, HTMLEnv env) {
 	InputState *ci;
 	int width, twidth;
 	XFontStruct *font;
@@ -818,19 +806,12 @@ HTMLEnv env;
 		c = (OptionState *)GListGetNext(oplist)) {
 		XtAddCallback(c->sme, XtNcallback, SmeCallback, (XtPointer)ci);
 	}
-
-	return;
 }
 
 /*
  * HTMLOptionEnd
  */
-void
-HTMLOptionEnd(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+void HTMLOptionEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 	HTMLEnv fenv;
 	FormState *formstate;
 	OptionState *n;
@@ -853,12 +834,7 @@ MLElement p;
 /*
  * HTMLSelectBegin
  */
-void
-HTMLSelectBegin(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+void HTMLSelectBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
 	HTMLEnv fenv;
 	FormState *fs;
 
@@ -872,20 +848,13 @@ MLElement p;
 /*
  * HTMLSelectEnd
  */
-void
-HTMLSelectEnd(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+void HTMLSelectEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 	HTMLEnv fenv;
 	FormState *fs;
 
 	if ((fenv = HTMLGetIDEnv(env, TAG_FORM)) == NULL) return;
 	fs = (FormState *)fenv->closure;
 	MakeSelectWidget(li, fs, env);
-
-	return;
 }
 
 /*
@@ -897,12 +866,7 @@ MLElement p;
 /*
  * FormImageSelectCallback
  */
-static bool
-FormImageSelectCallback(closure, x, y, action)
-void *closure;
-int x, y;
-char *action;
-{
+static bool FormImageSelectCallback(void *closure, int x, int y, char *action) {
 	InputState *ci = (InputState *)closure;
 
 	ci->x = x;
@@ -912,11 +876,7 @@ char *action;
 	return(true);
 }
 
-bool
-FormImageMotionCallback(closure, x, y)
-void *closure;
-int x, y;
-{
+bool FormImageMotionCallback(void *closure, int x, int y) {
 	InputState *ci = (InputState *)closure;
 	HTMLInfo li = ci->fs->li;
 
@@ -928,12 +888,7 @@ int x, y;
 /*
  * CreateImage
  */
-void
-CreateImage(fs, env, p)
-FormState *fs;
-HTMLEnv env;
-MLElement p;
-{
+void CreateImage(FormState *fs, HTMLEnv env, MLElement p) {
 	char *url;
 	HTMLInlineInfo ii;
 	InputState *ci;

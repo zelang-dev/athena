@@ -30,6 +30,8 @@
 #include <athena.h>
 #include "quickjs.h"
 #include "quickjs-libc.h"
+#include "css.h"
+#include "html.h"
 
 typedef struct BowResourcesP *BowResources;
 typedef struct BowContextP     *BowContext;

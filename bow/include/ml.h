@@ -17,6 +17,10 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
+
+#ifndef __ML_H__
+#define __ML_H__ 1
+
 typedef struct MLElementP *MLElement;
 typedef struct MLAttributeP *MLAttribute;
 typedef struct MLStateP *MLState;
@@ -57,3 +61,4 @@ int MLAttributeToInt _ArgProto((MLElement, char *));
  * Random stuff
  */
 MLElement MLCreateTag _ArgProto((MLState, char *, size_t));
+#endif /* __ML_H__ */

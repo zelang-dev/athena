@@ -18,19 +18,7 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-
-
-#include <stdio.h>
-#include <ctype.h>
-
-#include <stdlib.h>
-#include <string.h>
-
-
-#include "common.h"
-
 #include "Bow.h"
-
 #include "css.h"
 
 struct CSSPropertyP {
@@ -101,12 +89,7 @@ static char *ParseToChar _ArgProto((char *, char *, int, bool));
  * Search for an expected character.  Deals with escaped characters,
  * quoted strings, and pairs of braces/parens/brackets.
  */
-static char *
-ParseToChar(cp, ep, c, chkws)
-char *cp, *ep;
-int c;
-bool chkws;
-{
+static char *ParseToChar(char *cp, char *ep, int c, bool chkws) {
 	bool sq, dq, esc;
 
 	sq = false; /* in single quote? */
@@ -142,11 +125,7 @@ bool chkws;
  *
  * Return false if @import occured.  Return true if not.
  */
-static bool
-ParseAt(css, ci)
-CSSContext css;
-CSSInput ci;
-{
+static bool ParseAt(CSSContext css, CSSInput ci) {
 	while (ci->cp < ci->ep) {
 		if (*ci->cp == '{') {
 			if ((ci->cp = ParseToChar(ci->cp + 1, ci->ep, '}', false)) == NULL) {
@@ -168,10 +147,7 @@ CSSInput ci;
  *
  * Look for non-space and deal with comments.
  */
-static char *
-ParseSpace(s, e)
-char *s, *e;
-{
+static char *ParseSpace(char *s, char *e) {
 	bool sc, ec, ic;
 
 	sc = false; /* possible start comment? */
@@ -193,12 +169,7 @@ char *s, *e;
 	return(NULL);
 }
 
-static CSSProperty
-ParseProperty(mp, s, slen)
-MemPool mp;
-char *s;
-size_t slen;
-{
+static CSSProperty ParseProperty(MemPool mp, char *s, size_t slen) {
 	char *ep, *colon, *x;
 	CSSProperty prop;
 
@@ -240,12 +211,7 @@ size_t slen;
 	return(prop);
 }
 
-static GList
-ParseProperties(mp, s, slen)
-MemPool mp;
-char *s;
-size_t slen;
-{
+static GList ParseProperties(MemPool mp, char *s, size_t slen) {
 	char *last;
 	char *ep;
 	GList properties;
@@ -271,12 +237,7 @@ size_t slen;
 	return(properties);
 }
 
-static CSSSelector
-ParseSelector2(mp, s, slen)
-MemPool mp;
-char *s;
-size_t slen;
-{
+static CSSSelector ParseSelector2(MemPool mp, char *s, size_t slen) {
 	CSSSelector cs;
 	char *tag = NULL;
 	char *id = NULL;
@@ -311,12 +272,7 @@ size_t slen;
 	return(cs);
 }
 
-static GList
-ParseSelector1(mp, s, slen)
-MemPool mp;
-char *s;
-size_t slen;
-{
+static GList ParseSelector1(MemPool mp, char *s, size_t slen) {
 	char *ep = s + slen;
 	char *cp;
 	char *last;
@@ -354,12 +310,7 @@ size_t slen;
 /*
  * ParseSelector
  */
-static GList
-ParseSelector(mp, s, slen)
-MemPool mp;
-char *s;
-size_t slen;
-{
+static GList ParseSelector(MemPool mp, char *s, size_t slen) {
 	GList slist, xlist;
 	char *ep;
 	char *last;
@@ -388,10 +339,7 @@ size_t slen;
  *
  * do the sort of string comparison that we need here
  */
-static int
-scompare(s1, s2)
-char *s1, *s2;
-{
+static int scompare(char *s1, char *s2) {
 	if (s1 == s2) return(0);
 	if (s1 == NULL || s2 == NULL) return(-1);
 	if (strlen(s1) != strlen(s2)) return(-1);
@@ -403,11 +351,7 @@ char *s1, *s2;
  *
  * Parse a single rule.  Return false if parsing error that leads to EOF.
  */
-static bool
-ParseRule(css, ci)
-CSSContext css;
-CSSInput ci;
-{
+static bool ParseRule(CSSContext css, CSSInput ci) {
 	char *last;
 	GList slist;
 	GList plist;
@@ -453,10 +397,7 @@ CSSInput ci;
  *
  * Toplevel parser loop.
  */
-static void
-ParseCSS(css)
-CSSContext css;
-{
+static void ParseCSS(CSSContext css) {
 	CSSInput ci = (CSSInput)GListGetHead(css->inputs);
 
 	if (ci == NULL) {
@@ -480,20 +421,10 @@ CSSContext css;
 	}
 
 	GListPop(css->inputs);
-
 	ParseCSS(css);
-
-	return;
 }
 
-CSSContext
-CSSParseBuffer(cs, b, blen, proc, closure)
-BowContext cs;
-char *b;
-size_t blen;
-CSSProc proc;
-void *closure;
-{
+CSSContext CSSParseBuffer(BowContext cs, char *b, size_t blen, CSSProc proc, void *closure) {
 	CSSContext css;
 	MemPool mp;
 	CSSInput ci;
@@ -523,18 +454,11 @@ void *closure;
 /*
  * CSSDestroyContext
  */
-void
-CSSDestroyContext(css)
-CSSContext css;
-{
+void CSSDestroyContext(CSSContext css) {
 	MPDestroy(css->mp);
-	return;
 }
 
-static bool
-SelectorListMatch(slist1, slist2)
-GList slist1, slist2;
-{
+static bool SelectorListMatch(GList slist1, GList slist2) {
 	CSSSelector cs, ncs;
 
 	/*
@@ -561,37 +485,24 @@ GList slist1, slist2;
 /*
  * CSSCreateSelector
  */
-CSSSelector
-CSSCreateSelector(mp)
-MemPool mp;
-{
+CSSSelector CSSCreateSelector(MemPool mp) {
 	return((CSSSelector)MPCGet(mp, sizeof(struct CSSSelectorP)));
 }
 
 /*
  * CSSSetSelector
  */
-void
-CSSSetSelector(cs, tag, id, class, pclass)
-CSSSelector cs;
-char *tag, *id, *class, *pclass;
-{
+void CSSSetSelector(CSSSelector cs, char *tag, char *id, char *class, char *pclass) {
 	cs->tag = tag;
 	cs->id = id;
 	cs->class = class;
 	cs->pclass = pclass;
-	return;
 }
 
 /*
  * CSSFindProperty
  */
-char *
-CSSFindProperty(css, selectors, name)
-CSSContext css;
-GList selectors;
-char *name;
-{
+char *CSSFindProperty(CSSContext css, GList selectors, char *name) {
 	CSSProperty p;
 	GList slist, xlist;
 	CSSSelector h;
@@ -623,10 +534,7 @@ char *name;
 /*
  * CSSPrintSelectorList
  */
-void
-CSSPrintSelectorList(slist)
-GList slist;
-{
+void CSSPrintSelectorList(GList slist) {
 	CSSSelector s;
 
 	for (s = (CSSSelector)GListGetHead(slist); s != NULL;
@@ -637,17 +545,12 @@ GList slist;
 		if (s->pclass != NULL) fprintf(stderr, "%s ", s->pclass);
 		fprintf(stderr, "\n");
 	}
-
-	return;
 }
 
 /*
  * CSSPrint
  */
-void
-CSSPrint(css)
-CSSContext css;
-{
+void CSSPrint(CSSContext css) {
 	CSSRule cr;
 	CSSSelector cs;
 	GList slist;
@@ -672,55 +575,3 @@ CSSContext css;
 		printf("}\n");
 	}
 }
-
-#ifdef CSSDEBUG
-
-#include <sys/types.h>
-#include <sys/stat.h>
-
-main(argc, argv)
-int argc;
-char *argv[];
-{
-	CSSContext css;
-	FILE *fp;
-	char *b;
-	char *name;
-	struct stat st;
-	GList slist;
-	CSSSelector cs;
-	MemPool mp;
-
-	if (argc < 2) exit(1);
-
-	if (stat(argv[1], &st) != 0) exit(1);
-
-	if ((b = (char *)malloc(st.st_size)) == NULL) exit(1);
-
-	if ((fp = fopen(argv[1], "r")) == NULL) exit(1);
-	fread(b, 1, st.st_size, fp);
-	fclose(fp);
-
-	css = CSSParseBuffer(NULL, b, st.st_size, NULL, NULL);
-
-	mp = MPCreate();
-	slist = GListCreate();
-
-	cs = CSSCreateSelector(mp);
-	CSSSetSelector(cs, "H5", NULL, NULL, NULL);
-	GListAddHead(slist, cs);
-
-	name = "white-space";
-
-	if ((b = CSSFindProperty(css, slist, name)) != NULL) {
-		printf("%s == %s\n", name, b);
-	} else printf("%s not found\n", name);
-
-	CSSPrint(css);
-
-	CSSDestroyContext(css);
-
-	exit(0);
-}
-
-#endif

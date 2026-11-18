@@ -2,9 +2,7 @@
 #	define _GNU_SOURCE
 #endif
 
-#include "html5.h"
 #include "BowP.h"
-#include <malloc.h>
 
 /* Enumerate common legacy handlers */
 typedef enum LegacyEventType {
@@ -108,6 +106,8 @@ struct Bow_QJS_Info {
 	JSValue js_this;
 	JSValue js_obs;
 	char *js_buf;
+	Pixmap canvas_buffer;
+	int canvas_w, canvas_h;
 	Widget render_canvas;
 	GC gc;
 	XFontStruct *font_normal;
@@ -222,6 +222,7 @@ void qjs_exit(void) {
 			sv = next;
 		}
 	}
+
 	if (g_app.observers) {
 	JS_Observer *mo = g_app.observers;
 		while (mo) {
@@ -732,6 +733,53 @@ static JSValue js_document_get_element_by_id(JSContext *ctx, JSValueConst this_v
 	return create_js_dom_wrapper(ctx, found);
 }
 
+static void canvas_interface_pipeline(Widget w, XtPointer client_data, XEvent *event, Boolean *cont) {
+	Display *dpy = XtDisplay(w); Window win = XtWindow(w);
+	XClearWindow(dpy, win);
+	int y_cursor = 32 - g_app.scroll_offset_y;
+	//parse_layout_pass(dpy, win, g_app.gc, g_app.dom_root, 24, &y_cursor, 740, false, false);
+	pthread_mutex_lock(&g_app.canvas_mutex);
+	JS_Canvas *curr = g_app.canvas_queue;
+	while (curr) {
+		if (curr->type == CMD_RECT) {
+			XFillRectangle(dpy, win, g_app.gc, curr->x, curr->y, curr->w, curr->h);
+			XCopyArea(dpy, g_app.canvas_buffer, XtWindow(g_app.render_canvas),
+				g_app.gc, 0, 0, g_app.canvas_w, g_app.canvas_h, 0, 0);
+		}
+		curr = curr->next;
+	}
+	pthread_mutex_unlock(&g_app.canvas_mutex);
+}
+
+static JSValue js_canvas_fill_rect(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc >= 4) {
+		int x = 0, y = 0, w = 0, h = 0;
+
+		JS_ToInt32(ctx, &x, argv[0]);
+		JS_ToInt32(ctx, &y, argv[1]);
+		JS_ToInt32(ctx, &w, argv[2]);
+		JS_ToInt32(ctx, &h, argv[3]);
+		pthread_mutex_lock(&g_app.canvas_mutex);
+		JS_Canvas *cmd = calloc(1, sizeof(JS_Canvas));
+		cmd->type = CMD_RECT;
+		cmd->x = x;
+		cmd->y = y;
+		cmd->w = w;
+		cmd->h = h;
+		cmd->next = g_app.canvas_queue;
+		g_app.canvas_queue = cmd;
+		pthread_mutex_unlock(&g_app.canvas_mutex);
+	}
+
+	return JS_UNDEFINED;
+}
+
+static JSValue js_canvas_get_context(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	JSValue ctx_obj = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, ctx_obj, "fillRect", JS_NewCFunction(ctx, js_canvas_fill_rect, "fillRect", 4));
+	return ctx_obj;
+}
+
 static JSValue js_dom_get_prop_expanded(JSContext *ctx, JSValueConst this_val,
 	int argc, JSValueConst *argv, int magic) {
 	JS_Dom *n = JS_GetOpaque(this_val, g_app.js_class_id);
@@ -943,7 +991,7 @@ static void run_javascript(JSContext *ctx, const char *script, int is_mod) {
 	if (JS_IsException(v)) {
 		JSValue ex = JS_GetException(ctx);
 		const char *msg = JS_ToCString(ctx, ex);
-		fprintf(stderr, "Runtime Exception: %s on %s\n", msg, script);
+		fprintf(stderr, "Runtime Exception: %s\n", msg);
 		JS_FreeCString(ctx, msg);
 		JS_FreeValue(ctx, ex);
 	}
@@ -1480,11 +1528,18 @@ static void qjs_interfaces_set(JSContext *ctx, JS_Dom *root) {
 	JS_SetPropertyStr(ctx, global, "setTimeout",
 		JS_NewCFunction(ctx, js_global_set_timeout, "setTimeout", 2));
 
+	JSValue canvas = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, canvas, "fillRect",
+		JS_NewCFunction(ctx, js_canvas_fill_rect, "fillRect", 4));
+	JS_SetPropertyStr(ctx, canvas, "getContext",
+		JS_NewCFunction(ctx, js_canvas_get_context, "getContext", 1));
+	JS_SetPropertyStr(ctx, global, "canvas", canvas);
+/*
 	JSValue console_obj = JS_NewObject(ctx);
 	JS_SetPropertyStr(ctx, console_obj, "log",
 		JS_NewCFunction(ctx, js_native_system_log, "log", 1));
 	JS_SetPropertyStr(ctx, global, "console", console_obj);
-
+*/
 	JSValue obs_proto = JS_NewObject(ctx);
 	JS_SetPropertyStr(ctx, obs_proto, "observe",
 		JS_NewCFunction(ctx, js_observer_observe, "observe", 2));

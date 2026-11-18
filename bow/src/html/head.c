@@ -20,44 +20,32 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-
-#include <stdio.h>
 #include <ctype.h>
-
-#include <stdlib.h>
-
 
 #include "html.h"
 
-void
-HTMLTitleEnd(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+void HTMLTitleEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 	li->title = HTMLGetEnvText(li->mp, env);
-
-	return;
 }
 
-void
-HTMLBase(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+void HTMLBase(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *url;
 
-	if ((url = MLFindAttribute(p, "href")) != NULL) li->burl = url;
-
-	return;
+	if ((url = MLFindAttribute(p, "href")) != NULL)
+		li->burl = url;
 }
 
-void
-HTMLMeta(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
-	return;
+void HTMLMeta(HTMLInfo li, HTMLEnv env, MLElement p) {
+}
+
+void HTMLStyleEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
+	HTMLEnv fenv;
+	if ((fenv = HTMLGetIDEnv(env, TAG_STYLE)) == NULL)
+		return;
+
+	char *csstext = HTMLGetEnvText(li->mp, env);
+	if (li->css)
+		CSSDestroyContext(li->css);
+
+	li->css = CSSParseBuffer(li->wc, csstext, strlen(csstext), NULL, NULL);
 }

@@ -1,9 +1,17 @@
-#include "html5.h"
-#include <ctype.h>
+#include "html.h"
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+
+struct ShadowNode_s {
+	HtmlNodeType type;
+	HTMLTagID tag_id;
+	char *tag_name;
+	char *text;
+	HtmlAttr *attrs;
+	HtmlDom_t *parent;
+	HtmlDom_t *first_child;
+	HtmlDom_t *last_child;
+	HtmlDom_t *next_sibling;
+};
 
 /* ============================================================================
  * 1. Alphabetically Sorted HTML5 + Legacy Tag Table
@@ -45,6 +53,7 @@ static const HTMLTagInfo HTML_TAG_TABLE[] = {
     { TAG_DIR,        "dir",        false },
     { TAG_DIV,        "div",        false },
     { TAG_DL,         "dl",         false },
+    { TAG_DOCTYPE,    "doctype",	true  },
     { TAG_DT,         "dt",         false },
     { TAG_EM,         "em",         false },
     { TAG_EMBED,      "embed",      true  },
@@ -54,6 +63,8 @@ static const HTMLTagInfo HTML_TAG_TABLE[] = {
     { TAG_FONT,       "font",       false },
     { TAG_FOOTER,     "footer",     false },
     { TAG_FORM,       "form",       false },
+	{ TAG_FRAME,      "frame",      false },
+    { TAG_FRAMESET,   "frameset",	false },
     { TAG_H1,         "h1",         false },
     { TAG_H2,         "h2",         false },
     { TAG_H3,         "h3",         false },
@@ -85,6 +96,7 @@ static const HTMLTagInfo HTML_TAG_TABLE[] = {
     { TAG_META,       "meta",       true  },
     { TAG_METER,      "meter",      false },
     { TAG_NAV,        "nav",        false },
+	{ TAG_NOFRAMES,   "noframes",   false },
     { TAG_NOSCRIPT,   "noscript",   false },
     { TAG_OBJECT,     "object",     false },
     { TAG_OL,         "ol",         false },
@@ -136,8 +148,7 @@ static const HTMLTagInfo HTML_TAG_TABLE[] = {
     { TAG_VAR,        "var",        false },
     { TAG_VIDEO,      "video",      false },
     { TAG_WBR,        "wbr",        true  },
-    { TAG_XMP,        "xmp",        false },
-    { TAG_DOCTYPE,    "doctype",	true }
+    { TAG_XMP,        "xmp",        false }
 };
 
 #define HTML_TAG_TABLE_SIZE (sizeof(HTML_TAG_TABLE) / sizeof(HTML_TAG_TABLE[0]))
@@ -680,6 +691,13 @@ bool dom_remove_attr(HtmlDom_t *elem, const char *name) {
         curr = curr->next;
     }
     return false;
+}
+
+HtmlDom_t *dom_parent(HtmlDom_t *node) {
+	if (node && node->parent)
+		return node->parent;
+
+	return NULL;
 }
 
 void dom_free(HtmlDom_t *node) {

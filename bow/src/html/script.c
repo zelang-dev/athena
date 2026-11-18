@@ -147,8 +147,9 @@ void HTMLScriptEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 	unsigned long size = 0;
 	char *js_buf = qjs_get_buf(li->cres, &size);
 	if (size) {
-		trace;
-		//qjs_run_script(li->cres, NULL, (const char *)text, false);
+		size = strlen(js_buf) - len - 2;
+		js_buf[size] = '\0';
+		qjs_run_script(li->cres, NULL, (const char *)js_buf, false);
 	}
 	qjs_free_buf(li->cres);
 }

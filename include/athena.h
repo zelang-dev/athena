@@ -492,6 +492,8 @@ typedef struct JS_CanvasAction JS_Canvas;
 typedef struct BowResourcesP *BowResources;
 typedef struct BowStackP *BowStack;
 typedef struct BowContextP *BowContext;
+typedef struct BowTaskP *BowTask;
+typedef struct BowTimeOutP *BowTimeOut;
 
 #ifdef USE_QUICKJS_NG
 typedef struct JSValue JSValue;

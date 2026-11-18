@@ -172,9 +172,10 @@ static struct HTMLTagP tlist[] =
   { "title", TAG_TITLE, NULL, HTMLTitleEnd, NULL, NULL, NULL,
 	MARKUP_CLAMP,
 	NULL, NULL, NULL },
-  { "style", TAG_STYLE, NULL, NULL, NULL, NULL, NULL,
-	MARKUP_CLAMP,
-	NULL, NULL, NULL },
+  { "link", TAG_LINK, NULL, NULL, NULL, NULL, NULL,
+	MARKUP_CLAMP, NULL, NULL, NULL },
+  { "style", TAG_STYLE, NULL, HTMLStyleEnd, NULL, NULL, NULL,
+	MARKUP_CLAMP, NULL, NULL, NULL },
   { "script", TAG_SCRIPT, HTMLScript, HTMLScriptEnd, HTMLScriptExec, NULL, NULL,
 	MARKUP_CLAMP,
 	NULL, NULL, NULL },
@@ -199,6 +200,8 @@ static struct HTMLTagP tlist[] =
 		MARKUP_CLAMP,
 	NULL, NULL, NULL },
   { "form", TAG_FORM, HTMLFormBegin, HTMLFormEnd, HTMLFillData, NULL, NULL,
+	MARKUP_CLAMP, NULL, NULL, NULL },
+  { "button", TAG_BUTTON, HTMLButton, HTMLButtonEnd, NULL, NULL, NULL,
 	MARKUP_CLAMP, NULL, NULL, NULL },
 
   /* table.c */
