@@ -221,7 +221,16 @@ void HTMLFillData(HTMLInfo li, HTMLEnv env, MLElement p) {
 			for (s = cp; cp < lastcp && !isspace8(*cp); cp++)
 				;
 
-			HTMLEnvAddBox(li, env, HTMLCreateTextBox(li, env, s, cp - s));
+			HTMLBox text_box = HTMLCreateTextBox(li, env, s, cp - s);
+			/* Force layout box alignment reflection from environment */
+			if (env->ff == FLOW_CENTER_JUSTIFY) {
+				// Intercept line offsets to apply margins dynamically
+				HTMLSetB(text_box, BOX_VCENTER);
+			} else if (env->ff == FLOW_RIGHT_JUSTIFY) {
+				HTMLSetB(text_box, BOX_FLOAT_RIGHT);
+			}
+
+			HTMLEnvAddBox(li, env, text_box);
 		}
 	}
 }

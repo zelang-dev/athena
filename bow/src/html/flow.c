@@ -75,11 +75,7 @@ static void AddFloater _ArgProto((HTMLInfo, HFlow *, HTMLBox, HTMLBox));
 /*
  * DestroyFlow
  */
-static void
-DestroyFlow(li, box)
-HTMLInfo li;
-HTMLBox box;
-{
+static void DestroyFlow(HTMLInfo li, HTMLBox box) {
 	HFlow *hf = (HFlow *)box->closure;
 	HLine *hl;
 	HTMLBox c;
@@ -96,19 +92,12 @@ HTMLBox box;
 		c = (HTMLBox)GListGetNext(hf->floaters)) {
 		HTMLDestroyBox(li, c);
 	}
-
-	return;
 }
 
 /*
  * RenderFlow
  */
-static void
-RenderFlow(li, box, r)
-HTMLInfo li;
-HTMLBox box;
-Region r;
-{
+static void RenderFlow(HTMLInfo li, HTMLBox box, Region r) {
 	HFlow *hf = (HFlow *)box->closure;
 	HLine *hl;
 	HTMLBox c;
@@ -145,20 +134,12 @@ Region r;
 				hc->width, hc->height);
 		}
 	}
-
-	return;
 }
 
 /*
  * AddFloater
  */
-static void
-AddFloater(li, hf, parent, box)
-HTMLInfo li;
-HFlow *hf;
-HTMLBox parent;
-HTMLBox box;
-{
+static void AddFloater(HTMLInfo li, HFlow *hf, HTMLBox parent, HTMLBox box) {
 	HCons *hc;
 
 	/*
@@ -209,20 +190,12 @@ HTMLBox box;
 		box->y += parent->y;
 		HTMLSetupBox(li, box);
 	}
-
-	return;
 }
 
 /*
  * StartLine
  */
-static HLine *
-StartLine(li, env, hf, parent)
-HTMLInfo li;
-HTMLEnv env;
-HFlow *hf;
-HTMLBox parent;
-{
+static HLine *StartLine(HTMLInfo li, HTMLEnv env, HFlow *hf, HTMLBox parent) {
 	HLine *hl;
 	HTMLBox floater;
 	HCons *hc;
@@ -274,15 +247,8 @@ HTMLBox parent;
 /*
  * EndLine
  */
-static void
-EndLine(li, hf, hl, parent)
-HTMLInfo li;
-HFlow *hf;
-HLine *hl;
-HTMLBox parent;
-{
+static void EndLine(HTMLInfo li, HFlow *hf, HLine *hl, HTMLBox parent) {
 	myassert(!hl->ended, "Line already ended");
-
 	hf->linecount++;
 	if (hl->width + hl->x > parent->width) parent->width = hl->width + hl->x;
 	hf->nexty += hl->height;
@@ -299,19 +265,12 @@ HTMLBox parent;
 		SetupHLine(li, hf, hl);
 	}
 	hl->ended = true;
-
-	return;
 }
 
 /*
  * LayoutFlow
  */
-static void
-LayoutFlow(li, child, parent)
-HTMLInfo li;
-HTMLBox child;
-HTMLBox parent;
-{
+static void LayoutFlow(HTMLInfo li, HTMLBox child, HTMLBox parent) {
 	HFlow *hf = (HFlow *)parent->closure;
 	HLine *hl;
 	unsigned int temp;
@@ -380,19 +339,12 @@ HTMLBox parent;
 	hl->height = hl->bloff + hl->bottom;
 
 	GListAddTail(hl->boxes, child);
-
-	return;
 }
 
 /*
  * SetupHLine
  */
-static void
-SetupHLine(li, hf, hl)
-HTMLInfo li;
-HFlow *hf;
-HLine *hl;
-{
+static void SetupHLine(HTMLInfo li, HFlow *hf, HLine *hl) {
 	HTMLBox c;
 	int x = hl->x;
 
@@ -411,18 +363,12 @@ HLine *hl;
 
 		HTMLRenderBox(li, NULL, c);
 	}
-
-	return;
 }
 
 /*
  * SetupFlow
  */
-static void
-SetupFlow(li, box)
-HTMLInfo li;
-HTMLBox box;
-{
+static void SetupFlow(HTMLInfo li, HTMLBox box) {
 	HFlow *hf = (HFlow *)box->closure;
 	HLine *hl;
 	HTMLBox c;
@@ -442,18 +388,12 @@ HTMLBox box;
 		hl->y += box->y;
 		SetupHLine(li, hf, hl);
 	}
-
-	return;
 }
 
 /*
  * WidthFlow
  */
-static unsigned int
-WidthFlow(li, box)
-HTMLInfo li;
-HTMLBox box;
-{
+static unsigned int WidthFlow(HTMLInfo li, HTMLBox box) {
 	HFlow *hf = (HFlow *)box->closure;
 	HLine *hl;
 
@@ -472,12 +412,7 @@ HTMLBox box;
 /*
  * HTMLCreateFlowBox
  */
-HTMLBox
-HTMLCreateFlowBox(li, env, maxwidth)
-HTMLInfo li;
-HTMLEnv env;
-unsigned int maxwidth;
-{
+HTMLBox HTMLCreateFlowBox(HTMLInfo li, HTMLEnv env, unsigned int maxwidth) {
 	HTMLBox box;
 	HFlow *hf;
 
@@ -505,11 +440,7 @@ unsigned int maxwidth;
 /*
  * HTMLFinishFlowBox
  */
-void
-HTMLFinishFlowBox(li, box)
-HTMLInfo li;
-HTMLBox box;
-{
+void HTMLFinishFlowBox(HTMLInfo li, HTMLBox box) {
 	HFlow *hf = (HFlow *)box->closure;
 	HLine *hl;
 	HTMLBox child;
@@ -531,6 +462,4 @@ HTMLBox box;
 
 		HTMLSetFinalPosition(li);
 	}
-
-	return;
 }

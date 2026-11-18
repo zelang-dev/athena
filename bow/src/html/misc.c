@@ -152,7 +152,8 @@ void HTMLBQEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 
 void HTMLCenterBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
 	env->ff = FLOW_CENTER_JUSTIFY;
-	//HTMLAddLineBreak(li, env);
+
+	HTMLAddLineBreak(li, env);
 }
 
 void HTMLCenterEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
@@ -160,9 +161,7 @@ void HTMLCenterEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 }
 
 void HTMLDivBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
-	HTMLAttribID aid;
-
-	aid = HTMLAttributeToID(p, "align");
+	HTMLAttribID aid = HTMLAttributeToID(p, "align");
 	if (aid == ATTRIB_CENTER) env->ff = FLOW_CENTER_JUSTIFY;
 	else if (aid == ATTRIB_LEFT) env->ff = FLOW_LEFT_JUSTIFY;
 	else if (aid == ATTRIB_RIGHT) env->ff = FLOW_RIGHT_JUSTIFY;
