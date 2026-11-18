@@ -1,4 +1,3 @@
-#include "common.h"
 #include <athena.h>
 
 #include "BowP.h"

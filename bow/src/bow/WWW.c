@@ -48,7 +48,6 @@ in this Software without prior written authorization from the X Consortium.
 
 
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "common.h"
 #include <athena.h>

@@ -21,7 +21,6 @@
 
 
 #include <stdio.h>
-#include <stdlib.h>
 
 #include <X11/IntrinsicP.h>
 #include <X11/StringDefs.h>

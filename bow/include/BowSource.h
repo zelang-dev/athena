@@ -20,7 +20,6 @@
 #ifndef __BOWSOURCE_H__
 #define __BOWSOURCE_H__ 1
 
-#include "common.h"
 #include "mime.h"
 #include "url.h"
 

@@ -20,8 +20,6 @@
 #ifndef __BOW_P_H__
 #define __BOW_P_H__
 
-#include "common.h"
-
 #include "Bow.h"
 #include "BowSource.h"
 #include "BowGUI.h"

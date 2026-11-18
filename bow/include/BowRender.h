@@ -20,7 +20,6 @@
 #ifndef __BOWRENDER_H__
 #define __BOWRENDER_H__ 1
 
-#include "common.h"
 #include "url.h"
 
 #include "BowGUI.h"

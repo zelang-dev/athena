@@ -20,9 +20,6 @@
  */
 
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/utsname.h>
 
 #include <X11/IntrinsicP.h>

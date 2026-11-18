@@ -1,5 +1,4 @@
 #include "html.h"
-#include <stdint.h>
 
 struct ShadowNode_s {
 	HtmlNodeType type;

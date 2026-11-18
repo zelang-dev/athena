@@ -38,7 +38,6 @@
  * o You shouldn't be trying to view jpegs on a 1-bit screen anyway. :-)
  */
 
-#include <stdlib.h>
 
 #include "common.h"
 #include "imagep.h"

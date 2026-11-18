@@ -21,21 +21,18 @@
 
 #include <stdio.h>
 
-#include <stdlib.h>
 #include <X11/StringDefs.h>
 #include <X11/Intrinsic.h>
 
-#include "common.h"
+#include "Bow.h"
+#include "BowGUI.h"
+#include "BowRender.h"
 #include "colorcube.h"
 #include "dispdither.h"
 #include "xcolorcube.h"
 #include "image_endian.h"
 #include "imagep.h"
 #include "image_format.h"
-
-#include "Bow.h"
-#include "BowGUI.h"
-#include "BowRender.h"
 
 #define TCOUNT 4
 

@@ -24,7 +24,6 @@
 #	define _GNU_SOURCE
 #endif
 
-#include "common.h"
 #include "url.h"
 #include <tls.h>
 #include <athena.h>

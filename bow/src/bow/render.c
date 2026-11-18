@@ -19,15 +19,8 @@
  */
 
 
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include <X11/IntrinsicP.h>
 #include <X11/StringDefs.h>
-
-
 #include "BowP.h"
 
 struct BowRenderP {

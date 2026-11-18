@@ -20,8 +20,6 @@
 
 #include <stdio.h>
 
-#include <stdlib.h>
-
 #include <athena.h>
 #include <pwd.h>
 #include <unistd.h>

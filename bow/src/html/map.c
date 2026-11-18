@@ -25,7 +25,6 @@
 #include <ctype.h>
 
 #include <math.h>
-#include <stdlib.h>
 
 
 #include "html.h"

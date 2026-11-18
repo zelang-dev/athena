@@ -21,7 +21,6 @@
 #include <ctype.h>
 
 #include <string.h>
-#include <stdlib.h>
 
 #include "Bow.h"
 #include "BowStream.h"

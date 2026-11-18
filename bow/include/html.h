@@ -24,14 +24,11 @@
 #include <X11/Intrinsic.h>
 #include <X11/StringDefs.h>
 
-#include "common.h"
 #include "Bow.h"
 #include "BowRender.h"
 #include "BowGUI.h"
 #include "ml.h"
 #include "css.h"
-#include <stddef.h>
-#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
