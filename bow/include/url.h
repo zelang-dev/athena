@@ -58,4 +58,3 @@ int URLReadTranslations _ArgProto((GList, char *));
 char *URLTranslate _ArgProto((MemPool, GList, char *));
 
 #endif
-

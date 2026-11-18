@@ -21,6 +21,10 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__ 1
 
+#ifndef _GNU_SOURCE
+#	define _GNU_SOURCE
+#endif
+
 #include <sys/types.h>
 #include <stddef.h>
 #include <limits.h>
