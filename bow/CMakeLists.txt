@@ -91,8 +91,12 @@ else()
 			else()
 				FetchContent_MakeAvailable(quickjs)
 			endif()
-			file(COPY ${qjs_SOURCE_DIR}/quickjs.h DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include)
-			file(COPY ${qjs_SOURCE_DIR}/quickjs-libc.h DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include)
+		endif()
+		if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/include/quickjs-ng.h")
+			file(COPY ${qjs_SOURCE_DIR}/quickjs.h
+				DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include/quickjs-ng.h)
+			file(COPY ${qjs_SOURCE_DIR}/quickjs-libc.h
+				DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include/quickjs-libc-ng.h)
 		endif()
 	else()
 		FetchContent_Declare(${JAVASCRIPT}

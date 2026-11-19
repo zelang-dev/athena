@@ -27,8 +27,15 @@
 #include "url.h"
 #include <tls.h>
 #include <athena.h>
-#include "quickjs.h"
-#include "quickjs-libc.h"
+
+#if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
+#	include "quickjs-ng.h"
+#	include "quickjs-libc-ng.h"
+#else
+#	include "quickjs.h"
+#	include "quickjs-libc.h"
+#endif
+
 #include "css.h"
 #include "html.h"
 
