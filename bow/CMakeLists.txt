@@ -42,32 +42,31 @@ else()
 		if(NOT quickjs_FOUND)
 			set(ENV{QJS_BUILD_EXAMPLES} "OFF")
 			set(ENV{QJS_BUILD_LIBC} "ON")
-			FetchContent_Declare(quickjs
+			FetchContent_Declare(${JAVASCRIPT}
 				URL https://github.com/quickjs-ng/quickjs/archive/refs/tags/v0.18.0.zip
 				URL_MD5 607b15e9adc0d0ab0b563112fe5a09e8
 			)
 			if(BUILD_JS_ONLY)
-				set(JAVASCRIPT quickjs)
+				FetchContent_GetProperties(${JAVASCRIPT})
+				FetchContent_Populate(${JAVASCRIPT})
 				set(QUICKJS_SOURCES
-					${quickjs_SOURCE_DIR}/dtoa.c
-					${quickjs_SOURCE_DIR}/libregexp.c
-					${quickjs_SOURCE_DIR}/libunicode.c
-					${quickjs_SOURCE_DIR}/quickjs.c
-					${quickjs_SOURCE_DIR}/quickjs-libc.c
+					${qjs_SOURCE_DIR}/dtoa.c
+					${qjs_SOURCE_DIR}/libregexp.c
+					${qjs_SOURCE_DIR}/libunicode.c
+					${qjs_SOURCE_DIR}/quickjs.c
+					${qjs_SOURCE_DIR}/quickjs-libc.c
 				)
-				FetchContent_GetProperties(quickjs)
-				if(NOT quickjs_POPULATED)
-					FetchContent_Populate(quickjs)
-					if(BUILD_SHARED_LIBS)
-						add_library(quickjs SHARED ${QUICKJS_SOURCES})
-					else()
-						add_library(quickjs STATIC ${QUICKJS_SOURCES})
-					endif()
-					set_property(TARGET quickjs PROPERTY C_STANDARD 99)
-					target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)
-					target_include_directories(quickjs PRIVATE ${quickjs_SOURCE_DIR})
+
+				if(BUILD_SHARED_LIBS)
+					add_library(${JAVASCRIPT} SHARED ${QUICKJS_SOURCES})
+				else()
+					add_library(${JAVASCRIPT} STATIC ${QUICKJS_SOURCES})
 				endif()
-				file(STRINGS ${quickjs_SOURCE_DIR}/quickjs.h quickjs_h REGEX QJS_VERSION)
+
+				set_property(TARGET ${JAVASCRIPT} PROPERTY C_STANDARD 99)
+				target_compile_definitions(${JAVASCRIPT} PRIVATE _GNU_SOURCE)
+				target_include_directories(${JAVASCRIPT} PRIVATE ${quickjs_SOURCE_DIR})
+				file(STRINGS ${qjs_SOURCE_DIR}/quickjs.h quickjs_h REGEX QJS_VERSION)
 				string(REGEX MATCH "QJS_VERSION_MAJOR ([0-9]*)" _ "${quickjs_h}")
 				set(QJS_VERSION_MAJOR ${CMAKE_MATCH_1})
 				string(REGEX MATCH "QJS_VERSION_MINOR ([0-9]*)" _ "${quickjs_h}")
@@ -78,21 +77,22 @@ else()
 					VERSION ${QJS_VERSION_MAJOR}.${QJS_VERSION_MINOR}.${QJS_VERSION_PATCH}
 					SOVERSION ${QJS_VERSION_MAJOR}
 				)
-				install(FILES ${quickjs_SOURCE_DIR}/quickjs.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-				install(FILES ${quickjs_SOURCE_DIR}/quickjs-libc.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+				install(FILES ${qjs_SOURCE_DIR}/quickjs.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+				install(FILES ${qjs_SOURCE_DIR}/quickjs-libc.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 				install(TARGETS ${JAVASCRIPT} EXPORT ${JAVASCRIPT}Config
 						RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 						LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 						ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 				install(EXPORT ${JAVASCRIPT}Config DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${JAVASCRIPT})
-				install(FILES  ${quickjs_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
-				install(FILES  ${quickjs_SOURCE_DIR}/README.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
+				install(FILES  ${qjs_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
+				install(FILES  ${qjs_SOURCE_DIR}/README.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
 				target_link_libraries(${JAVASCRIPT} m dl pthread)
 			else()
 				FetchContent_MakeAvailable(quickjs)
 			endif()
-			file(COPY ${quickjs_SOURCE_DIR}/quickjs.h DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include)
-			file(COPY ${quickjs_SOURCE_DIR}/quickjs-libc.h DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include)
+			file(COPY ${qjs_SOURCE_DIR}/quickjs.h DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include)
+			file(COPY ${qjs_SOURCE_DIR}/quickjs-libc.h DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include)
 		endif()
 	else()
 		FetchContent_Declare(${JAVASCRIPT}
@@ -151,13 +151,6 @@ else()
 	file(GLOB ext_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/ext/*.c)
 	file(GLOB common_files 	${CMAKE_CURRENT_SOURCE_DIR}/src/common/*.c)
 
-	if(BUILD_NATIVE_XAW)
-		target_compile_definitions(${PROJECT_NAME} PUBLIC NATIVE_XAW=1)
-	endif()
-	if(BUILD_QUICKJS_NG)
-		target_compile_definitions(${PROJECT_NAME} PUBLIC USE_QUICKJS_NG=1)
-	endif()
-
 	if(BUILD_SHARED_LIBS)
 		add_library(${PROJECT_NAME} SHARED
 		${lib_files} ${proto_files} ${plain_files} ${mxw_files} ${image_files}
@@ -167,6 +160,14 @@ else()
 		${lib_files} ${proto_files} ${plain_files} ${mxw_files} ${image_files}
 		${html_files} ${ext_files} ${common_files})
 	endif()
+
+	if(BUILD_NATIVE_XAW)
+		target_compile_definitions(${PROJECT_NAME} PUBLIC NATIVE_XAW=1)
+	endif()
+	if(BUILD_QUICKJS_NG)
+		add_compile_definitions(USE_QUICKJS_NG=1)
+	endif()
+
 	target_include_directories(${PROJECT_NAME}
 		PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 		PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)

@@ -495,7 +495,7 @@ typedef struct BowContextP *BowContext;
 typedef struct BowTaskP *BowTask;
 typedef struct BowTimeOutP *BowTimeOut;
 
-#ifdef USE_QUICKJS_NG
+#if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
 typedef struct JSValue JSValue;
 #else
 typedef uint64_t JSValue;

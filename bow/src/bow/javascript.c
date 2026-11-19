@@ -269,7 +269,12 @@ void qjs_exit(void) {
 static void notify_mutation(const char *type, JS_Dom *target) {
 	JS_Observer *curr = g_app.observers;
 	while (curr) {
-		if (curr->callback && (curr->target == NULL || curr->target == target)) {
+#if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
+		if (curr->callback.u.ptr != NULL && (curr->target == NULL || curr->target == target))
+#else
+		if (curr->callback != NULL && (curr->target == NULL || curr->target == target))
+#endif
+		{
 			JSValue record = JS_NewObject(g_app.ctx);
 			JS_SetPropertyStr(g_app.ctx, record, "type",
 				JS_NewString(g_app.ctx, type));
@@ -295,7 +300,7 @@ static void js_append_child(JS_Dom *parent, JS_Dom *child) {
 
 	JS_Observer *curr = g_app.observers;
 	while (curr) {
-		JSValue argv = {JS_DupValue(g_app.ctx, child->js_object)};
+		JSValue argv = JS_DupValue(g_app.ctx, child->js_object);
 		JSValue ret = JS_Call(g_app.ctx, curr->callback, JS_UNDEFINED, 1, &argv);
 		JS_FreeValue(g_app.ctx, argv);
 		JS_FreeValue(g_app.ctx, ret);
@@ -576,7 +581,12 @@ static void *js_async_pipeline(void *arg) {
 			JSContext *ctx = g_app.ctx;
 			if (task->type == TASK_SETTIMEOUT) {
 				usleep(task->delay * 1000);
-				if (task->timeout) {
+#if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
+				if (task->timeout.u.ptr)
+#else
+				if (task->timeout)
+#endif
+				{
 					JSValue ret = JS_Call(ctx, task->timeout, JS_UNDEFINED, 0, NULL);
 					JS_FreeValue(ctx, ret);
 					JS_FreeValue(ctx, task->timeout);
@@ -587,7 +597,7 @@ static void *js_async_pipeline(void *arg) {
 				if (payload && task->type == TASK_FETCH) {
 					JSValue res_obj = JS_NewObject(ctx);
 					JS_SetPropertyStr(ctx, res_obj, "text", JS_NewString(ctx, payload));
-					JSValue argv = {res_obj};
+					JSValue argv = res_obj;
 					JSValue ret = JS_Call(ctx, task->resolve, JS_UNDEFINED, 1, &argv);
 					JS_FreeValue(ctx, ret);
 					JS_FreeValue(ctx, task->resolve);
@@ -595,7 +605,7 @@ static void *js_async_pipeline(void *arg) {
 					free(payload);
 				} else if (payload && task->type == TASK_MODULE_IMPORT) {
 					JSValue mod = JS_Eval(ctx, payload, strlen(payload), task->url, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-					JSValue argv = {mod};
+					JSValue argv = mod;
 					JSValue ret = JS_Call(ctx, task->resolve, JS_UNDEFINED, 1, &argv);
 					JS_FreeValue(ctx, ret);
 					JS_FreeValue(ctx, task->resolve);
@@ -1130,7 +1140,7 @@ void qjs_click_event(Widget w, XtPointer data, XEvent *ev, Boolean *cont) {
 	}
 }
 
-#ifdef USE_QUICKJS_NG
+#if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
 static FORCEINLINE void *my_malloc(void *opaque, size_t size) {
 	return malloc(size);
 }
@@ -1424,10 +1434,14 @@ FORCEINLINE void qjs_free_buf(bow_t web) {
 }
 
 static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
+#if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
+	JS_NewClassID(rt, &g_app.js_class_id);
+	JS_NewClassID(rt, &g_app.observer_class_id);
+#else
 	JS_NewClassID(&g_app.js_class_id);
-	JS_NewClass(rt, g_app.js_class_id, &js_dom_node_class);
-
 	JS_NewClassID(&g_app.observer_class_id);
+#endif
+	JS_NewClass(rt, g_app.js_class_id, &js_dom_node_class);
 	JS_NewClass(rt, g_app.observer_class_id, &js_dom_obs_class);
 
 	JSValue proto = JS_NewObject(ctx);
@@ -1714,8 +1728,8 @@ void qjs_exec(bow_t web, ats_str script, bool is_file) {
 		int r = 0;
 		JSValue result = JS_Eval(web->qjs->ctx, file, strlen(file),
 			"<input>", JS_EVAL_TYPE_MODULE | JS_EVAL_TYPE_GLOBAL);
-#ifdef USE_QUICKJS_NG
-		int r = js_std_loop(web->qjs->ctx);
+#if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
+		r = js_std_loop(web->qjs->ctx);
 #else
 		js_std_loop(web->qjs->ctx);
 #endif
