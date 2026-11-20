@@ -518,6 +518,7 @@ void HTMLBase(HTMLInfo, HTMLEnv, MLElement);
 void HTMLTitleEnd(HTMLInfo, HTMLEnv, MLElement);
 void HTMLMeta(HTMLInfo, HTMLEnv, MLElement);
 void HTMLStyleEnd(HTMLInfo li, HTMLEnv env, MLElement p);
+void HTMLLink(HTMLInfo li, HTMLEnv env, MLElement p);
 
 /*
  * map.c
@@ -567,7 +568,7 @@ CSS selector querying, DOM Structures and DOM tree mutation helpers, for `html5.
 - **DOM Serialization**: Pretty-printed and compact HTML5 output via `dom_serialize`.
 - **CSS Selector Engine**: (`dom_query_selector` / `dom_query_selector_all`):** Supports tag names, `*`, `#id`, `.class`, `[attr]`, `[attr=val]`, descendant combinator (` `), direct child combinator (`>`), and comma-separated selector lists (`,`).
 */
-typedef struct ShadowNode_s HtmlDom_t;
+typedef struct HtmlNode_S HtmlDom_t;
 
 typedef enum {
 	NODE_DOCUMENT,

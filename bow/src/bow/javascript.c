@@ -2,496 +2,167 @@
 #	define _GNU_SOURCE
 #endif
 
-#include "BowP.h"
+#include "javascriptP.h"
 
-/* Enumerate common legacy handlers */
-typedef enum LegacyEventType {
-	EVENT_CLICK,
-	EVENT_LOAD,
-	EVENT_CHANGE,
-	EVENT_MOUSEOVER,
-	EVENT_MOUSEOUT,
-	EVENT_KEYDOWN,
-	EVENT_KEYUP,
-	EVENT_COUNT
-} LegacyEventType;
-
-const char *LEGACY_EVENT_NAMES[EVENT_COUNT] = {
-	"onclick", "onload", "onchange", "onmouseover", "onmouseout", "onkeydown", "onkeyup"
-};
-
-typedef struct {
-	char key[64];
-	char value[512];
-} JS_Attribute;
-
-struct JS_EventsList {
-	char *type;
-	char *id;
-	JSValue callback;
-	JS_Listener *next;
-};
-
-struct JS_CSS_Styles {
-	char *name;
-	char *value;
-	JS_CSSVariable *next;
-};
-
-struct JS_ShadowDOM {
-	HtmlNodeType type;
-	int x, y, width, height;
-	char tagName[64];
-	char *textContent;
-
-	JS_Attribute *attributes;
-	size_t attr_count;
-	size_t attr_capacity;
-
-	JS_Dom *parent;
-	JS_Dom **children;
-	size_t child_count;
-	size_t child_capacity;
-
-	JSValue js_object;
-	JSValue js_onclick;
-	JS_Listener *listeners;
-};
-
-struct JS_Mutation {
-	JSValue callback;
-	JS_Dom *target;
-	JS_Observer *next;
-};
-
-/* Async Engine Module Promise Resolution Container */
-struct JS_ESMPromise {
-	char *module_name;
-	JSValue resolve;
-	JSValue reject;
-	JS_Promise *next;
-};
-
-typedef enum {
-	CMD_RECT, CMD_LINE, CMD_TEXT
-} CanvasActionType;
-
-struct JS_CanvasAction {
-	CanvasActionType type;
-	int x, y, w, h;
-	unsigned long color;
-	char *text;
-	XFontStruct *font;
-	JS_Canvas *next;
-};
-
-typedef enum {
-	TASK_FETCH, TASK_MODULE_IMPORT, TASK_SETTIMEOUT
-} TaskType;
-
-struct JS_AsyncTask {
-	TaskType type;
-	useconds_t delay;
-	char *url;
-	JSValue resolve;
-	JSValue reject;
-	JSValue timeout;
-	JS_Task *next;
-};
-
-struct Bow_QJS_Info {
-	int scroll_offset_y, js_dom_count;
-	size_t js_buf_size;
-	JSClassID js_class_id, observer_class_id;
-	JSValue js_this;
-	JSValue js_obs;
-	char *js_buf;
-	Pixmap canvas_buffer;
-	int canvas_w, canvas_h;
-	Widget render_canvas;
-	GC gc;
-	XFontStruct *font_normal;
-	XFontStruct *font_bold;
-	XFontStruct *font_italic;
-	JS_Dom *dom_root;
-	JSContext *ctx;
-	JSRuntime *rt;
-	JS_Observer *observers;
-	JS_CSSVariable *style_vars;
-	JS_Promise *module_promises;
-	JS_Canvas *canvas_queue;
-	JS_Task *task_queue;
-	pthread_mutex_t canvas_mutex;
-	pthread_mutex_t task_mutex;
-};
-
-static Bow_QJS g_app = {0};
+static Bow_QJS gl_ctx = {0};
 static volatile bool g_run_pipeline = true;
 
-static JS_Dom *js_create_dom(HtmlNodeType type, const char *name_or_text) {
-	JS_Dom *node = calloc(1, sizeof(JS_Dom));
-	if (!node)
-		return NULL;
+/* Forward declarations */
+static JSValue create_js_dom_wrapper(JSContext *ctx, HtmlDom_t *node);
+static JSValue create_js_nodelist(JSContext *ctx, HtmlDom_t **items, size_t count);
+static void notify_mutation(const char *type, HtmlDom_t *target);
+static void execute_script_blocks(JSContext *ctx, HtmlDom_t *n);
 
-	node->type = type;
-	if (type == NODE_ELEMENT)
-		strncpy(node->tagName, name_or_text, sizeof(node->tagName) - 1);
-	else
-		node->textContent = strdup(name_or_text);
-
-	node->js_object = JS_UNDEFINED;
-	node->js_onclick = JS_UNDEFINED;
-	return node;
-}
-
-static void js_free_dom(JS_Dom *node) {
+static void free_node_listeners(JSContext *ctx, HtmlDom_t *node) {
 	if (!node)
 		return;
-
-	size_t i;
-	for (i = 0; i < node->child_count; i++) {
-		js_free_dom(node->children[i]);
-		node->children[i] = NULL;
+	JS_Listener *el = node->listeners;
+	while (el) {
+		JS_Listener *tmp = el->next;
+		free(el->type);
+		free(el->id);
+		if (ctx && !JS_IsUndefined(el->callback))
+			JS_FreeValue(ctx, el->callback);
+		free(el);
+		el = tmp;
 	}
-
-	if (node->children)
-		free(node->children);
-
-	if (node->textContent)
-		free(node->textContent);
-
-	if (node->attributes)
-		free(node->attributes);
-
-	if (node->listeners) {
-		JS_Listener *el = node->listeners;
-		while (el) {
-			JS_Listener *tmp = el->next;
-			free(el->type);
-			free(el->id);
-			JS_FreeValue(g_app.ctx, el->callback);
-			free(el);
-			el = tmp;
-		}
+	node->listeners = NULL;
+	if (ctx && !JS_IsUndefined(node->js_onclick)) {
+		JS_FreeValue(ctx, node->js_onclick);
+		node->js_onclick = JS_UNDEFINED;
 	}
+	if (ctx && !JS_IsUndefined(node->js_object)) {
+		JS_SetOpaque(node->js_object, NULL);
+		JS_FreeValue(ctx, node->js_object);
+		node->js_object = JS_UNDEFINED;
+	}
+}
 
-	JS_FreeValue(g_app.ctx, node->js_onclick);
-	JS_FreeValue(g_app.ctx, node->js_object);
-	free(node);
-	node = NULL;
+static void js_free_dom_recursive(JSContext *ctx, HtmlDom_t *node) {
+	if (!node)
+		return;
+	HtmlDom_t *c = node->first_child;
+	while (c) {
+		HtmlDom_t *next = c->next_sibling;
+		js_free_dom_recursive(ctx, c);
+		c = next;
+	}
+	free_node_listeners(ctx, node);
+}
+
+static void js_free_dom(HtmlDom_t *node) {
+	if (!node)
+		return;
+	js_free_dom_recursive(gl_ctx.ctx, node);
+	dom_free(node);
 }
 
 void qjs_exit(void) {
 	g_run_pipeline = false;
 	usleep(50000); /* Allow async threads to exit gracefully */
 
-	if (g_app.canvas_queue) {
-		pthread_mutex_lock(&g_app.canvas_mutex);
-		JS_Canvas *cmd = g_app.canvas_queue;
+	if (gl_ctx.canvas_queue) {
+		pthread_mutex_lock(&gl_ctx.canvas_mutex);
+		JS_Canvas *cmd = gl_ctx.canvas_queue;
 		while (cmd) {
 			JS_Canvas *next = cmd->next;
 			free(cmd->text);
 			free(cmd);
 			cmd = next;
 		}
-		pthread_mutex_unlock(&g_app.canvas_mutex);
+		gl_ctx.canvas_queue = NULL;
+		pthread_mutex_unlock(&gl_ctx.canvas_mutex);
 	}
 
-	if (g_app.task_queue) {
-		pthread_mutex_lock(&g_app.task_mutex);
-		JS_Task *task = g_app.task_queue;
+	if (gl_ctx.task_queue) {
+		pthread_mutex_lock(&gl_ctx.task_mutex);
+		JS_Task *task = gl_ctx.task_queue;
 		while (task) {
 			JS_Task *next = task->next;
 			free(task->url);
-			JS_FreeValue(g_app.ctx, task->resolve);
-			JS_FreeValue(g_app.ctx, task->reject);
-			JS_FreeValue(g_app.ctx, task->timeout);
+			if (gl_ctx.ctx) {
+				JS_FreeValue(gl_ctx.ctx, task->resolve);
+				JS_FreeValue(gl_ctx.ctx, task->reject);
+				JS_FreeValue(gl_ctx.ctx, task->timeout);
+			}
 			free(task);
 			task = next;
 		}
-		pthread_mutex_unlock(&g_app.task_mutex);
+		gl_ctx.task_queue = NULL;
+		pthread_mutex_unlock(&gl_ctx.task_mutex);
 	}
 
-	if (g_app.style_vars) {
-		JS_CSSVariable *sv = g_app.style_vars;
-		while (sv) {
-			JS_CSSVariable *next = sv->next;
-			free(sv->name);
-			free(sv->value);
-			free(sv);
-			sv = next;
-		}
-	}
-
-	if (g_app.observers) {
-	JS_Observer *mo = g_app.observers;
+	if (gl_ctx.observers) {
+		JS_Observer *mo = gl_ctx.observers;
 		while (mo) {
 			JS_Observer *next = mo->next;
-			JS_FreeValue(g_app.ctx, mo->callback);
+			if (gl_ctx.ctx)
+				JS_FreeValue(gl_ctx.ctx, mo->callback);
 			free(mo);
 			mo = next;
 		}
+		gl_ctx.observers = NULL;
 	}
 
-	js_free_dom(g_app.dom_root);
-	g_app.dom_root = NULL;
-	if (g_app.render_canvas) {
-		Display *dpy = XtDisplay(g_app.render_canvas);
-		if (g_app.gc)
-			XFreeGC(dpy, g_app.gc);
+	js_free_dom(gl_ctx.dom_root);
+	gl_ctx.dom_root = NULL;
 
-		if (g_app.font_normal)
-			XFreeFont(dpy, g_app.font_normal);
+	if (gl_ctx.render_canvas) {
+		Display *dpy = XtDisplay(gl_ctx.render_canvas);
+		if (gl_ctx.gc)
+			XFreeGC(dpy, gl_ctx.gc);
 
-		if (g_app.font_bold)
-			XFreeFont(dpy, g_app.font_bold);
+		if (gl_ctx.font_normal)
+			XFreeFont(dpy, gl_ctx.font_normal);
 
-		if (g_app.font_italic)
-			XFreeFont(dpy, g_app.font_italic);
-		g_app.render_canvas = NULL;
+		if (gl_ctx.font_bold)
+			XFreeFont(dpy, gl_ctx.font_bold);
+
+		if (gl_ctx.font_italic)
+			XFreeFont(dpy, gl_ctx.font_italic);
+		gl_ctx.render_canvas = NULL;
 	}
 
-	if (g_app.js_buf)
-		free(g_app.js_buf);
-
-	g_app.js_buf = NULL;
-	if (g_app.ctx) {
-		JS_FreeValue(g_app.ctx, g_app.js_obs);
-		JS_FreeValue(g_app.ctx, g_app.js_this);
-		js_std_free_handlers(g_app.rt);
-		JS_FreeContext(g_app.ctx);
-		JS_FreeRuntime(g_app.rt);
-		g_app.ctx = NULL;
-		g_app.rt = NULL;
+	if (gl_ctx.js_buf) {
+		free(gl_ctx.js_buf);
+		gl_ctx.js_buf = NULL;
+		gl_ctx.js_buf_size = 0;
 	}
-}
 
-static void notify_mutation(const char *type, JS_Dom *target) {
-	JS_Observer *curr = g_app.observers;
-	while (curr) {
-#if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
-		if (curr->callback.u.ptr != NULL && (curr->target == NULL || curr->target == target))
-#else
-		if (curr->callback != NULL && (curr->target == NULL || curr->target == target))
-#endif
-		{
-			JSValue record = JS_NewObject(g_app.ctx);
-			JS_SetPropertyStr(g_app.ctx, record, "type",
-				JS_NewString(g_app.ctx, type));
-			JSValue ret = JS_Call(g_app.ctx, curr->callback, JS_UNDEFINED, 1, &record);
-			JS_FreeValue(g_app.ctx, ret);
-			JS_FreeValue(g_app.ctx, record);
-			//break;
-		}
-		curr = curr->next;
+	if (gl_ctx.ctx) {
+		JS_FreeValue(gl_ctx.ctx, gl_ctx.js_obs);
+		JS_FreeValue(gl_ctx.ctx, gl_ctx.js_this);
+		js_std_free_handlers(gl_ctx.rt);
+		JS_FreeContext(gl_ctx.ctx);
+		JS_FreeRuntime(gl_ctx.rt);
+		gl_ctx.ctx = NULL;
+		gl_ctx.rt = NULL;
 	}
 }
 
-static void js_append_child(JS_Dom *parent, JS_Dom *child) {
-	if (parent->child_count >= parent->child_capacity) {
-		parent->child_capacity = parent->child_capacity == 0 ? 8 : parent->child_capacity * 2;
-		parent->children = realloc(parent->children, parent->child_capacity * sizeof(JS_Dom *));
-	}
-
-	if (parent->children) {
-		parent->children[parent->child_count++] = child;
-		child->parent = parent;
-	}
-
-	JS_Observer *curr = g_app.observers;
-	while (curr) {
-		JSValue argv = JS_DupValue(g_app.ctx, child->js_object);
-		JSValue ret = JS_Call(g_app.ctx, curr->callback, JS_UNDEFINED, 1, &argv);
-		JS_FreeValue(g_app.ctx, argv);
-		JS_FreeValue(g_app.ctx, ret);
-		curr = curr->next;
-	}
-}
-
-static void js_add_attribute(JS_Dom *node, const char *key, const char *value) {
-	if (node->attr_count >= node->attr_capacity) {
-		node->attr_capacity = node->attr_capacity == 0 ? 4 : node->attr_capacity * 2;
-		node->attributes = realloc(node->attributes, node->attr_capacity * sizeof(JS_Attribute));
-	}
-
-	if (node->attributes) {
-		strncpy(node->attributes[node->attr_count].key, key, sizeof(node->attributes->key) - 1);
-		strncpy(node->attributes[node->attr_count].value, value, sizeof(node->attributes->value) - 1);
-		node->attr_count++;
-		notify_mutation("attributes", node);
-	}
-}
-
-static bool js_should_autoclose(const char *open, const char *next) {
-	if (strcasecmp(open, "p") == 0 && (strcasecmp(next, "p") == 0 || strcasecmp(next, "div") == 0
-		|| strcasecmp(next, "table") == 0 || strcasecmp(next, "tr") == 0 || strcasecmp(next, "td") == 0))
-		return true;
-	if ((strcasecmp(open, "td") == 0 || strcasecmp(open, "th") == 0) && (strcasecmp(next, "td") == 0
-		|| strcasecmp(next, "th") == 0 || strcasecmp(next, "tr") == 0 || strcasecmp(next, "table") == 0))
-		return true;
-	if (strcasecmp(open, "tr") == 0 && (strcasecmp(next, "tr") == 0 || strcasecmp(next, "table") == 0))
-		return true;
-
-	return false;
-}
-
-static void js_serialize_html(JS_Dom *node, char **buf, size_t *cap, bool outer) {
-	if (!node) return;
-	int i;
-	if (node->type == NODE_TEXT) {
-		size_t len = strlen(node->textContent);
-		while (strlen(*buf) + len + 1 >= *cap) {
-			*cap *= 2;
-			*buf = realloc(*buf, *cap);
-		}
-
-		strcat(*buf, node->textContent);
+static void notify_mutation(const char *type, HtmlDom_t *target) {
+	if (!gl_ctx.ctx)
 		return;
-	}
 
-	if (outer) {
-		while (strlen(*buf) + strlen(node->tagName) + 3 >= *cap) {
-			*cap *= 2; *buf = realloc(*buf, *cap);
+	JS_Observer *curr = gl_ctx.observers;
+	while (curr) {
+		if (!JS_IsUndefined(curr->callback) && !JS_IsNull(curr->callback) &&
+		    (curr->target == NULL || curr->target == target)) {
+			JSValue records = JS_NewArray(gl_ctx.ctx);
+			JSValue record = JS_NewObject(gl_ctx.ctx);
+			JS_SetPropertyStr(gl_ctx.ctx, record, "type",
+				JS_NewString(gl_ctx.ctx, type));
+			if (target) {
+				JS_SetPropertyStr(gl_ctx.ctx, record, "target",
+					create_js_dom_wrapper(gl_ctx.ctx, target));
+			}
+			JS_SetPropertyUint32(gl_ctx.ctx, records, 0, record);
+			JSValue ret = JS_Call(gl_ctx.ctx, curr->callback, JS_UNDEFINED, 1, &records);
+			JS_FreeValue(gl_ctx.ctx, ret);
+			JS_FreeValue(gl_ctx.ctx, records);
 		}
-
-		strcat(*buf, "<");
-		strcat(*buf, node->tagName);
-		for (i = 0; i < node->attr_count; i++) {
-			size_t attr_len = strlen(node->attributes[i].key) + strlen(node->attributes[i].value) + 4;
-			while (strlen(*buf) + attr_len >= *cap) {
-				*cap *= 2;
-				*buf = realloc(*buf, *cap);
-			}
-
-			strcat(*buf, " ");
-			strcat(*buf, node->attributes[i].key);
-			strcat(*buf, "=\"");
-			strcat(*buf, node->attributes[i].value);
-			strcat(*buf, "\"");
-		}
-
-		strcat(*buf, ">");
+		curr = curr->next;
 	}
-
-	for (i = 0; i < node->child_count; i++) {
-		js_serialize_html(node->children[i], buf, cap, true);
-	}
-}
-
-JS_Dom *js_parse_html(const char *html) {
-	JS_Dom *root = js_create_dom(NODE_ELEMENT, "html");
-	JS_Dom *current = root;
-	const char *page = html;
-	while (*page) {
-		if (*page == '<') {
-			page++;
-			if (*page == '!') {
-				while (*page && *page != '>')
-					page++;
-
-				if (*page)
-					page++;
-				continue;
-			}
-
-			if (*page == '/') {
-				page++;
-				char tagname[64] = {0};
-				int i = 0;
-				while (*page && *page != '>') {
-					if (i < 63)
-						tagname[i++] = *page;
-					page++;
-				}
-
-				if (*page)
-					page++;
-				if (current->parent && strcasecmp(current->tagName, tagname) == 0)
-					current = current->parent;
-				continue;
-			}
-
-			char tagname[64] = {0};
-			int i = 0;
-			while (*page && !isspace((unsigned char)*page) && *page != '>' && *page != '/') {
-				if (i < 63)
-					tagname[i++] = *page;
-				page++;
-			}
-
-			while (current != root && js_should_autoclose(current->tagName, tagname))
-				current = current->parent;
-
-			JS_Dom *new_elem = js_create_dom(NODE_ELEMENT, tagname);
-			while (*page && *page != '>' && *page != '/') {
-				if (isspace((unsigned char)*page)) {
-					page++;
-					continue;
-				}
-
-				char key[64] = {0}, val[512] = {0};
-				int k = 0;
-				while (*page && *page != '=' && !isspace((unsigned char)*page) && *page != '>') {
-					if (k < 63)
-						key[k++] = *page;
-					page++;
-				}
-
-				if (*page == '=') {
-					page++;
-					if (*page == '"' || *page == '\'') {
-						char q = *page++;
-						int v = 0;
-						while (*page && *page != q) {
-							if (v < 511)
-								val[v++] = *page;
-							page++;
-						}
-
-						if (*page)
-							page++;
-					} else {
-						int v = 0;
-						while (*page && !isspace((unsigned char)*page)
-							&& *page != '>') {
-							if (v < 511)
-								val[v++] = *page;
-							page++;
-						}
-					}
-				}
-
-				if (strlen(key) > 0)
-					js_add_attribute(new_elem, key, val);
-			}
-
-			js_append_child(current, new_elem);
-			if (*page == '/')
-				page++;
-
-			if (*page == '>')
-				page++;
-
-			if (strcasecmp(tagname, "img") != 0 && strcasecmp(tagname, "br") != 0
-				&& strcasecmp(tagname, "hr") != 0 && strcasecmp(tagname, "input") != 0
-				&& strcasecmp(tagname, "link") != 0)
-				current = new_elem;
-		} else {
-			const char *text_start = page;
-			while (*page && *page != '<')
-				page++;
-
-			size_t text_len = page - text_start;
-			if (text_len > 0) {
-				char *text_buf = calloc(1, text_len + 1);
-				memcpy(text_buf, text_start, text_len);
-				js_append_child(current, js_create_dom(NODE_TEXT, text_buf));
-				free(text_buf);
-			}
-		}
-	}
-
-	return root;
 }
 
 static char *qjs_readfile(const char *path) {
@@ -501,11 +172,15 @@ static char *qjs_readfile(const char *path) {
 
 	fseek(f, 0, SEEK_END);
 	long sz = ftell(f);
+	if (sz < 0) {
+		fclose(f);
+		return NULL;
+	}
 	fseek(f, 0, SEEK_SET);
-	char *buf = malloc(sz + 1);
+	char *buf = malloc((size_t)sz + 1);
 	if (buf) {
-		fread(buf, 1, sz, f);
-		buf[sz] = 0;
+		size_t nread = fread(buf, 1, (size_t)sz, f);
+		buf[nread] = '\0';
 	}
 
 	fclose(f);
@@ -517,9 +192,12 @@ static char *qjs_fetchfile(const char *url) {
 	char path[512] = {0};
 	int port = 80;
 
-	if (sscanf(url, "http://%255[^/]%511s", host, path) < 1) {
-		strncpy(host, url, sizeof(host) -1);
-		strcpy(path, "/");
+	if (sscanf(url, "http://%255[^:/]:%d%511s", host, &port, path) < 2) {
+		port = 80;
+		if (sscanf(url, "http://%255[^/]%511s", host, path) < 1) {
+			strncpy(host, url, sizeof(host) - 1);
+			strcpy(path, "/");
+		}
 	}
 
 	if (strlen(path) == 0)
@@ -530,12 +208,15 @@ static char *qjs_fetchfile(const char *url) {
 		return NULL;
 
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0)
+		return NULL;
+
 	struct sockaddr_in serv_addr = {
 		.sin_family = AF_INET,
-		.sin_port = htons(port)
+		.sin_port = htons((uint16_t)port)
 	};
 
-	memcpy(&serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
+	memcpy(&serv_addr.sin_addr.s_addr, server->h_addr, (size_t)server->h_length);
 	if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
 		close(sockfd);
 		return NULL;
@@ -545,13 +226,26 @@ static char *qjs_fetchfile(const char *url) {
 	snprintf(req, sizeof(req), "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
 		path, host);
 	send(sockfd, req, strlen(req), 0);
-	int cap = 8192, total = 0, n;
+
+	size_t cap = 8192, total = 0;
+	ssize_t n;
 	char *resp = malloc(cap);
+	if (!resp) {
+		close(sockfd);
+		return NULL;
+	}
+
 	while ((n = recv(sockfd, resp + total, cap - total - 1, 0)) > 0) {
-		total += n;
+		total += (size_t)n;
 		if (total >= cap - 1) {
-			cap = 2;
-			resp = realloc(resp, cap);
+			cap *= 2;
+			char *tmp = realloc(resp, cap);
+			if (!tmp) {
+				free(resp);
+				close(sockfd);
+				return NULL;
+			}
+			resp = tmp;
 		}
 	}
 
@@ -568,25 +262,26 @@ static char *qjs_fetchfile(const char *url) {
 }
 
 static void *js_async_pipeline(void *arg) {
+	(void)arg;
 	while (g_run_pipeline) {
 		JS_Task *task = NULL;
-		pthread_mutex_lock(&g_app.task_mutex);
-		if (g_app.task_queue) {
-			task = g_app.task_queue;
-			g_app.task_queue = g_app.task_queue->next;
+		pthread_mutex_lock(&gl_ctx.task_mutex);
+		if (gl_ctx.task_queue) {
+			task = gl_ctx.task_queue;
+			gl_ctx.task_queue = gl_ctx.task_queue->next;
 		}
-		pthread_mutex_unlock(&g_app.task_mutex);
+		pthread_mutex_unlock(&gl_ctx.task_mutex);
 
 		if (task) {
-			JSContext *ctx = g_app.ctx;
+			JSContext *ctx = gl_ctx.ctx;
+			if (!ctx) {
+				free(task->url);
+				free(task);
+				continue;
+			}
 			if (task->type == TASK_SETTIMEOUT) {
 				usleep(task->delay * 1000);
-#if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
-				if (task->timeout.u.ptr)
-#else
-				if (task->timeout)
-#endif
-				{
+				if (!JS_IsUndefined(task->timeout) && !JS_IsNull(task->timeout)) {
 					JSValue ret = JS_Call(ctx, task->timeout, JS_UNDEFINED, 0, NULL);
 					JS_FreeValue(ctx, ret);
 					JS_FreeValue(ctx, task->timeout);
@@ -600,17 +295,27 @@ static void *js_async_pipeline(void *arg) {
 					JSValue argv = res_obj;
 					JSValue ret = JS_Call(ctx, task->resolve, JS_UNDEFINED, 1, &argv);
 					JS_FreeValue(ctx, ret);
+					JS_FreeValue(ctx, res_obj);
 					JS_FreeValue(ctx, task->resolve);
 					JS_FreeValue(ctx, task->reject);
 					free(payload);
 				} else if (payload && task->type == TASK_MODULE_IMPORT) {
-					JSValue mod = JS_Eval(ctx, payload, strlen(payload), task->url, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+					JSValue mod = JS_Eval(ctx, payload, strlen(payload), task->url,
+						JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 					JSValue argv = mod;
 					JSValue ret = JS_Call(ctx, task->resolve, JS_UNDEFINED, 1, &argv);
 					JS_FreeValue(ctx, ret);
+					JS_FreeValue(ctx, mod);
 					JS_FreeValue(ctx, task->resolve);
 					JS_FreeValue(ctx, task->reject);
 					free(payload);
+				} else {
+					JSValue err = JS_NewError(ctx);
+					JSValue ret = JS_Call(ctx, task->reject, JS_UNDEFINED, 1, &err);
+					JS_FreeValue(ctx, ret);
+					JS_FreeValue(ctx, err);
+					JS_FreeValue(ctx, task->resolve);
+					JS_FreeValue(ctx, task->reject);
 				}
 				free(task->url);
 				free(task);
@@ -619,7 +324,7 @@ static void *js_async_pipeline(void *arg) {
 			JSContext *pctx;
 			while (JS_ExecutePendingJob(JS_GetRuntime(ctx), &pctx) > 0);
 		} else {
-			usleep(1);
+			usleep(1000);
 		}
 	}
 
@@ -627,15 +332,20 @@ static void *js_async_pipeline(void *arg) {
 }
 
 static JSValue js_global_fetch(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
 	if (argc < 1)
 		return JS_EXCEPTION;
 
 	const char *url = JS_ToCString(ctx, argv[0]);
+	if (!url)
+		return JS_EXCEPTION;
+
 	JSValue resolving_funcs[2];
 	JSValue promise = JS_NewPromiseCapability(ctx, resolving_funcs);
-
-	if (JS_IsException(promise))
+	if (JS_IsException(promise)) {
+		JS_FreeCString(ctx, url);
 		return JS_EXCEPTION;
+	}
 
 	JS_Task *task = calloc(1, sizeof(JS_Task));
 	task->type = TASK_FETCH;
@@ -644,34 +354,45 @@ static JSValue js_global_fetch(JSContext *ctx, JSValueConst this_val, int argc, 
 	task->reject = JS_DupValue(ctx, resolving_funcs[1]);
 	task->timeout = JS_UNDEFINED;
 
-	pthread_mutex_lock(&g_app.task_mutex);
-	task->next = g_app.task_queue;
-	g_app.task_queue = task;
-	pthread_mutex_unlock(&g_app.task_mutex);
+	JS_FreeValue(ctx, resolving_funcs[0]);
+	JS_FreeValue(ctx, resolving_funcs[1]);
+
+	pthread_mutex_lock(&gl_ctx.task_mutex);
+	task->next = gl_ctx.task_queue;
+	gl_ctx.task_queue = task;
+	pthread_mutex_unlock(&gl_ctx.task_mutex);
 	JS_FreeCString(ctx, url);
 	return promise;
 }
 
 static JSValue js_global_set_timeout(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
+	if (argc < 1 || !JS_IsFunction(ctx, argv[0]))
+		return JS_UNDEFINED;
+
 	JSValue callback = JS_DupValue(ctx, argv[0]);
-	int delay = 0;
-	JS_ToInt32(ctx, &delay, argv[1]);
+	int32_t delay = 0;
+	if (argc >= 2)
+		JS_ToInt32(ctx, &delay, argv[1]);
+	if (delay < 0)
+		delay = 0;
 
 	JS_Task *task = (JS_Task *)calloc(1, sizeof(JS_Task));
 	task->type = TASK_SETTIMEOUT;
 	task->timeout = callback;
-	task->delay = delay;
+	task->delay = (useconds_t)delay;
 	task->reject = JS_UNDEFINED;
 	task->resolve = JS_UNDEFINED;
 
-	pthread_mutex_lock(&g_app.task_mutex);
-	task->next = g_app.task_queue;
-	g_app.task_queue = task;
-	pthread_mutex_unlock(&g_app.task_mutex);
+	pthread_mutex_lock(&gl_ctx.task_mutex);
+	task->next = gl_ctx.task_queue;
+	gl_ctx.task_queue = task;
+	pthread_mutex_unlock(&gl_ctx.task_mutex);
 	return JS_UNDEFINED;
 }
 
 static JSModuleDef *js_async_module_loader(JSContext *ctx, const char *name, void *opaque) {
+	(void)opaque;
 	if (name && (strncmp(name, "http://", 7) == 0
 		|| strncmp(name, "https://", 8) == 0)) {
 		JSValue resolving_funcs[2];
@@ -682,11 +403,15 @@ static JSModuleDef *js_async_module_loader(JSContext *ctx, const char *name, voi
 		task->url = strdup(name);
 		task->resolve = JS_DupValue(ctx, resolving_funcs[0]);
 		task->reject = JS_DupValue(ctx, resolving_funcs[1]);
+		task->timeout = JS_UNDEFINED;
 
-		pthread_mutex_lock(&g_app.task_mutex);
-		task->next = g_app.task_queue;
-		g_app.task_queue = task;
-		pthread_mutex_unlock(&g_app.task_mutex);
+		JS_FreeValue(ctx, resolving_funcs[0]);
+		JS_FreeValue(ctx, resolving_funcs[1]);
+
+		pthread_mutex_lock(&gl_ctx.task_mutex);
+		task->next = gl_ctx.task_queue;
+		gl_ctx.task_queue = task;
+		pthread_mutex_unlock(&gl_ctx.task_mutex);
 
 		JSModuleDef *m = JS_NewCModule(ctx, name, NULL);
 		JS_FreeValue(ctx, promise);
@@ -696,469 +421,128 @@ static JSModuleDef *js_async_module_loader(JSContext *ctx, const char *name, voi
 	return JS_NewCModule(ctx, name, NULL);
 }
 
-const char *get_attribute(JS_Dom *node, const char *key) {
-	int i;
-	for (i = 0; i < node->attr_count; i++) {
-		if (strcasecmp(node->attributes[i].key, key) == 0)
-			return node->attributes[i].value;
-	}
-
-	return NULL;
-}
-
-JSValue create_js_dom_wrapper(JSContext *ctx, JS_Dom *node) {
-	if (!node)
-		return JS_UNDEFINED;
-
-	JSValue obj = JS_NewObjectClass(ctx, g_app.js_class_id);
-	JS_SetOpaque(obj, node);
-	return obj;
-}
-
-JS_Dom *find_node_by_id(JS_Dom *root, const char *id) {
-	if (!root)
-		return NULL;
-
-	if (root->type == NODE_ELEMENT) {
-		const char *val = get_attribute(root, "id");
-		if (val && strcmp(val, id) == 0)
-			return root;
-	}
-
-	int i;
-	for (i = 0; i < root->child_count; i++) {
-		JS_Dom *res = find_node_by_id(root->children[i], id);
-		if (res) return res;
-	}
-
-	return NULL;
-}
-
-static JSValue js_document_get_element_by_id(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	const char *id = JS_ToCString(ctx, argv[0]);
-	JS_Dom *found = find_node_by_id(g_app.dom_root, id);
-	JS_FreeCString(ctx, id);
-	if (!found)
-		return JS_NULL;
-	return create_js_dom_wrapper(ctx, found);
-}
-
-static void canvas_interface_pipeline(Widget w, XtPointer client_data, XEvent *event, Boolean *cont) {
-	Display *dpy = XtDisplay(w); Window win = XtWindow(w);
-	XClearWindow(dpy, win);
-	int y_cursor = 32 - g_app.scroll_offset_y;
-	//parse_layout_pass(dpy, win, g_app.gc, g_app.dom_root, 24, &y_cursor, 740, false, false);
-	pthread_mutex_lock(&g_app.canvas_mutex);
-	JS_Canvas *curr = g_app.canvas_queue;
-	while (curr) {
-		if (curr->type == CMD_RECT) {
-			XFillRectangle(dpy, win, g_app.gc, curr->x, curr->y, curr->w, curr->h);
-			XCopyArea(dpy, g_app.canvas_buffer, XtWindow(g_app.render_canvas),
-				g_app.gc, 0, 0, g_app.canvas_w, g_app.canvas_h, 0, 0);
-		}
-		curr = curr->next;
-	}
-	pthread_mutex_unlock(&g_app.canvas_mutex);
-}
-
-static JSValue js_canvas_fill_rect(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	if (argc >= 4) {
-		int x = 0, y = 0, w = 0, h = 0;
-
-		JS_ToInt32(ctx, &x, argv[0]);
-		JS_ToInt32(ctx, &y, argv[1]);
-		JS_ToInt32(ctx, &w, argv[2]);
-		JS_ToInt32(ctx, &h, argv[3]);
-		pthread_mutex_lock(&g_app.canvas_mutex);
-		JS_Canvas *cmd = calloc(1, sizeof(JS_Canvas));
-		cmd->type = CMD_RECT;
-		cmd->x = x;
-		cmd->y = y;
-		cmd->w = w;
-		cmd->h = h;
-		cmd->next = g_app.canvas_queue;
-		g_app.canvas_queue = cmd;
-		pthread_mutex_unlock(&g_app.canvas_mutex);
-	}
-
-	return JS_UNDEFINED;
-}
-
-static JSValue js_canvas_get_context(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	JSValue ctx_obj = JS_NewObject(ctx);
-	JS_SetPropertyStr(ctx, ctx_obj, "fillRect", JS_NewCFunction(ctx, js_canvas_fill_rect, "fillRect", 4));
-	return ctx_obj;
-}
-
-static JSValue js_dom_get_prop_expanded(JSContext *ctx, JSValueConst this_val,
-	int argc, JSValueConst *argv, int magic) {
-	JS_Dom *n = JS_GetOpaque(this_val, g_app.js_class_id);
-	int i;
-	if (!n)
-		return JS_UNDEFINED;
-
-	switch (magic) {
-		case 2:
-			return JS_NewString(ctx, get_attribute(n, "id") ? get_attribute(n, "id") : ""); // id
-		case 3:
-			return JS_NewString(ctx, get_attribute(n, "class") ? get_attribute(n, "class") : ""); // className
-		case 4: { // innerHTML
-				size_t cap = 4096;
-				char *buf = calloc(1, cap);
-				//serialize_to_html(n, &buf, &cap, false);
-				JSValue val = JS_NewString(ctx, buf);
-				free(buf);
-				return val;
-			}
-		case 5: { // outerHTML
-				size_t cap = 4096;
-				char *buf = calloc(1, cap);
-				//serialize_to_html(n, &buf, &cap, true);
-				JSValue val = JS_NewString(ctx, buf);
-				free(buf);
-				return val;
-			}
-		case 6:
-			return n->parent ? create_js_dom_wrapper(ctx, n->parent) : JS_NULL; // parentNode
-		case 7: { // childNodes Array structure mapping
-				JSValue arr = JS_NewArray(ctx);
-				for (i = 0; i < n->child_count; i++) {
-					JS_SetPropertyUint32(ctx, arr, i, create_js_dom_wrapper(ctx, n->children[i]));
-				}
-				return arr;
-			}
-		case 8:
-			return (n->child_count > 0) ? create_js_dom_wrapper(ctx, n->children[0]) : JS_NULL; // firstChild
-		case 9:
-			return (n->child_count > 0) ? create_js_dom_wrapper(ctx, n->children[n->child_count - 1]) : JS_NULL; // lastChild
-		case 10: { // nextSibling
-				if (n->parent) {
-					for (i = 0; i < n->parent->child_count - 1; i++) {
-						if (n->parent->children[i] == n)
-							return create_js_dom_wrapper(ctx, n->parent->children[i + 1]);
-					}
-				}
-				return JS_NULL;
-			}
-		case 11: { // previousSibling
-				if (n->parent) {
-					for (i = 1; i < n->parent->child_count; i++) {
-						if (n->parent->children[i] == n)
-							return create_js_dom_wrapper(ctx, n->parent->children[i - 1]);
-					}
-				}
-				return JS_NULL;
-			}
-		case 12: // length
-			return JS_NewInt32(ctx, n->child_count);
-		case 13: // nodeType
-			return JS_NewInt32(ctx, (int)n->type);
-	}
-
-	return JS_UNDEFINED;
-}
-
-static JSValue js_dom_set_prop_expanded(JSContext *ctx, JSValueConst this_val,
-	int argc, JSValueConst *argv, int magic) {
-	JS_Dom *n = JS_GetOpaque(this_val, g_app.js_class_id);
-	if (!n)
-		return JS_UNDEFINED;
-
-	const char *str = JS_ToCString(ctx, argv[0]);
-	int i;
-	if (magic == 2) { // id
-		js_add_attribute(n, "id", str);
-	} else if (magic == 3) { // className
-		js_add_attribute(n, "class", str);
-	} else if (magic == 4) { // innerHTML Dynamic sub-tree clear and re-parse execution
-		for (i = 0; i < n->child_count; i++)
-			js_free_dom(n->children[i]);
-		n->child_count = 0;
-		JS_Dom *new_subtree = js_parse_html(str);
-		for (i = 0; i < new_subtree->child_count; i++) {
-			js_append_child(n, new_subtree->children[i]);
-		}
-
-		new_subtree->child_count = 0;
-		js_free_dom(new_subtree);
-	}
-
-	JS_FreeCString(ctx, str);
-	return JS_UNDEFINED;
-}
-
-static JSValue js_dom_add_eventlistener(JSContext *ctx, JSValueConst this_val,
-	int argc, JSValueConst *argv) {
-	if (argc < 2)
-		return JS_EXCEPTION;
-
-	JS_Dom *node = JS_GetOpaque(this_val, g_app.js_class_id);
-	if (!node)
-		return JS_UNDEFINED;
-
-	const char *type = JS_ToCString(ctx, argv[0]);
-	if (type) {
-		const char *id_val = get_attribute(node, "id");
-		JS_Listener *listener = calloc(1, sizeof(JS_Listener));
-		listener->type = strdup(type);
-		listener->id = strdup(id_val);
-		listener->callback = JS_DupValue(ctx, argv[1]);
-		listener->next = node->listeners;
-		node->listeners = listener;
-
-		JS_FreeCString(ctx, type);
-	}
-
-	return JS_UNDEFINED;
-}
-
-static JSValue js_dom_dispatch_event(JSContext *ctx, JSValueConst this_val,
-	int argc, JSValueConst *argv) {
-	JS_Dom *n = JS_GetOpaque(this_val, g_app.js_class_id);
-	if (n && argc >= 1) {
-		const char *id_event = JS_ToCString(ctx, argv[0]);
-		if (id_event) {
-			const char *id_val = get_attribute(n, "id");
-			if (strcmp(id_event, id_val) == 0) {
-				const char *id_type = JS_ToCString(ctx, argv[1]);
-				if (id_type) {
-					JS_Listener *curr = n->listeners;
-					while (curr) {
-						if (strcmp(curr->type, id_type) == 0
-							&& strcmp(curr->id, id_val) == 0) {
-							JSValue ret = JS_Call(ctx, curr->callback, this_val, argc, argv);
-							JS_FreeValue(ctx, ret);
-							break;
-						}
-						curr = curr->next;
-					}
-					JS_FreeCString(ctx, id_type);
-				}
-			}
-			JS_FreeCString(ctx, id_event);
-		}
-	}
-
-	return JS_TRUE;
-}
-
-static JSValue js_dom_get_children(JSContext *ctx, JSValue this_val,
-	int argc, JSValue *argv) {
-	JS_Dom *node = JS_GetOpaque(this_val, g_app.js_class_id);
-	if (node) {
-		JSValue arr = JS_NewArray(ctx);
-		int i;
-		for (i = 0; i < node->child_count; i++) {
-			JS_SetPropertyUint32(ctx, arr, i, create_js_dom_wrapper(ctx, node->children[i]));
-		}
-
-		return arr;
-	}
-
-	return JS_UNDEFINED;
-}
-
-static void js_parse_stylesheet(const char *css_content) {
-	const char *ptr = css_content;
-	while (*ptr) {
-		if (*ptr == '-' && *(ptr + 1) == '-') {
-			const char *name_start = ptr;
-			while (*ptr && *ptr != ':' && !isspace((unsigned char)*ptr))
-				ptr++;
-
-			size_t name_len = ptr - name_start;
-			char *var_name = calloc(1, name_len + 1);
-			memcpy(var_name, name_start, name_len);
-			while (*ptr && (*ptr == ':' || isspace((unsigned char)*ptr)))
-				ptr++;
-
-			const char *val_start = ptr;
-			while (*ptr && *ptr != ';' && *ptr != '}')
-				ptr++;
-
-			size_t val_len = ptr - val_start;
-			char *var_val = calloc(1, val_len + 1);
-			memcpy(var_val, val_start, val_len);
-			JS_CSSVariable *s_node = calloc(1, sizeof(JS_CSSVariable));
-			s_node->name = var_name;
-			s_node->value = var_val;
-			s_node->next = g_app.style_vars;
-			g_app.style_vars = s_node;
-			ptr += val_len;
-		} else {
-			ptr++;
-		}
-	}
-}
-
 static void run_javascript(JSContext *ctx, const char *script, int is_mod) {
-	if (!script)
+	if (!ctx || !script)
 		return;
 
-	JSValue v = JS_Eval(ctx, script, strlen(script), "",
+	JSValue v = JS_Eval(ctx, script, strlen(script), "<script>",
 		(is_mod ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL));
 	js_std_loop(ctx);
 	if (JS_IsException(v)) {
 		JSValue ex = JS_GetException(ctx);
 		const char *msg = JS_ToCString(ctx, ex);
-		fprintf(stderr, "Runtime Exception: %s\n", msg);
-		JS_FreeCString(ctx, msg);
+		fprintf(stderr, "Runtime Exception: %s\n", msg ? msg : "(unknown)");
+		if (msg)
+			JS_FreeCString(ctx, msg);
 		JS_FreeValue(ctx, ex);
 	}
 
 	JS_FreeValue(ctx, v);
 }
 
-static void execute_inline_js(JSContext *ctx, JS_Dom *node) {
-	if (!node)
-		return;
-
-	int i;
-	if (node->type == NODE_ELEMENT) {
-		for (i = 0; i < EVENT_CHANGE; i++) {
-			const char *event_type = LEGACY_EVENT_NAMES[i];
-			const char *inline_event = get_attribute(node, event_type);
-			if (inline_event) {
-				char js_buf[4096] = {0};
-				if (strcmp(event_type, "onclick") == 0)
-					snprintf(js_buf, sizeof(js_buf) - 1, "(function(){ %s })", inline_event);
-
-				JSValue eval_func = (strcmp(event_type, "onclick") == 0)
-					? JS_Eval(ctx, js_buf, strlen(js_buf), "<inline_click>", JS_EVAL_TYPE_GLOBAL)
-					: JS_Eval(ctx, inline_event, strlen(inline_event), "<legacy_event>", JS_EVAL_TYPE_GLOBAL);
-
-				if (JS_IsFunction(ctx, eval_func) && strcmp(event_type, "onclick") == 0) {
-					node->js_onclick = eval_func;
-				}
-			}
-		}
-
-		for (i = 0; i < node->child_count; i++)
-			execute_inline_js(ctx, node->children[i]);
-	}
-}
-
-static void execute_script_blocks(JSContext *ctx, JS_Dom *n) {
-	if (!n)
-		return;
-
-	int i;
-	if (n->type == NODE_ELEMENT) {
-		if (strcasecmp(n->tagName, "link") == 0) {
-			char *href = NULL;
-			int is_css = 0;
-			for (i = 0; i < n->attr_count; i++) {
-				if (strcasecmp(n->attributes[i].key, "rel") == 0
-					&& strcasecmp(n->attributes[i].value, "stylesheet") == 0)
-					is_css = 1;
-				else if (strcasecmp(n->attributes[i].key, "href") == 0)
-					href = n->attributes[i].value;
-			}
-
-			if (is_css && href) {
-				char *css_data = qjs_readfile(href);
-				if (css_data) {
-					js_parse_stylesheet(css_data);
-					free(css_data);
-				}
-			}
-		} else if (strcasecmp(n->tagName, "script") == 0) {
-			int is_mod = 0;
-			char *src_path = NULL;
-			for (i = 0; i < n->attr_count; i++) {
-				if (strcasecmp(n->attributes[i].key, "type") == 0
-					&& strcasecmp(n->attributes[i].value, "module") == 0)
-					is_mod = 1;
-				else if (strcasecmp(n->attributes[i].key, "src") == 0)
-					src_path = n->attributes[i].value;
-			}
-
-			if (src_path) {
-				char *content = (strncmp(src_path, "http", 4) == 0)
-					? qjs_fetchfile(src_path)
-					: qjs_readfile(src_path);
-				if (content) {
-					run_javascript(ctx, content, is_mod);
-					free(content);
-				}
-			} else {
-				for (i = 0; i < n->child_count; i++) {
-					if (n->children[i]->type == NODE_TEXT)
-						run_javascript(ctx, n->children[i]->textContent, is_mod);
-				}
-			}
-		}
-
-		for (i = 0; i < n->child_count; i++)
-			execute_script_blocks(ctx, n->children[i]);
-	}
-}
-
-static JS_Dom *find_clicked_node(JS_Dom *node, int mx, int my) {
+static HtmlDom_t *find_clicked_node(HtmlDom_t *node, int mx, int my) {
 	if (!node)
 		return NULL;
 
-	int i, ay = node->y - g_app.scroll_offset_y;
-	if (mx >= node->x && mx <= node->x + node->width && my >= ay && my <= ay + node->height) {
-		for (i = 0; i < node->child_count; i++) {
-			JS_Dom *found = find_clicked_node(node->children[i], mx, my);
-			if (found)
-				return found;
-		}
+	/* Hit-test children in reverse order (topmost z-order first) */
+	HtmlDom_t *c = node->first_child;
+	HtmlDom_t *hit = NULL;
+	while (c) {
+		HtmlDom_t *child_hit = find_clicked_node(c, mx, my);
+		if (child_hit)
+			hit = child_hit;
+		c = c->next_sibling;
+	}
+	if (hit)
+		return hit;
 
+	int ay = node->y - gl_ctx.scroll_offset_y;
+	if (node->type == NODE_ELEMENT &&
+	    mx >= node->x && mx <= node->x + node->width &&
+	    my >= ay && my <= ay + node->height) {
 		return node;
 	}
 
 	return NULL;
 }
 
-void qjs_click_event(Widget w, XtPointer data, XEvent *ev, Boolean *cont) {
-	if (ev->type == ButtonPress && ev->xbutton.button == Button1) {
-		int i, mx = ev->xbutton.x, my = ev->xbutton.y;
-		JS_Dom *target = find_clicked_node(g_app.dom_root, mx, my);
-		if (target) {
-			JSValue mouse_event = JS_NewObject(g_app.ctx);
-			JS_SetPropertyStr(g_app.ctx, mouse_event, "type", JS_NewString(g_app.ctx, "click"));
-			JS_SetPropertyStr(g_app.ctx, mouse_event, "clientX", JS_NewInt32(g_app.ctx, mx));
-			JS_SetPropertyStr(g_app.ctx, mouse_event, "clientY", JS_NewInt32(g_app.ctx, my));
-			const char *id_val = get_attribute(target, "id");
-			JS_Listener *curr = target->listeners;
-			while (curr) {
-				if (strcmp(curr->type, "click") == 0 && strcmp(curr->id, id_val) == 0) {
-					JSValue ret = JS_Call(g_app.ctx, curr->callback, JS_UNDEFINED, 1, &mouse_event);
-					JS_FreeValue(g_app.ctx, ret);
-					break;
-				}
-				curr = curr->next;
-			}
+static void dispatch_dom_event_internal(JSContext *ctx, HtmlDom_t *target, const char *type, JSValueConst event_obj) {
+	if (!ctx || !target || !type)
+		return;
 
-			JS_FreeValue(g_app.ctx, mouse_event);
-			if (!JS_IsUndefined(target->js_onclick)) {
-				JS_FreeValue(g_app.ctx, JS_Call(g_app.ctx, target->js_onclick, JS_UNDEFINED, 0, NULL));
+	/* Bubble up the DOM tree */
+	HtmlDom_t *curr_node = target;
+	while (curr_node) {
+		JSValue this_elem = create_js_dom_wrapper(ctx, curr_node);
+		JS_Listener *curr = curr_node->listeners;
+		while (curr) {
+			JS_Listener *next = curr->next;
+			if (curr->type && strcmp(curr->type, type) == 0) {
+				JSValue arg = event_obj;
+				JSValue ret = JS_Call(ctx, curr->callback, this_elem, 1, &arg);
+				if (JS_IsException(ret)) {
+					JSValue ex = JS_GetException(ctx);
+					JS_FreeValue(ctx, ex);
+				}
+				JS_FreeValue(ctx, ret);
 			}
+			curr = next;
+		}
+
+		if (strcmp(type, "click") == 0 && !JS_IsUndefined(curr_node->js_onclick) && !JS_IsNull(curr_node->js_onclick)) {
+			JSValue arg = event_obj;
+			JSValue ret = JS_Call(ctx, curr_node->js_onclick, this_elem, 1, &arg);
+			JS_FreeValue(ctx, ret);
+		}
+
+		JS_FreeValue(ctx, this_elem);
+		curr_node = curr_node->parent;
+	}
+}
+
+void qjs_click_event(Widget w, XtPointer data, XEvent *ev, Boolean *cont) {
+	(void)w;
+	(void)data;
+	(void)cont;
+	if (ev->type == ButtonPress && ev->xbutton.button == Button1) {
+		int mx = ev->xbutton.x, my = ev->xbutton.y;
+		HtmlDom_t *target = find_clicked_node(gl_ctx.dom_root, mx, my);
+		if (target && gl_ctx.ctx) {
+			JSValue mouse_event = JS_NewObject(gl_ctx.ctx);
+			JS_SetPropertyStr(gl_ctx.ctx, mouse_event, "type", JS_NewString(gl_ctx.ctx, "click"));
+			JS_SetPropertyStr(gl_ctx.ctx, mouse_event, "clientX", JS_NewInt32(gl_ctx.ctx, mx));
+			JS_SetPropertyStr(gl_ctx.ctx, mouse_event, "clientY", JS_NewInt32(gl_ctx.ctx, my));
+			JS_SetPropertyStr(gl_ctx.ctx, mouse_event, "target", create_js_dom_wrapper(gl_ctx.ctx, target));
+
+			dispatch_dom_event_internal(gl_ctx.ctx, target, "click", mouse_event);
+			JS_FreeValue(gl_ctx.ctx, mouse_event);
 		}
 	}
 }
 
 #if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
 static FORCEINLINE void *my_malloc(void *opaque, size_t size) {
+	(void)opaque;
 	return malloc(size);
 }
 
 static FORCEINLINE void my_free(void *opaque, void *ptr) {
+	(void)opaque;
 	free(ptr);
 }
 
 static FORCEINLINE void *my_realloc(void *opaque, void *ptr, size_t size) {
+	(void)opaque;
 	return realloc(ptr, size);
 }
 
 static FORCEINLINE void *my_calloc(void *opaque, size_t count, size_t size) {
+	(void)opaque;
 	return calloc(count, size);
 }
 
 static FORCEINLINE size_t my_malloc_usable_size(const void *ptr) {
-	return malloc_usable_size((void *)ptr); // Platform-specific implementation needed
+	return malloc_usable_size((void *)ptr);
 }
 
 static JSMallocFunctions mf = {
@@ -1170,19 +554,22 @@ static JSMallocFunctions mf = {
 };
 #else
 static FORCEINLINE void *my_malloc(JSMallocState *opaque, size_t size) {
+	(void)opaque;
 	return malloc(size);
 }
 
 static FORCEINLINE void my_free(JSMallocState *opaque, void *ptr) {
+	(void)opaque;
 	free(ptr);
 }
 
 static FORCEINLINE void *my_realloc(JSMallocState *opaque, void *ptr, size_t size) {
+	(void)opaque;
 	return realloc(ptr, size);
 }
 
 static FORCEINLINE size_t my_malloc_usable_size(const void *ptr) {
-	return malloc_usable_size((void *)ptr); // Platform-specific implementation needed
+	return malloc_usable_size((void *)ptr);
 }
 
 static JSMallocFunctions mf = {
@@ -1222,12 +609,12 @@ uint8_t *JS_GetUint8Array(JSContext *ctx, size_t *pbyte_length, JSValueConst obj
 #endif
 
 static void js_object_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_func) {
-	JS_Dom *data = JS_GetOpaque(val, g_app.js_class_id);
+	HtmlDom_t *data = JS_GetOpaque(val, gl_ctx.js_class_id);
 	if (!data)
 		return;
 
-	JS_MarkValue(rt, data->js_object, mark_func);
-	JS_MarkValue(rt, data->js_onclick, mark_func);
+	if (!JS_IsUndefined(data->js_onclick))
+		JS_MarkValue(rt, data->js_onclick, mark_func);
 
 	JS_Listener *curr = data->listeners;
 	while (curr != NULL) {
@@ -1238,37 +625,56 @@ static void js_object_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_fu
 }
 
 static void js_object_finalizer(JSRuntime *rt, JSValue val) {
-	JS_Dom *data = JS_GetOpaque(val, g_app.js_class_id);
+	HtmlDom_t *data = JS_GetOpaque(val, gl_ctx.js_class_id);
 	if (!data)
 		return;
 
-	JS_FreeValueRT(rt, data->js_object);
-	JS_FreeValueRT(rt, data->js_onclick);
-
-	JS_Listener *curr = data->listeners;
-	while (curr != NULL) {
-		JS_Listener *next = curr->next;
-		JS_FreeValueRT(rt, curr->callback);
-		js_free_rt(rt, curr);
-		curr = next;
+	/* Only free detached orphan nodes; nodes attached to dom_root are owned by the DOM tree */
+	if (!data->parent && data != gl_ctx.dom_root) {
+		if (!JS_IsUndefined(data->js_onclick)) {
+			JS_FreeValueRT(rt, data->js_onclick);
+			data->js_onclick = JS_UNDEFINED;
+		}
+		JS_Listener *curr = data->listeners;
+		while (curr != NULL) {
+			JS_Listener *next = curr->next;
+			free(curr->type);
+			free(curr->id);
+			JS_FreeValueRT(rt, curr->callback);
+			free(curr);
+			curr = next;
+		}
+		data->listeners = NULL;
+		data->js_object = JS_UNDEFINED;
+		dom_free(data);
+	} else {
+		data->js_object = JS_UNDEFINED;
 	}
-
-	js_free_rt(rt, data);
 }
 
-static JSClassDef js_dom_obs_class = {"MutationObserver"};
-static JSClassDef js_dom_node_class = { "JS_Dom",
+static JSClassDef js_dom_obs_class = { "JS_Observer" };
+static JSClassDef js_dom_node_class = {
+	"HtmlDom_t",
 	.finalizer = js_object_finalizer,
 	.gc_mark = js_object_mark,
 };
 
 static void push_log(bow_t web, const char *text) {
+	if (!web || !web->qjs || !text)
+		return;
+
 	size_t text_len = strlen(text);
 	size_t current_len = !web->qjs->js_buf ? 0 : strlen(web->qjs->js_buf);
 
-	if (current_len + text_len >= web->qjs->js_buf_size) {
-		web->qjs->js_buf_size += text_len + 1024;
-		web->qjs->js_buf = realloc(web->qjs->js_buf, web->qjs->js_buf_size);
+	if (!web->qjs->js_buf || current_len + text_len + 1 >= web->qjs->js_buf_size) {
+		size_t new_size = web->qjs->js_buf_size + text_len + 1024;
+		char *nbuf = realloc(web->qjs->js_buf, new_size);
+		if (!nbuf)
+			return;
+		if (!web->qjs->js_buf)
+			nbuf[0] = '\0';
+		web->qjs->js_buf = nbuf;
+		web->qjs->js_buf_size = new_size;
 	}
 
 	strcat(web->qjs->js_buf, text);
@@ -1276,6 +682,7 @@ static void push_log(bow_t web, const char *text) {
 
 /* pipe JS console output to buffer */
 static JSValue qjs_console_hook(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
 	bow_t web = (bow_t)JS_GetContextOpaque(ctx);
 	int i;
 	for (i = 0; i < argc; i++) {
@@ -1308,11 +715,12 @@ static JSValue js_native_system_log(JSContext *ctx, JSValueConst this_val, int a
 }
 
 static JSValue js_observer_observe(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)ctx;
 	if (argc < 1)
 		return JS_EXCEPTION;
 
-	JS_Observer *obs = JS_GetOpaque(this_val, g_app.observer_class_id);
-	JS_Dom *target = JS_GetOpaque(argv[0], g_app.js_class_id);
+	JS_Observer *obs = JS_GetOpaque(this_val, gl_ctx.observer_class_id);
+	HtmlDom_t *target = JS_GetOpaque(argv[0], gl_ctx.js_class_id);
 	if (obs && target) {
 		obs->target = target;
 	}
@@ -1321,92 +729,19 @@ static JSValue js_observer_observe(JSContext *ctx, JSValueConst this_val, int ar
 }
 
 static JSValue js_mutation_observer_ctor(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
 	if (argc < 1)
 		return JS_EXCEPTION;
 
-	JSValue js_obj = JS_NewObjectClass(ctx, g_app.observer_class_id);
+	JSValue js_obj = JS_NewObjectClass(ctx, gl_ctx.observer_class_id);
+	JS_SetPrototype(ctx, js_obj, gl_ctx.js_obs);
 	JS_Observer *obs = calloc(1, sizeof(JS_Observer));
 	obs->callback = JS_DupValue(ctx, argv[0]);
 	obs->target = NULL;
-	obs->next = g_app.observers;
-	g_app.observers = obs;
+	obs->next = gl_ctx.observers;
+	gl_ctx.observers = obs;
 	JS_SetOpaque(js_obj, obs);
 	return js_obj;
-}
-
-static JSValue js_dom_append_child(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	if (argc < 1)
-		return JS_EXCEPTION;
-
-	JS_Dom *parent = JS_GetOpaque(this_val, g_app.js_class_id);
-	JS_Dom *child = JS_GetOpaque(argv[0], g_app.js_class_id);
-	if (parent && child) {
-		js_append_child(parent, child);
-		notify_mutation("childList", parent);
-	}
-
-	return JS_DupValue(ctx, argv[0]);
-}
-
-static JSValue js_dom_set_attribute(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	if (argc < 2)
-		return JS_EXCEPTION;
-
-	JS_Dom *node = JS_GetOpaque(this_val, g_app.js_class_id);
-	if (node) {
-		const char *k = JS_ToCString(ctx, argv[0]);
-		const char *v = JS_ToCString(ctx, argv[1]);
-		if (k && v) {
-			js_add_attribute(node, k, v);
-			notify_mutation("attributes", node);
-			JS_FreeCString(ctx, k);
-			JS_FreeCString(ctx, v);
-		}
-	}
-
-	return JS_UNDEFINED;
-}
-
-static JSValue js_dom_get_property(JSContext *ctx, JSValue this_val, int argc, JSValue *argv, int magic) {
-	JS_Dom *node = JS_GetOpaque(this_val, g_app.js_class_id);
-	if (!node)
-		return JS_UNDEFINED;
-
-	if (magic == 0)
-		return JS_NewString(ctx, node->tagName ? node->tagName : "");
-	else if (magic == 1)
-		return JS_NewString(ctx, node->textContent ? node->textContent : "");
-
-	return JS_UNDEFINED;
-}
-
-static JSValue js_dom_set_text_content(JSContext *ctx, JSValue this_val, int argc, JSValue *argv, int magic) {
-	JS_Dom *node = JS_GetOpaque(this_val, g_app.js_class_id);
-	if (node) {
-		const char *str = JS_ToCString(ctx, argv[0]);
-		if (str) {
-			if (node->type == NODE_TEXT) {
-				node->textContent = strdup(str);
-			} else {
-				JS_Dom *tc = js_create_dom(NODE_TEXT, str);
-				if (tc)
-					js_append_child(node, tc);
-			}
-			notify_mutation("characterData", node);
-			JS_FreeCString(ctx, str);
-		}
-	}
-	return JS_UNDEFINED;
-}
-
-static JSValue js_document_create_element(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	if (argc < 1)
-		return JS_EXCEPTION;
-
-	const char *tag = JS_ToCString(ctx, argv[0]);
-	JS_Dom *native = js_create_dom(NODE_ELEMENT, tag);
-	JS_FreeCString(ctx, tag);
-	return create_js_dom_wrapper(ctx, native);
 }
 
 FORCEINLINE bool qjs_is_running(bow_t web) {
@@ -1433,108 +768,1046 @@ FORCEINLINE void qjs_free_buf(bow_t web) {
 	}
 }
 
+static JSValue create_js_dom_wrapper(JSContext *ctx, HtmlDom_t *node) {
+	if (!node)
+		return JS_NULL;
+
+	JSValue obj = JS_NewObjectClass(ctx, gl_ctx.js_class_id);
+	if (JS_IsException(obj))
+		return obj;
+	JS_SetOpaque(obj, node);
+	return obj;
+}
+
+static JSValue create_js_nodelist(JSContext *ctx, HtmlDom_t **items, size_t count) {
+	JSValue arr = JS_NewArray(ctx);
+	size_t i;
+	for (i = 0; i < count; i++) {
+		JS_SetPropertyUint32(ctx, arr, (uint32_t)i, create_js_dom_wrapper(ctx, items[i]));
+	}
+	return arr;
+}
+
+/* ============================================================================
+ * DOM Traversal & Query Helpers
+ * ============================================================================ */
+
+static HtmlDom_t *find_dom_by_id(HtmlDom_t *root, const char *id) {
+	if (!root || !id)
+		return NULL;
+
+	if (root->type == NODE_ELEMENT) {
+		const char *val = dom_get_attr(root, "id");
+		if (val && strcmp(val, id) == 0)
+			return root;
+	}
+
+	HtmlDom_t *c = root->first_child;
+	while (c) {
+		HtmlDom_t *res = find_dom_by_id(c, id);
+		if (res)
+			return res;
+		c = c->next_sibling;
+	}
+
+	return NULL;
+}
+
+static void find_dom_by_class_rec(HtmlDom_t *node, const char *cls, HtmlDom_t ***items, size_t *count, size_t *cap) {
+	if (!node || !cls)
+		return;
+
+	if (node->type == NODE_ELEMENT) {
+		const char *val = dom_get_attr(node, "class");
+		if (val) {
+			size_t clen = strlen(cls);
+			const char *p = val;
+			while (*p) {
+				while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+					p++;
+				if (!*p)
+					break;
+				const char *start = p;
+				while (*p && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r')
+					p++;
+				if ((size_t)(p - start) == clen && strncmp(start, cls, clen) == 0) {
+					if (*count == *cap) {
+						*cap = (*cap == 0) ? 16 : (*cap * 2);
+						*items = realloc(*items, sizeof(HtmlDom_t *) * (*cap));
+					}
+					(*items)[(*count)++] = node;
+					break;
+				}
+			}
+		}
+	}
+
+	HtmlDom_t *c = node->first_child;
+	while (c) {
+		find_dom_by_class_rec(c, cls, items, count, cap);
+		c = c->next_sibling;
+	}
+}
+
+/* ============================================================================
+ * DOM Element / Node Properties (Getters & Setters)
+ * ============================================================================ */
+
+static JSValue js_dom_get_tag_name(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_UNDEFINED;
+
+	if (node->type == NODE_ELEMENT && node->tag_name) {
+		char *upper = strdup(node->tag_name);
+		size_t i;
+		for (i = 0; upper[i]; i++)
+			upper[i] = (char)toupper((unsigned char)upper[i]);
+		JSValue res = JS_NewString(ctx, upper);
+		free(upper);
+		return res;
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_node_name(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_UNDEFINED;
+
+	if (node->type == NODE_ELEMENT)
+		return js_dom_get_tag_name(ctx, this_val, argc, argv);
+	if (node->type == NODE_TEXT)
+		return JS_NewString(ctx, "#text");
+	if (node->type == NODE_COMMENT)
+		return JS_NewString(ctx, "#comment");
+	if (node->type == NODE_DOCUMENT)
+		return JS_NewString(ctx, "#document");
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_node_type(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_UNDEFINED;
+
+	/* Standard W3C DOM nodeType constants */
+	switch (node->type) {
+		case NODE_ELEMENT:  return JS_NewInt32(ctx, 1); /* ELEMENT_NODE */
+		case NODE_TEXT:     return JS_NewInt32(ctx, 3); /* TEXT_NODE */
+		case NODE_COMMENT:  return JS_NewInt32(ctx, 8); /* COMMENT_NODE */
+		case NODE_DOCUMENT: return JS_NewInt32(ctx, 9); /* DOCUMENT_NODE */
+		default:            return JS_NewInt32(ctx, 0);
+	}
+}
+
+static JSValue js_dom_get_id(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_NewString(ctx, "");
+
+	const char *val = dom_get_attr(node, "id");
+	return JS_NewString(ctx, val ? val : "");
+}
+
+static JSValue js_dom_set_id(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_UNDEFINED;
+
+	const char *str = JS_ToCString(ctx, argv[0]);
+	if (str) {
+		dom_set_attr(node, "id", str);
+		JS_FreeCString(ctx, str);
+		notify_mutation("attributes", node);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_class_name(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_NewString(ctx, "");
+
+	const char *val = dom_get_attr(node, "class");
+	return JS_NewString(ctx, val ? val : "");
+}
+
+static JSValue js_dom_set_class_name(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_UNDEFINED;
+
+	const char *str = JS_ToCString(ctx, argv[0]);
+	if (str) {
+		dom_set_attr(node, "class", str);
+		JS_FreeCString(ctx, str);
+		notify_mutation("attributes", node);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_text_content(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NULL;
+
+	char *txt = dom_get_text_content(node);
+	JSValue res = JS_NewString(ctx, txt ? txt : "");
+	free(txt);
+	return res;
+}
+
+static JSValue js_dom_set_text_content(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_UNDEFINED;
+
+	const char *str = JS_ToCString(ctx, argv[0]);
+	if (str) {
+		dom_set_text_content(node, str);
+		JS_FreeCString(ctx, str);
+		notify_mutation("childList", node);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_inner_html(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NewString(ctx, "");
+
+	char *html = dom_get_inner_html(node, false);
+	JSValue res = JS_NewString(ctx, html ? html : "");
+	free(html);
+	return res;
+}
+
+static JSValue js_dom_set_inner_html(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_UNDEFINED;
+
+	const char *str = JS_ToCString(ctx, argv[0]);
+	if (str) {
+		dom_set_inner_html(node, str);
+		JS_FreeCString(ctx, str);
+		notify_mutation("childList", node);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_outer_html(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NewString(ctx, "");
+
+	char *html = dom_serialize(node, false);
+	JSValue res = JS_NewString(ctx, html ? html : "");
+	free(html);
+	return res;
+}
+
+static JSValue js_dom_set_outer_html(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || !node->parent)
+		return JS_UNDEFINED;
+
+	HtmlDom_t *parent = node->parent;
+	const char *str = JS_ToCString(ctx, argv[0]);
+	if (str) {
+		JS_SetOpaque((JSValue)this_val, NULL);
+		dom_set_outer_html(node, str);
+		JS_FreeCString(ctx, str);
+		notify_mutation("childList", parent);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_parent_node(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || !node->parent)
+		return JS_NULL;
+	return create_js_dom_wrapper(ctx, node->parent);
+}
+
+static JSValue js_dom_get_first_child(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || !node->first_child)
+		return JS_NULL;
+	return create_js_dom_wrapper(ctx, node->first_child);
+}
+
+static JSValue js_dom_get_last_child(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || !node->last_child)
+		return JS_NULL;
+	return create_js_dom_wrapper(ctx, node->last_child);
+}
+
+static JSValue js_dom_get_next_sibling(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || !node->next_sibling)
+		return JS_NULL;
+	return create_js_dom_wrapper(ctx, node->next_sibling);
+}
+
+static JSValue js_dom_get_previous_sibling(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NULL;
+	HtmlDom_t *prev = dom_previous_sibling(node);
+	if (!prev)
+		return JS_NULL;
+	return create_js_dom_wrapper(ctx, prev);
+}
+
+static JSValue js_dom_get_first_element_child(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NULL;
+	HtmlDom_t *c = node->first_child;
+	while (c) {
+		if (c->type == NODE_ELEMENT)
+			return create_js_dom_wrapper(ctx, c);
+		c = c->next_sibling;
+	}
+	return JS_NULL;
+}
+
+static JSValue js_dom_get_last_element_child(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NULL;
+	HtmlDom_t *last_elem = NULL;
+	HtmlDom_t *c = node->first_child;
+	while (c) {
+		if (c->type == NODE_ELEMENT)
+			last_elem = c;
+		c = c->next_sibling;
+	}
+	return last_elem ? create_js_dom_wrapper(ctx, last_elem) : JS_NULL;
+}
+
+static JSValue js_dom_get_next_element_sibling(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NULL;
+	HtmlDom_t *s = node->next_sibling;
+	while (s) {
+		if (s->type == NODE_ELEMENT)
+			return create_js_dom_wrapper(ctx, s);
+		s = s->next_sibling;
+	}
+	return JS_NULL;
+}
+
+static JSValue js_dom_get_previous_element_sibling(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NULL;
+	HtmlDom_t *s = dom_previous_sibling(node);
+	while (s) {
+		if (s->type == NODE_ELEMENT)
+			return create_js_dom_wrapper(ctx, s);
+		s = dom_previous_sibling(s);
+	}
+	return JS_NULL;
+}
+
+static JSValue js_dom_get_child_nodes(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	JSValue arr = JS_NewArray(ctx);
+	if (!node)
+		return arr;
+
+	uint32_t idx = 0;
+	HtmlDom_t *c = node->first_child;
+	while (c) {
+		JS_SetPropertyUint32(ctx, arr, idx++, create_js_dom_wrapper(ctx, c));
+		c = c->next_sibling;
+	}
+	return arr;
+}
+
+static JSValue js_dom_get_children(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	JSValue arr = JS_NewArray(ctx);
+	if (!node)
+		return arr;
+
+	uint32_t idx = 0;
+	HtmlDom_t *c = node->first_child;
+	while (c) {
+		if (c->type == NODE_ELEMENT) {
+			JS_SetPropertyUint32(ctx, arr, idx++, create_js_dom_wrapper(ctx, c));
+		}
+		c = c->next_sibling;
+	}
+	return arr;
+}
+
+static JSValue js_dom_get_length(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NewInt32(ctx, 0);
+
+	if (node->type == NODE_TEXT || node->type == NODE_COMMENT) {
+		return JS_NewInt32(ctx, node->text ? (int32_t)strlen(node->text) : 0);
+	}
+
+	int32_t count = 0;
+	HtmlDom_t *c = node->first_child;
+	while (c) {
+		count++;
+		c = c->next_sibling;
+	}
+	return JS_NewInt32(ctx, count);
+}
+
+static JSValue js_dom_get_child_element_count(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NewInt32(ctx, 0);
+
+	int32_t count = 0;
+	HtmlDom_t *c = node->first_child;
+	while (c) {
+		if (c->type == NODE_ELEMENT)
+			count++;
+		c = c->next_sibling;
+	}
+	return JS_NewInt32(ctx, count);
+}
+
+static JSValue js_dom_get_onclick(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NULL;
+	return JS_IsUndefined(node->js_onclick) ? JS_NULL : JS_DupValue(ctx, node->js_onclick);
+}
+
+static JSValue js_dom_set_onclick(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_UNDEFINED;
+	if (!JS_IsUndefined(node->js_onclick))
+		JS_FreeValue(ctx, node->js_onclick);
+	node->js_onclick = JS_IsFunction(ctx, argv[0]) ? JS_DupValue(ctx, argv[0]) : JS_UNDEFINED;
+	return JS_UNDEFINED;
+}
+
+/* ============================================================================
+ * DOM Mutation & Manipulation Methods
+ * ============================================================================ */
+
+static JSValue js_dom_append_child(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *parent = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	HtmlDom_t *child = JS_GetOpaque(argv[0], gl_ctx.js_class_id);
+	if (!parent || !child)
+		return JS_ThrowTypeError(ctx, "appendChild requires valid DOM nodes");
+
+	dom_append_child(parent, child);
+	notify_mutation("childList", parent);
+	return JS_DupValue(ctx, argv[0]);
+}
+
+static JSValue js_dom_insert_before(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 2)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *parent = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	HtmlDom_t *new_node = JS_GetOpaque(argv[0], gl_ctx.js_class_id);
+	HtmlDom_t *ref_node = JS_IsNull(argv[1]) || JS_IsUndefined(argv[1])
+		? NULL : JS_GetOpaque(argv[1], gl_ctx.js_class_id);
+
+	if (!parent || !new_node)
+		return JS_ThrowTypeError(ctx, "insertBefore requires valid DOM nodes");
+
+	dom_insert_before(parent, new_node, ref_node);
+	notify_mutation("childList", parent);
+	return JS_DupValue(ctx, argv[0]);
+}
+
+static JSValue js_dom_remove_child(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *parent = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	HtmlDom_t *child = JS_GetOpaque(argv[0], gl_ctx.js_class_id);
+	if (!parent || !child)
+		return JS_ThrowTypeError(ctx, "removeChild requires valid DOM nodes");
+
+	HtmlDom_t *removed = dom_remove_child(parent, child);
+	if (!removed)
+		return JS_ThrowRangeError(ctx, "Node to be removed is not a child of this node");
+
+	notify_mutation("childList", parent);
+	return JS_DupValue(ctx, argv[0]);
+}
+
+static JSValue js_dom_replace_child(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 2)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *parent = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	HtmlDom_t *new_child = JS_GetOpaque(argv[0], gl_ctx.js_class_id);
+	HtmlDom_t *old_child = JS_GetOpaque(argv[1], gl_ctx.js_class_id);
+	if (!parent || !new_child || !old_child)
+		return JS_ThrowTypeError(ctx, "replaceChild requires valid DOM nodes");
+
+	HtmlDom_t *replaced = dom_replace_child(parent, new_child, old_child);
+	if (!replaced)
+		return JS_ThrowRangeError(ctx, "Failed to replace child node");
+
+	notify_mutation("childList", parent);
+	return JS_DupValue(ctx, argv[1]);
+}
+
+static JSValue js_dom_remove(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)ctx;
+	(void)argc;
+	(void)argv;
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (node && node->parent) {
+		HtmlDom_t *parent = node->parent;
+		dom_remove_child(parent, node);
+		notify_mutation("childList", parent);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_clone_node(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_NULL;
+
+	bool deep = (argc >= 1) ? JS_ToBool(ctx, argv[0]) : false;
+	HtmlDom_t *cloned = dom_clone_node(node, deep);
+	return create_js_dom_wrapper(ctx, cloned);
+}
+
+static JSValue js_dom_has_child_nodes(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)ctx;
+	(void)argc;
+	(void)argv;
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	return JS_NewBool(ctx, node && node->first_child != NULL);
+}
+
+/* ============================================================================
+ * Attribute Methods
+ * ============================================================================ */
+
+static JSValue js_dom_set_attribute(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 2)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_UNDEFINED;
+
+	const char *name = JS_ToCString(ctx, argv[0]);
+	const char *val = JS_ToCString(ctx, argv[1]);
+	if (name && val) {
+		dom_set_attr(node, name, val);
+		notify_mutation("attributes", node);
+	}
+	if (name)
+		JS_FreeCString(ctx, name);
+	if (val)
+		JS_FreeCString(ctx, val);
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_attribute(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_NULL;
+
+	const char *name = JS_ToCString(ctx, argv[0]);
+	if (!name)
+		return JS_NULL;
+
+	const char *val = dom_get_attr(node, name);
+	JS_FreeCString(ctx, name);
+	return val ? JS_NewString(ctx, val) : JS_NULL;
+}
+
+static JSValue js_dom_has_attribute(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_FALSE;
+
+	const char *name = JS_ToCString(ctx, argv[0]);
+	if (!name)
+		return JS_FALSE;
+
+	bool has = dom_has_attr(node, name);
+	JS_FreeCString(ctx, name);
+	return JS_NewBool(ctx, has);
+}
+
+static JSValue js_dom_remove_attribute(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_UNDEFINED;
+
+	const char *name = JS_ToCString(ctx, argv[0]);
+	if (name) {
+		if (dom_remove_attr(node, name)) {
+			notify_mutation("attributes", node);
+		}
+		JS_FreeCString(ctx, name);
+	}
+	return JS_UNDEFINED;
+}
+
+/* ============================================================================
+ * Selector & Element Query Methods (Element & Document)
+ * ============================================================================ */
+
+static JSValue js_dom_query_selector(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *root = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!root)
+		root = gl_ctx.dom_root;
+
+	const char *sel = JS_ToCString(ctx, argv[0]);
+	if (!sel)
+		return JS_NULL;
+
+	HtmlDom_t *found = dom_query_selector(root, sel);
+	JS_FreeCString(ctx, sel);
+	return found ? create_js_dom_wrapper(ctx, found) : JS_NULL;
+}
+
+static JSValue js_dom_query_selector_all(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *root = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!root)
+		root = gl_ctx.dom_root;
+
+	const char *sel = JS_ToCString(ctx, argv[0]);
+	if (!sel)
+		return JS_NewArray(ctx);
+
+	HtmlNodeList *list = dom_query_selector_all(root, sel);
+	JS_FreeCString(ctx, sel);
+	if (!list)
+		return JS_NewArray(ctx);
+
+	JSValue arr = create_js_nodelist(ctx, list->items, list->count);
+	dom_node_list_free(list);
+	return arr;
+}
+
+static JSValue js_dom_get_elements_by_tag_name(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *root = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!root)
+		root = gl_ctx.dom_root;
+
+	const char *tag = JS_ToCString(ctx, argv[0]);
+	if (!tag)
+		return JS_NewArray(ctx);
+
+	HtmlNodeList *list = dom_get_elements_by_tag_name(root, tag);
+	JS_FreeCString(ctx, tag);
+	if (!list)
+		return JS_NewArray(ctx);
+
+	JSValue arr = create_js_nodelist(ctx, list->items, list->count);
+	dom_node_list_free(list);
+	return arr;
+}
+
+static JSValue js_dom_get_elements_by_class_name(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *root = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!root)
+		root = gl_ctx.dom_root;
+
+	const char *cls = JS_ToCString(ctx, argv[0]);
+	if (!cls)
+		return JS_NewArray(ctx);
+
+	HtmlDom_t **items = NULL;
+	size_t count = 0, cap = 0;
+	find_dom_by_class_rec(root, cls, &items, &count, &cap);
+	JS_FreeCString(ctx, cls);
+
+	JSValue arr = create_js_nodelist(ctx, items, count);
+	free(items);
+	return arr;
+}
+
+static JSValue js_dom_get_element_by_id(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	const char *id = JS_ToCString(ctx, argv[0]);
+	if (!id)
+		return JS_NULL;
+
+	HtmlDom_t *found = find_dom_by_id(gl_ctx.dom_root, id);
+	JS_FreeCString(ctx, id);
+	if (!found)
+		return JS_NULL;
+
+	return create_js_dom_wrapper(ctx, found);
+}
+
+/* ============================================================================
+ * Event Listeners & Event Dispatching
+ * ============================================================================ */
+
+static JSValue js_dom_add_eventlistener(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 2)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || !JS_IsFunction(ctx, argv[1]))
+		return JS_UNDEFINED;
+
+	const char *type = JS_ToCString(ctx, argv[0]);
+	if (type) {
+		const char *id_val = dom_get_attr(node, "id");
+		JS_Listener *listener = calloc(1, sizeof(JS_Listener));
+		listener->type = strdup(type);
+		listener->id = id_val ? strdup(id_val) : NULL;
+		listener->callback = JS_DupValue(ctx, argv[1]);
+		listener->next = node->listeners;
+		node->listeners = listener;
+
+		JS_FreeCString(ctx, type);
+	}
+
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_remove_eventlistener(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	if (argc < 2)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node)
+		return JS_UNDEFINED;
+
+	const char *type = JS_ToCString(ctx, argv[0]);
+	if (type) {
+		JS_Listener *prev = NULL;
+		JS_Listener *curr = node->listeners;
+		while (curr) {
+			if (curr->type && strcmp(curr->type, type) == 0 &&
+			    JS_VALUE_GET_PTR(curr->callback) == JS_VALUE_GET_PTR(argv[1])) {
+				if (prev)
+					prev->next = curr->next;
+				else
+					node->listeners = curr->next;
+				free(curr->type);
+				free(curr->id);
+				JS_FreeValue(ctx, curr->callback);
+				free(curr);
+				break;
+			}
+			prev = curr;
+			curr = curr->next;
+		}
+		JS_FreeCString(ctx, type);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_dispatch_event(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	HtmlDom_t *n = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!n || argc < 1)
+		return JS_FALSE;
+
+	/* Supports both W3C dispatchEvent(eventObj) and string-based dispatchEvent("click", ...) */
+	if (JS_IsObject(argv[0])) {
+		JSValue type_val = JS_GetPropertyStr(ctx, argv[0], "type");
+		const char *ev_type = JS_ToCString(ctx, type_val);
+		if (ev_type) {
+			JS_SetPropertyStr(ctx, (JSValue)argv[0], "target", JS_DupValue(ctx, this_val));
+			dispatch_dom_event_internal(ctx, n, ev_type, argv[0]);
+			JS_FreeCString(ctx, ev_type);
+		}
+		JS_FreeValue(ctx, type_val);
+	} else if (JS_IsString(argv[0])) {
+		const char *ev_type = JS_ToCString(ctx, argv[0]);
+		if (ev_type) {
+			JSValue ev_obj = JS_NewObject(ctx);
+			JS_SetPropertyStr(ctx, ev_obj, "type", JS_NewString(ctx, ev_type));
+			JS_SetPropertyStr(ctx, ev_obj, "target", JS_DupValue(ctx, this_val));
+			dispatch_dom_event_internal(ctx, n, ev_type, ev_obj);
+			JS_FreeValue(ctx, ev_obj);
+			JS_FreeCString(ctx, ev_type);
+		}
+	}
+
+	return JS_TRUE;
+}
+
+/* ============================================================================
+ * Document Factory Methods & Properties
+ * ============================================================================ */
+
+static JSValue js_dom_create_element(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	const char *tag = JS_ToCString(ctx, argv[0]);
+	if (!tag)
+		return JS_EXCEPTION;
+
+	HtmlDom_t *native = dom_create_element(tag);
+	JS_FreeCString(ctx, tag);
+	return create_js_dom_wrapper(ctx, native);
+}
+
+static JSValue js_dom_create_text_node(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
+	const char *text = (argc >= 1) ? JS_ToCString(ctx, argv[0]) : NULL;
+	HtmlDom_t *native = dom_create_text(text ? text : "");
+	if (text)
+		JS_FreeCString(ctx, text);
+	return create_js_dom_wrapper(ctx, native);
+}
+
+static JSValue js_dom_create_comment(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
+	const char *text = (argc >= 1) ? JS_ToCString(ctx, argv[0]) : NULL;
+	HtmlDom_t *native = dom_create_comment(text ? text : "");
+	if (text)
+		JS_FreeCString(ctx, text);
+	return create_js_dom_wrapper(ctx, native);
+}
+
+static JSValue js_event_ctor(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
+	if (argc < 1)
+		return JS_EXCEPTION;
+
+	JSValue ev = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, ev, "type", JS_DupValue(ctx, argv[0]));
+	JS_SetPropertyStr(ctx, ev, "bubbles", JS_TRUE);
+	JS_SetPropertyStr(ctx, ev, "cancelable", JS_TRUE);
+	if (argc >= 2 && JS_IsObject(argv[1])) {
+		JSValue detail = JS_GetPropertyStr(ctx, argv[1], "detail");
+		if (!JS_IsUndefined(detail))
+			JS_SetPropertyStr(ctx, ev, "detail", detail);
+		else
+			JS_FreeValue(ctx, detail);
+	}
+	return ev;
+}
+
+/* ============================================================================
+ * Prototype & Global Interface Registration
+ * ============================================================================ */
+
+static void define_accessor(JSContext *ctx, JSValue proto, const char *name,
+                            JSCFunction *getter, JSCFunction *setter) {
+	JSAtom atom = JS_NewAtom(ctx, name);
+	JSValue get_fn = getter ? JS_NewCFunction2(ctx, getter, name, 0, JS_CFUNC_getter, 0) : JS_UNDEFINED;
+	JSValue set_fn = setter ? JS_NewCFunction2(ctx, setter, name, 1, JS_CFUNC_setter, 0) : JS_UNDEFINED;
+	int flags = JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE;
+	if (getter)
+		flags |= JS_PROP_HAS_GET;
+	if (setter)
+		flags |= JS_PROP_HAS_SET;
+	JS_DefineProperty(ctx, proto, atom, JS_UNDEFINED, get_fn, set_fn, flags);
+	JS_FreeValue(ctx, get_fn);
+	JS_FreeValue(ctx, set_fn);
+	JS_FreeAtom(ctx, atom);
+}
+
 static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
 #if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
-	JS_NewClassID(rt, &g_app.js_class_id);
-	JS_NewClassID(rt, &g_app.observer_class_id);
+	JS_NewClassID(rt, &gl_ctx.js_class_id);
+	JS_NewClassID(rt, &gl_ctx.observer_class_id);
 #else
-	JS_NewClassID(&g_app.js_class_id);
-	JS_NewClassID(&g_app.observer_class_id);
+	JS_NewClassID(&gl_ctx.js_class_id);
+	JS_NewClassID(&gl_ctx.observer_class_id);
 #endif
-	JS_NewClass(rt, g_app.js_class_id, &js_dom_node_class);
-	JS_NewClass(rt, g_app.observer_class_id, &js_dom_obs_class);
+	JS_NewClass(rt, gl_ctx.js_class_id, &js_dom_node_class);
+	JS_NewClass(rt, gl_ctx.observer_class_id, &js_dom_obs_class);
 
 	JSValue proto = JS_NewObject(ctx);
+
+	/* Standard DOM Node/Element Properties */
+	define_accessor(ctx, proto, "tagName",               js_dom_get_tag_name,               NULL);
+	define_accessor(ctx, proto, "nodeName",              js_dom_get_node_name,              NULL);
+	define_accessor(ctx, proto, "nodeType",              js_dom_get_node_type,              NULL);
+	define_accessor(ctx, proto, "id",                    js_dom_get_id,                     js_dom_set_id);
+	define_accessor(ctx, proto, "className",             js_dom_get_class_name,             js_dom_set_class_name);
+	define_accessor(ctx, proto, "textContent",           js_dom_get_text_content,           js_dom_set_text_content);
+	define_accessor(ctx, proto, "innerText",             js_dom_get_text_content,           js_dom_set_text_content);
+	define_accessor(ctx, proto, "innerHTML",             js_dom_get_inner_html,             js_dom_set_inner_html);
+	define_accessor(ctx, proto, "outerHTML",             js_dom_get_outer_html,             js_dom_set_outer_html);
+	define_accessor(ctx, proto, "parentNode",            js_dom_get_parent_node,            NULL);
+	define_accessor(ctx, proto, "parentElement",         js_dom_get_parent_node,            NULL);
+	define_accessor(ctx, proto, "childNodes",            js_dom_get_child_nodes,            NULL);
+	define_accessor(ctx, proto, "children",              js_dom_get_children,               NULL);
+	define_accessor(ctx, proto, "firstChild",            js_dom_get_first_child,            NULL);
+	define_accessor(ctx, proto, "lastChild",             js_dom_get_last_child,             NULL);
+	define_accessor(ctx, proto, "nextSibling",           js_dom_get_next_sibling,           NULL);
+	define_accessor(ctx, proto, "previousSibling",       js_dom_get_previous_sibling,       NULL);
+	define_accessor(ctx, proto, "firstElementChild",     js_dom_get_first_element_child,    NULL);
+	define_accessor(ctx, proto, "lastElementChild",      js_dom_get_last_element_child,     NULL);
+	define_accessor(ctx, proto, "nextElementSibling",    js_dom_get_next_element_sibling,   NULL);
+	define_accessor(ctx, proto, "previousElementSibling",js_dom_get_previous_element_sibling,NULL);
+	define_accessor(ctx, proto, "length",                js_dom_get_length,                 NULL);
+	define_accessor(ctx, proto, "childElementCount",     js_dom_get_child_element_count,    NULL);
+	define_accessor(ctx, proto, "onclick",               js_dom_get_onclick,                js_dom_set_onclick);
+
+	/* Standard W3C Node Type Constants on Node prototype */
+	JS_SetPropertyStr(ctx, proto, "ELEMENT_NODE",  JS_NewInt32(ctx, 1));
+	JS_SetPropertyStr(ctx, proto, "TEXT_NODE",     JS_NewInt32(ctx, 3));
+	JS_SetPropertyStr(ctx, proto, "COMMENT_NODE",  JS_NewInt32(ctx, 8));
+	JS_SetPropertyStr(ctx, proto, "DOCUMENT_NODE", JS_NewInt32(ctx, 9));
+
+	/* DOM Mutation & Manipulation Methods */
 	JS_SetPropertyStr(ctx, proto, "appendChild",
-		JS_NewCFunction(ctx, js_dom_append_child, "get_appendChild", 1));
+		JS_NewCFunction(ctx, js_dom_append_child, "appendChild", 1));
+	JS_SetPropertyStr(ctx, proto, "insertBefore",
+		JS_NewCFunction(ctx, js_dom_insert_before, "insertBefore", 2));
+	JS_SetPropertyStr(ctx, proto, "removeChild",
+		JS_NewCFunction(ctx, js_dom_remove_child, "removeChild", 1));
+	JS_SetPropertyStr(ctx, proto, "replaceChild",
+		JS_NewCFunction(ctx, js_dom_replace_child, "replaceChild", 2));
+	JS_SetPropertyStr(ctx, proto, "remove",
+		JS_NewCFunction(ctx, js_dom_remove, "remove", 0));
+	JS_SetPropertyStr(ctx, proto, "cloneNode",
+		JS_NewCFunction(ctx, js_dom_clone_node, "cloneNode", 1));
+	JS_SetPropertyStr(ctx, proto, "hasChildNodes",
+		JS_NewCFunction(ctx, js_dom_has_child_nodes, "hasChildNodes", 0));
 
+	/* Attribute Methods */
 	JS_SetPropertyStr(ctx, proto, "setAttribute",
-		JS_NewCFunction(ctx, js_dom_set_attribute, "get_setAttribute", 2));
+		JS_NewCFunction(ctx, js_dom_set_attribute, "setAttribute", 2));
+	JS_SetPropertyStr(ctx, proto, "getAttribute",
+		JS_NewCFunction(ctx, js_dom_get_attribute, "getAttribute", 1));
+	JS_SetPropertyStr(ctx, proto, "hasAttribute",
+		JS_NewCFunction(ctx, js_dom_has_attribute, "hasAttribute", 1));
+	JS_SetPropertyStr(ctx, proto, "removeAttribute",
+		JS_NewCFunction(ctx, js_dom_remove_attribute, "removeAttribute", 1));
 
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "textContent"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_property, "get_textContent", 0, JS_CFUNC_getter, 1),
-		JS_NewCFunctionMagic(ctx, js_dom_set_text_content, "set_textContent", 1, JS_CFUNC_setter, 1), 0);
+	/* Query Methods on Elements */
+	JS_SetPropertyStr(ctx, proto, "querySelector",
+		JS_NewCFunction(ctx, js_dom_query_selector, "querySelector", 1));
+	JS_SetPropertyStr(ctx, proto, "querySelectorAll",
+		JS_NewCFunction(ctx, js_dom_query_selector_all, "querySelectorAll", 1));
+	JS_SetPropertyStr(ctx, proto, "getElementsByTagName",
+		JS_NewCFunction(ctx, js_dom_get_elements_by_tag_name, "getElementsByTagName", 1));
+	JS_SetPropertyStr(ctx, proto, "getElementsByClassName",
+		JS_NewCFunction(ctx, js_dom_get_elements_by_class_name, "getElementsByClassName", 1));
 
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "tagName"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_property, "get_tagName", 0, JS_CFUNC_getter_magic, 0),
-		JS_UNDEFINED, JS_PROP_HAS_GET);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "id"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_id", 1, JS_CFUNC_getter_magic, 2),
-		JS_NewCFunctionMagic(ctx, js_dom_set_prop_expanded, "set_id", 1, JS_CFUNC_setter_magic, 2),
-		JS_PROP_CONFIGURABLE);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "className"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_className", 1, JS_CFUNC_getter_magic, 3),
-		JS_NewCFunctionMagic(ctx, js_dom_set_prop_expanded, "set_className", 1, JS_CFUNC_setter_magic, 3),
-		JS_PROP_CONFIGURABLE);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "innerHTML"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_innerHTML", 1, JS_CFUNC_getter_magic, 4),
-		JS_NewCFunctionMagic(ctx, js_dom_set_prop_expanded, "set_innerHTML", 1, JS_CFUNC_setter_magic, 4),
-		JS_PROP_CONFIGURABLE);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "outerHTML"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_outerHTML", 1, JS_CFUNC_getter_magic, 5),
-		JS_UNDEFINED, JS_PROP_CONFIGURABLE);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "parentNode"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_parentNode", 0, JS_CFUNC_getter_magic, 6),
-		JS_UNDEFINED, JS_PROP_CONFIGURABLE);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "childNodes"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_childNodes", 0, JS_CFUNC_getter_magic, 7),
-		JS_UNDEFINED, JS_PROP_CONFIGURABLE);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "firstChild"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_firstChild", 0, JS_CFUNC_getter_magic, 8),
-		JS_UNDEFINED, JS_PROP_CONFIGURABLE);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "lastChild"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_lastChild", 0, JS_CFUNC_getter_magic, 9),
-		JS_UNDEFINED, JS_PROP_CONFIGURABLE);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "nextSibling"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_nextSibling", 0, JS_CFUNC_getter_magic, 10),
-		JS_UNDEFINED, JS_PROP_CONFIGURABLE);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "previousSibling"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_previousSibling", 0, JS_CFUNC_getter_magic, 11),
-		JS_UNDEFINED, JS_PROP_CONFIGURABLE);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "length"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_length", 0, JS_CFUNC_getter_magic, 12),
-		JS_UNDEFINED, JS_PROP_HAS_GET);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "nodeType"),
-		JS_NewCFunctionMagic(ctx, js_dom_get_prop_expanded, "get_nodeType", 0, JS_CFUNC_getter_magic, 13),
-		JS_UNDEFINED, JS_PROP_HAS_GET);
-
-	JS_DefinePropertyGetSet(ctx, proto, JS_NewAtom(ctx, "children"),
-		JS_NewCFunction(ctx, (JSCFunction *)js_dom_get_children, "get_children", 0),
-		JS_UNDEFINED, JS_PROP_HAS_GET);
-
+	/* Event Methods */
 	JS_DefinePropertyValueStr(ctx, proto, "addEventListener",
 		JS_NewCFunction(ctx, js_dom_add_eventlistener, "addEventListener", 2),
 		JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
-
+	JS_DefinePropertyValueStr(ctx, proto, "removeEventListener",
+		JS_NewCFunction(ctx, js_dom_remove_eventlistener, "removeEventListener", 2),
+		JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
 	JS_SetPropertyStr(ctx, proto, "dispatchEvent",
-		JS_NewCFunction(ctx, js_dom_dispatch_event, "dispatchEvent", 2));
-	JS_SetClassProto(ctx, g_app.js_class_id, proto);
+		JS_NewCFunction(ctx, js_dom_dispatch_event, "dispatchEvent", 1));
+
+	JS_SetClassProto(ctx, gl_ctx.js_class_id, proto);
 }
 
-static void qjs_interfaces_set(JSContext *ctx, JS_Dom *root) {
-	JSValue global = JS_GetGlobalObject(ctx);
-	JSValue doc_obj = JS_NewObject(ctx);
-	JS_SetPropertyStr(ctx, doc_obj, "body", create_js_dom_wrapper(ctx, root));
-	JS_SetPropertyStr(ctx, doc_obj, "getElementById",
-		JS_NewCFunction(ctx, js_document_get_element_by_id, "getElementById", 1));
+static JSValue js_doc_get_body(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	(void)this_val;
+	if (!gl_ctx.dom_root)
+		return JS_NULL;
+	HtmlDom_t *body = dom_query_selector(gl_ctx.dom_root, "body");
+	return create_js_dom_wrapper(ctx, body ? body : gl_ctx.dom_root);
+}
 
+static JSValue js_doc_get_head(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	(void)this_val;
+	if (!gl_ctx.dom_root)
+		return JS_NULL;
+	HtmlDom_t *head = dom_query_selector(gl_ctx.dom_root, "head");
+	return head ? create_js_dom_wrapper(ctx, head) : JS_NULL;
+}
+
+static JSValue js_doc_get_document_element(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	(void)this_val;
+	if (!gl_ctx.dom_root)
+		return JS_NULL;
+	HtmlDom_t *html = dom_query_selector(gl_ctx.dom_root, "html");
+	return create_js_dom_wrapper(ctx, html ? html : gl_ctx.dom_root);
+}
+
+static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
+	JSValue global = JS_GetGlobalObject(ctx);
+
+	/* Document object backed by dom_root */
+	JSValue doc_obj = create_js_dom_wrapper(ctx, root);
+	define_accessor(ctx, doc_obj, "body",            js_doc_get_body,             NULL);
+	define_accessor(ctx, doc_obj, "head",            js_doc_get_head,             NULL);
+	define_accessor(ctx, doc_obj, "documentElement", js_doc_get_document_element, NULL);
+
+	JS_SetPropertyStr(ctx, doc_obj, "getElementById",
+		JS_NewCFunction(ctx, js_dom_get_element_by_id, "getElementById", 1));
+	JS_SetPropertyStr(ctx, doc_obj, "getElementsByTagName",
+		JS_NewCFunction(ctx, js_dom_get_elements_by_tag_name, "getElementsByTagName", 1));
+	JS_SetPropertyStr(ctx, doc_obj, "getElementsByClassName",
+		JS_NewCFunction(ctx, js_dom_get_elements_by_class_name, "getElementsByClassName", 1));
+	JS_SetPropertyStr(ctx, doc_obj, "querySelector",
+		JS_NewCFunction(ctx, js_dom_query_selector, "querySelector", 1));
+	JS_SetPropertyStr(ctx, doc_obj, "querySelectorAll",
+		JS_NewCFunction(ctx, js_dom_query_selector_all, "querySelectorAll", 1));
 	JS_SetPropertyStr(ctx, doc_obj, "createElement",
-		JS_NewCFunction(ctx, js_document_create_element, "createElement", 1));
+		JS_NewCFunction(ctx, js_dom_create_element, "createElement", 1));
+	JS_SetPropertyStr(ctx, doc_obj, "createTextNode",
+		JS_NewCFunction(ctx, js_dom_create_text_node, "createTextNode", 1));
+	JS_SetPropertyStr(ctx, doc_obj, "createComment",
+		JS_NewCFunction(ctx, js_dom_create_comment, "createComment", 1));
 
 	JS_SetPropertyStr(ctx, global, "document", doc_obj);
 	JS_SetPropertyStr(ctx, global, "window", JS_DupValue(ctx, global));
+
+	/* Event & CustomEvent constructors */
+	JSValue event_ctor = JS_NewCFunction2(ctx, js_event_ctor, "Event", 2, JS_CFUNC_constructor, 0);
+	JS_SetPropertyStr(ctx, global, "Event", JS_DupValue(ctx, event_ctor));
+	JS_SetPropertyStr(ctx, global, "CustomEvent", event_ctor);
+
+	/* Console hook to capture output into js_buf */
+	JSValue console_obj = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, console_obj, "log",
+		JS_NewCFunction(ctx, qjs_console_hook, "log", 1));
+	JS_SetPropertyStr(ctx, console_obj, "warn",
+		JS_NewCFunction(ctx, qjs_console_hook, "warn", 1));
+	JS_SetPropertyStr(ctx, console_obj, "error",
+		JS_NewCFunction(ctx, qjs_console_hook, "error", 1));
+	JS_SetPropertyStr(ctx, console_obj, "info",
+		JS_NewCFunction(ctx, qjs_console_hook, "info", 1));
+	JS_SetPropertyStr(ctx, global, "console", console_obj);
 
 	JS_SetPropertyStr(ctx, global, "fetch",
 		JS_NewCFunction(ctx, js_global_fetch, "fetch", 1));
@@ -1543,17 +1816,8 @@ static void qjs_interfaces_set(JSContext *ctx, JS_Dom *root) {
 		JS_NewCFunction(ctx, js_global_set_timeout, "setTimeout", 2));
 
 	JSValue canvas = JS_NewObject(ctx);
-	JS_SetPropertyStr(ctx, canvas, "fillRect",
-		JS_NewCFunction(ctx, js_canvas_fill_rect, "fillRect", 4));
-	JS_SetPropertyStr(ctx, canvas, "getContext",
-		JS_NewCFunction(ctx, js_canvas_get_context, "getContext", 1));
 	JS_SetPropertyStr(ctx, global, "canvas", canvas);
-/*
-	JSValue console_obj = JS_NewObject(ctx);
-	JS_SetPropertyStr(ctx, console_obj, "log",
-		JS_NewCFunction(ctx, js_native_system_log, "log", 1));
-	JS_SetPropertyStr(ctx, global, "console", console_obj);
-*/
+
 	JSValue obs_proto = JS_NewObject(ctx);
 	JS_SetPropertyStr(ctx, obs_proto, "observe",
 		JS_NewCFunction(ctx, js_observer_observe, "observe", 2));
@@ -1566,7 +1830,7 @@ static void qjs_interfaces_set(JSContext *ctx, JS_Dom *root) {
 	JSValue extra_config = JS_NewObject(ctx);
 	JS_SetPropertyStr(ctx, extra_config, "engine", JS_NewString(ctx, "Bow 0.6.0-QuickJS"));
 	JS_SetPropertyStr(ctx, global, "sysConfig", extra_config);
-	g_app.js_obs = obs_proto;
+	gl_ctx.js_obs = obs_proto;
 	JS_FreeValue(ctx, global);
 }
 
@@ -1579,15 +1843,17 @@ bool qjs_init(bow_t web) {
 		qjs_free(web);
 
 	if (!web->qjs) {
-		web->qjs = &g_app;
+		web->qjs = &gl_ctx;
 		if (!web->ats) {
 			XInitThreads();
 			XtToolkitThreadInitialize();
 			XrmInitialize();
 		}
 
+		g_run_pipeline = true;
 		pthread_t thread;
-		pthread_mutex_init(&g_app.task_mutex, NULL);
+		pthread_mutex_init(&gl_ctx.task_mutex, NULL);
+		pthread_mutex_init(&gl_ctx.canvas_mutex, NULL);
 		pthread_create(&thread, NULL, js_async_pipeline, NULL);
 		pthread_detach(thread);
 	}
@@ -1633,9 +1899,12 @@ bool qjs_init(bow_t web) {
 		return false;
 	}
 
-	g_app.dom_root = js_create_dom(NODE_ELEMENT, "body");
+	if (gl_ctx.dom_root) {
+		js_free_dom(gl_ctx.dom_root);
+	}
+	gl_ctx.dom_root = dom_create_element("body");
 	qjs_proto_init(web->qjs->ctx, web->qjs->rt);
-	qjs_interfaces_set(web->qjs->ctx, g_app.dom_root);
+	qjs_interfaces_set(web->qjs->ctx, gl_ctx.dom_root);
 	return true;
 }
 
@@ -1677,14 +1946,82 @@ FORCEINLINE char *qjs_get_file(const char *path_url) {
 	return (strncmp(path_url, "http", 4) == 0) ? qjs_fetchfile(path_url) : qjs_readfile(path_url);
 }
 
-FORCEINLINE JS_Dom *qjs_parse(bow_t web, const char *html) {
-	JS_Dom *parsed = js_parse_html(html);
-	js_append_child(web->qjs->dom_root, parsed);
-	if (web->js_data)
-		free(web->js_data);
+HtmlDom_t *qjs_parse(bow_t web, const char *html) {
+	if (!web || !html)
+		return NULL;
 
-	web->js_data = (void *)html;
+	if (!web->qjs || !web->qjs->ctx) {
+		if (!qjs_init(web))
+			return NULL;
+	}
+
+	HtmlDom_t *parsed = html_parse(html);
+	if (!parsed)
+		return NULL;
+
+	/* Replace previous DOM root cleanly instead of nesting a NODE_DOCUMENT inside <body> */
+	if (web->qjs->dom_root) {
+		js_free_dom(web->qjs->dom_root);
+	}
+	web->qjs->dom_root = parsed;
+
+	/* Re-bind document wrapper to the newly parsed DOM root */
+	JSValue global = JS_GetGlobalObject(web->qjs->ctx);
+	JSValue doc_obj = JS_GetPropertyStr(web->qjs->ctx, global, "document");
+	if (JS_IsObject(doc_obj)) {
+		JS_SetOpaque(doc_obj, parsed);
+	}
+	JS_FreeValue(web->qjs->ctx, doc_obj);
+	JS_FreeValue(web->qjs->ctx, global);
+
+	if (web->js_data && web->js_data != (void *)html) {
+		free(web->js_data);
+	}
+	web->js_data = strdup(html);
+
 	return parsed;
+}
+
+static void execute_script_blocks(JSContext *ctx, HtmlDom_t *n) {
+	if (!ctx || !n)
+		return;
+
+	HtmlNodeList *scripts = dom_get_elements_by_tag_id(n, TAG_SCRIPT);
+	if (!scripts)
+		return;
+
+	size_t i;
+	for (i = 0; i < scripts->count; i++) {
+		HtmlDom_t *script_elem = scripts->items[i];
+		const char *type_attr = dom_get_attr(script_elem, "type");
+		const char *src_attr = dom_get_attr(script_elem, "src");
+		bool is_mod = (type_attr && strcasecmp(type_attr, "module") == 0);
+
+		/* Skip non-JS script types like application/ld+json */
+		if (type_attr && !is_mod &&
+		    strcasecmp(type_attr, "text/javascript") != 0 &&
+		    strcasecmp(type_attr, "application/javascript") != 0 &&
+		    strcasecmp(type_attr, "application/ecmascript") != 0 &&
+		    strcasecmp(type_attr, "text/ecmascript") != 0) {
+			continue;
+		}
+
+		if (src_attr && *src_attr) {
+			char *ext_code = qjs_get_file(src_attr);
+			if (ext_code) {
+				run_javascript(ctx, ext_code, is_mod || qjs_is_module(src_attr));
+				free(ext_code);
+			}
+		} else {
+			char *inline_code = dom_get_raw_content(script_elem);
+			if (inline_code && *inline_code) {
+				run_javascript(ctx, inline_code, is_mod);
+			}
+			free(inline_code);
+		}
+	}
+
+	dom_node_list_free(scripts);
 }
 
 bool qjs_is_module(const char *filepath) {
@@ -1699,17 +2036,25 @@ bool qjs_is_module(const char *filepath) {
 	return is_mod;
 }
 
-FORCEINLINE void qjs_run_script(bow_t web, JS_Dom *parsed, const char *js, bool is_module) {
+FORCEINLINE void qjs_run_script(bow_t web, HtmlDom_t *parsed, const char *js, bool is_module) {
+	if (!web || !web->qjs || !web->qjs->ctx)
+		return;
+
 	if (!parsed && js) {
 		run_javascript(web->qjs->ctx, js, is_module);
 	} else if (parsed) {
-		execute_inline_js(web->qjs->ctx, parsed);
 		execute_script_blocks(web->qjs->ctx, parsed);
 	}
 }
 
 /* Destroy QuickJS interpreter state */
 void qjs_free(bow_t web) {
+	if (!web || !web->qjs || !web->qjs->ctx)
+		return;
+
+	js_free_dom(web->qjs->dom_root);
+	web->qjs->dom_root = NULL;
+
 	JS_FreeValue(web->qjs->ctx, web->qjs->js_obs);
 	JS_FreeValue(web->qjs->ctx, web->qjs->js_this);
 	js_std_free_handlers(web->qjs->rt);
@@ -1726,8 +2071,10 @@ void qjs_exec(bow_t web, ats_str script, bool is_file) {
 	ats_str file = is_file ? qjs_get_file(script) : script;
 	if (file) {
 		int r = 0;
+		bool is_mod = is_file && qjs_is_module(script);
 		JSValue result = JS_Eval(web->qjs->ctx, file, strlen(file),
-			"<input>", JS_EVAL_TYPE_MODULE | JS_EVAL_TYPE_GLOBAL);
+			is_file ? script : "<input>",
+			is_mod ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL);
 #if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
 		r = js_std_loop(web->qjs->ctx);
 #else
@@ -1746,6 +2093,5 @@ void qjs_exec(bow_t web, ats_str script, bool is_file) {
 		JS_FreeValue(web->qjs->ctx, result);
 	}
 
-exec_quickjs_finished:
 	qjs_free(web);
 }

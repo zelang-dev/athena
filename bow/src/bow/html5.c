@@ -1,21 +1,11 @@
+#ifndef _GNU_SOURCE
+#	define _GNU_SOURCE
+#endif
+
 #include "html.h"
+#include "javascriptP.h"
 
-struct ShadowNode_s {
-	HtmlNodeType type;
-	HTMLTagID tag_id;
-	char *tag_name;
-	char *text;
-	HtmlAttr *attrs;
-	HtmlDom_t *parent;
-	HtmlDom_t *first_child;
-	HtmlDom_t *last_child;
-	HtmlDom_t *next_sibling;
-};
-
-/* ============================================================================
- * 1. Alphabetically Sorted HTML5 + Legacy Tag Table
- * ============================================================================ */
-
+/* Alphabetically Sorted HTML5 + Legacy Tag Table */
 static const HTMLTagInfo HTML_TAG_TABLE[] = {
     { TAG_A,          "a",          false },
     { TAG_ABBR,       "abbr",       false },
@@ -418,8 +408,11 @@ char *html_encode_entities(const char *src, bool is_attr) {
 
 static HtmlDom_t *dom_create_node(HtmlNodeType type) {
     HtmlDom_t *n = (HtmlDom_t *)calloc(1, sizeof(HtmlDom_t));
-	if (n)
+	if (n) {
 		n->type = type;
+		n->js_object = JS_UNDEFINED;
+		n->js_onclick = JS_UNDEFINED;
+	}
 
 	return n;
 }
@@ -1719,4 +1712,119 @@ void dom_print(const HtmlDom_t *node, int depth) {
 	for (child = node->first_child; child; child = child->next_sibling) {
 		dom_print(child, depth + 1);
 	}
+}
+
+/* ============================================================================
+ * 9. Extended DOM Navigation & HTML Mutation Helpers (QuickJS Integration)
+ * ============================================================================ */
+
+HtmlDom_t *dom_previous_sibling(const HtmlDom_t *node) {
+	HtmlDom_t *curr;
+	if (!node || !node->parent || node->parent->first_child == node)
+		return NULL;
+
+	curr = node->parent->first_child;
+	while (curr && curr->next_sibling != node) {
+		curr = curr->next_sibling;
+	}
+	return curr;
+}
+
+void dom_set_inner_html(HtmlDom_t *node, const char *html) {
+	HtmlDom_t *child;
+	HtmlDom_t *next_child;
+	HtmlDom_t *parsed;
+
+	if (!node || (node->type != NODE_ELEMENT && node->type != NODE_DOCUMENT))
+		return;
+
+	child = node->first_child;
+	while (child) {
+		next_child = child->next_sibling;
+		dom_free(child);
+		child = next_child;
+	}
+	node->first_child = NULL;
+	node->last_child = NULL;
+
+	if (!html || !*html)
+		return;
+
+	parsed = html_parse(html);
+	if (!parsed)
+		return;
+
+	while (parsed->first_child) {
+		HtmlDom_t *c = dom_remove_child(parsed, parsed->first_child);
+		if (c) {
+			dom_append_child(node, c);
+		} else {
+			break;
+		}
+	}
+	dom_free(parsed);
+}
+
+void dom_set_outer_html(HtmlDom_t *node, const char *html) {
+	HtmlDom_t *parent;
+	HtmlDom_t *parsed;
+
+	if (!node || !node->parent || node->type == NODE_DOCUMENT)
+		return;
+
+	parent = node->parent;
+	if (!html || !*html) {
+		dom_remove_child(parent, node);
+		dom_free(node);
+		return;
+	}
+
+	parsed = html_parse(html);
+	if (!parsed)
+		return;
+
+	while (parsed->first_child) {
+		HtmlDom_t *c = dom_remove_child(parsed, parsed->first_child);
+		if (c) {
+			dom_insert_before(parent, c, node);
+		} else {
+			break;
+		}
+	}
+	dom_free(parsed);
+	dom_remove_child(parent, node);
+	dom_free(node);
+}
+
+HtmlDom_t *dom_clone_node(const HtmlDom_t *node, bool deep) {
+	HtmlDom_t *clone;
+	HtmlAttr *a;
+	HtmlDom_t *c;
+
+	if (!node)
+		return NULL;
+
+	clone = dom_create_node(node->type);
+	if (!clone)
+		return NULL;
+
+	clone->tag_id = node->tag_id;
+	if (node->tag_name)
+		clone->tag_name = strdup_safe(node->tag_name);
+	if (node->text)
+		clone->text = strdup_safe(node->text);
+
+	for (a = node->attrs; a; a = a->next) {
+		dom_set_attr(clone, a->name, a->value);
+	}
+
+	if (deep) {
+		for (c = node->first_child; c; c = c->next_sibling) {
+			HtmlDom_t *child_clone = dom_clone_node(c, true);
+			if (child_clone)
+				dom_append_child(clone, child_clone);
+		}
+	}
+
+	return clone;
 }

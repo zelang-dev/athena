@@ -43,28 +43,27 @@ typedef struct BowResourcesP *BowResources;
 typedef struct BowContextP     *BowContext;
 
 typedef struct BowTaskP      *BowTask;
-typedef void (*BowTaskProc) _ArgProto((void *));
+typedef void (*BowTaskProc)(void *);
 
-#define TaskSchedule(a, b, c)    TaskScheduleX(a, b, c, __LINE__, __FILE__);
+#define TaskSchedule(a, b, c)	TaskScheduleX(a, b, c, __LINE__, __FILE__);
 
-BowTask TaskScheduleX _ArgProto((BowResources,
-				     BowTaskProc, void *, int, char *));
-void TaskRemove _ArgProto((BowResources, BowTask));
+BowTask TaskScheduleX(BowResources, BowTaskProc, void *, int, char *);
+void TaskRemove(BowResources, BowTask);
 
 typedef struct BowTimeOutP *BowTimeOut;
-typedef void (*BowTimeOutProc) _ArgProto((BowTimeOut, void *));
+typedef void (*BowTimeOutProc)(BowTimeOut, void *);
 
-BowTimeOut TimeOutCreate _ArgProto((BowResources, unsigned int,
-					BowTimeOutProc, void *));
-void TimeOutDestroy _ArgProto((BowTimeOut));
+BowTimeOut TimeOutCreate(BowResources, unsigned int,
+					BowTimeOutProc, void *);
+void TimeOutDestroy(BowTimeOut);
 
-char *ResourceGetString _ArgProto((BowResources, char *));
-int ResourceAddFile _ArgProto((BowResources, char *));
-int ResourceAddString _ArgProto((BowResources, char *));
-char *ResourceGetBool _ArgProto((BowResources, char *, bool *));
-char *ResourceGetInt _ArgProto((BowResources, char *, int *));
-char *ResourceGetUInt _ArgProto((BowResources, char *, unsigned int *));
-char *ResourceGetFilename _ArgProto((BowResources, MemPool, char *));
+char *ResourceGetString(BowResources, char *);
+int ResourceAddFile(BowResources, char *);
+int ResourceAddString(BowResources, char *);
+char *ResourceGetBool(BowResources, char *, bool *);
+char *ResourceGetInt(BowResources, char *, int *);
+char *ResourceGetUInt(BowResources, char *, unsigned int *);
+char *ResourceGetFilename(BowResources, MemPool, char *);
 
 void CMethodVoidDoom();
 void *CMethodVoidPtrDoom();

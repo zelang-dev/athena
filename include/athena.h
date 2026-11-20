@@ -481,12 +481,11 @@ typedef struct {
 	int is_video;
 } app_t;
 
-typedef struct Bow_QJS_Info Bow_QJS;
-typedef struct JS_ShadowDOM JS_Dom;
+typedef struct QJS_Info Bow_QJS;
+typedef struct HtmlNode_S HtmlDom_t;
 typedef struct JS_AsyncTask JS_Task;
 typedef struct JS_ESMPromise JS_Promise;
 typedef struct JS_EventsList JS_Listener;
-typedef struct JS_CSS_Styles JS_CSSVariable;
 typedef struct JS_Mutation JS_Observer;
 typedef struct JS_CanvasAction JS_Canvas;
 typedef struct BowResourcesP *BowResources;
@@ -940,8 +939,8 @@ C_API void qjs_set_buf(bow_t web, char *data, unsigned long size);
 C_API void qjs_free_buf(bow_t web);
 C_API bool qjs_is_running(bow_t web);
 C_API bool qjs_is_module(const char *filepath);
-C_API JS_Dom *qjs_parse(bow_t web, const char *html);
-C_API void qjs_run_script(bow_t web, JS_Dom *parsed, const char *js, bool is_module);
+C_API HtmlDom_t *qjs_parse(bow_t web, const char *html);
+C_API void qjs_run_script(bow_t web, HtmlDom_t *parsed, const char *js, bool is_module);
 C_API void qjs_click_event(Widget w, XtPointer data, XEvent *ev, Boolean *cont);
 C_API void qjs_exit(void);
 
