@@ -76,11 +76,12 @@ struct HtmlNode_S {
 
 struct QJS_Info {
 	int scroll_offset_y, js_dom_count;
-	size_t js_buf_size;
+	size_t js_buf_size, js_script_size;
 	JSClassID js_class_id, observer_class_id, nodelist_class_id;
 	JSValue js_this;
 	JSValue js_obs;
 	char *js_buf;
+	char *js_script;
 	Pixmap canvas_buffer;
 	int canvas_w, canvas_h;
 	Widget render_canvas;

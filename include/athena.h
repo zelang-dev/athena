@@ -934,6 +934,11 @@ C_API char *qjs_get_file(const char *path_url);
 C_API bool qjs_hook(bow_t web, JSValue this, void *func, const char *name, int args);
 C_API bool qjs_hook_set(bow_t web, JSValue this, const char *namespace);
 
+C_API char *qjs_get_script(bow_t web, unsigned long *size);
+C_API void qjs_set_script(bow_t web, char *data, unsigned long size);
+C_API void qjs_append_script(bow_t web, const char *text, size_t text_len);
+C_API void qjs_free_script(bow_t web);
+
 C_API char *qjs_get_buf(bow_t web, unsigned long *size);
 C_API void qjs_set_buf(bow_t web, char *data, unsigned long size);
 C_API void qjs_free_buf(bow_t web);

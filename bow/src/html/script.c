@@ -27,19 +27,6 @@ struct HTMLInlineP {
 	void *rc;
 };
 
-static void js_append(bow_t web, const char *text, size_t text_len) {
-	unsigned long js_buf_size = 0;
-	char *js_buf = qjs_get_buf(web, &js_buf_size);
-	size_t current_len = !js_buf ? 0 : strlen(js_buf);
-
-	if (current_len + text_len >= js_buf_size) {
-		js_buf_size  += text_len + (1024*1024);
-		js_buf = realloc(js_buf, js_buf_size);
-	}
-
-	qjs_set_buf(web, strcat(js_buf, text), js_buf_size);
-}
-
 /*
  * jsEnd
  */
@@ -144,13 +131,13 @@ void HTMLScriptEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 		return;
 
 	unsigned long size = 0;
-	char *js_buf = qjs_get_buf(li->cres, &size);
+	char *js_buf = qjs_get_script(li->cres, &size);
 	if (size) {
 		size = strlen(js_buf) - len - 2;
 		js_buf[size] = '\0';
 		qjs_run_script(li->cres, NULL, (const char *)js_buf, false);
 	}
-	qjs_free_buf(li->cres);
+	qjs_free_script(li->cres);
 }
 
 void HTMLScriptExec(HTMLInfo li, HTMLEnv env, MLElement p) {
@@ -160,5 +147,5 @@ void HTMLScriptExec(HTMLInfo li, HTMLEnv env, MLElement p) {
 	if (text == NULL)
 		return;
 
-	js_append(li->cres, text, len);
+	qjs_append_script(li->cres, text, len);
 }

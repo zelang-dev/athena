@@ -129,6 +129,12 @@ void qjs_exit(void) {
 		gl_ctx.js_buf_size = 0;
 	}
 
+	if (gl_ctx.js_script) {
+		free(gl_ctx.js_script);
+		gl_ctx.js_script = NULL;
+		gl_ctx.js_script_size = 0;
+	}
+
 	if (gl_ctx.ctx) {
 		JS_FreeValue(gl_ctx.ctx, gl_ctx.js_obs);
 		JS_FreeValue(gl_ctx.ctx, gl_ctx.js_this);
@@ -765,6 +771,39 @@ FORCEINLINE void qjs_free_buf(bow_t web) {
 		free(web->qjs->js_buf);
 		web->qjs->js_buf_size = 0;
 		web->qjs->js_buf = NULL;
+	}
+}
+
+FORCEINLINE char *qjs_get_script(bow_t web, unsigned long *size) {
+	*size = web->qjs->js_script_size;
+	return web->qjs->js_script;
+}
+
+FORCEINLINE void qjs_set_script(bow_t web, char *data, unsigned long size) {
+	if (web && web->qjs) {
+		web->qjs->js_script_size = size;
+		web->qjs->js_script = data;
+	}
+}
+
+void qjs_append_script(bow_t web, const char *text, size_t text_len) {
+	unsigned long js_buf_size = 0;
+	char *js_buf = qjs_get_script(web, &js_buf_size);
+	size_t current_len = !js_buf ? 0 : strlen(js_buf);
+
+	if (current_len + text_len >= js_buf_size) {
+		js_buf_size += text_len + (1024 * 1024);
+		js_buf = realloc(js_buf, js_buf_size);
+	}
+
+	qjs_set_script(web, strcat(js_buf, text), js_buf_size);
+}
+
+FORCEINLINE void qjs_free_script(bow_t web) {
+	if (web && web->qjs && web->qjs->js_script) {
+		free(web->qjs->js_script);
+		web->qjs->js_script_size = 0;
+		web->qjs->js_script = NULL;
 	}
 }
 
