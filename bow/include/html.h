@@ -330,6 +330,7 @@ char *HTMLGetEnvText(MemPool, HTMLEnv);
 void HTMLStringSpacify(char *, size_t);
 void HTMLAddLineBreak(HTMLInfo, HTMLEnv);
 void HTMLAddBlankLine(HTMLInfo, HTMLEnv);
+HTMLFlowAlign HTMLResolveAlignment(HTMLInfo, HTMLEnv, MLElement, HTMLFlowAlign);
 
 /*
  * layout.c

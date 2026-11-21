@@ -214,9 +214,15 @@ MLElement p;
   HTable *ts;
   HRow *rs;
   HData *ds;
+  HTMLTagID tagid;
+  HTMLFlowAlign default_align;
 
   ts = (HTable *)env->penv->closure;
   env->closure = ts;
+
+  tagid = HTMLTagToID(env->tag);
+  default_align = (tagid == TAG_TH) ? FLOW_CENTER_JUSTIFY : env->ff;
+  env->ff = HTMLResolveAlignment(li, env, p, default_align);
 
   if (ts->pass == 0)
   {
@@ -298,6 +304,8 @@ MLElement p;
   ts = (HTable *)env->penv->closure;
   env->closure = ts;
 
+  env->ff = HTMLResolveAlignment(li, env, p, env->ff);
+
   if (ts->pass == 0)
   {
     rs = (HRow *)MPCGet(ts->mp, sizeof(HRow));
@@ -348,10 +356,25 @@ MLElement p;
   int x;
   int border;
   unsigned int width, maxwidth;
+  HTMLFlowAlign table_align;
+  HTMLEnv box_env;
 
   maxwidth = width = HTMLGetMaxWidth(li, env->penv);
 
-  env->ff = FLOW_LEFT_JUSTIFY;
+  /* Determine table's horizontal alignment in the outer flow:
+   * 1. Inherit from parent environment (e.g. FLOW_CENTER_JUSTIFY from <center>)
+   * 2. Override by align attribute on <table> or CSS */
+  table_align = (env->penv != NULL) ? env->penv->ff : FLOW_LEFT_JUSTIFY;
+  table_align = HTMLResolveAlignment(li, env, p, table_align);
+
+  /* Set internal table default alignment for cells:
+   * If enclosed in <center> or center parent, cells default to centered.
+   * Otherwise default to left-justified. */
+  if (env->penv != NULL && env->penv->ff == FLOW_CENTER_JUSTIFY) {
+    env->ff = FLOW_CENTER_JUSTIFY;
+  } else {
+    env->ff = FLOW_LEFT_JUSTIFY;
+  }
   env->anchor = NULL;
 
   if (env->closure == NULL)
@@ -398,9 +421,13 @@ MLElement p;
   ts->pass = env->pass;
 
   /*
-   * Create the table box
+   * Create the table box with table's outer flow alignment
    */
-  ts->box = box = HTMLCreateBox(li, env);
+  box_env = (HTMLEnv)MPCGet(li->mp, sizeof(struct HTMLEnvP));
+  *box_env = *env;
+  box_env->ff = table_align;
+
+  ts->box = box = HTMLCreateBox(li, box_env);
   box->setup = SetupTable;
   box->render = RenderTable;
   box->destroy = DestroyTable;

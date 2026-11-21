@@ -54,7 +54,7 @@ HTMLInsertStatus HTMLAnchorInsert(HTMLInfo li, HTMLEnv env, MLElement p) {
 	return(HTMLInsertOK);
 }
 
-static HTMLFlowAlign HTMLResolveAlignment(HTMLInfo li, HTMLEnv env, MLElement p, HTMLFlowAlign default_align) {
+HTMLFlowAlign HTMLResolveAlignment(HTMLInfo li, HTMLEnv env, MLElement p, HTMLFlowAlign default_align) {
 	char *style_attr;
 	char *val;
 	HTMLAttribID aid;
@@ -85,6 +85,13 @@ static HTMLFlowAlign HTMLResolveAlignment(HTMLInfo li, HTMLEnv env, MLElement p,
 		if (aid == ATTRIB_CENTER) return(FLOW_CENTER_JUSTIFY);
 		if (aid == ATTRIB_RIGHT) return(FLOW_RIGHT_JUSTIFY);
 		if (aid == ATTRIB_LEFT) return(FLOW_LEFT_JUSTIFY);
+	}
+
+	/* 4. Check class attribute for "center" or class-based centering */
+	if (p != NULL && (val = MLFindAttribute(p, "class")) != NULL) {
+		if (strcasecmp(val, "center") == 0 || strstr(val, "center") != NULL) {
+			return(FLOW_CENTER_JUSTIFY);
+		}
 	}
 
 	return(default_align);
