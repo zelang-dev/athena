@@ -26,6 +26,7 @@
 
 
 #include "html.h"
+#include "bow_engine.h"
 
 static bool InAnchor _ArgProto((int, int, HTMLBox));
 static void HTMLAdd _ArgProto((void *));
@@ -78,7 +79,11 @@ void *closure;
 
   SinkGetData(li->wp, &data, &len, &mh);
 
-  MLAddData(li->hs, (char *)data, len);
+  /*
+   * Partial chunks: bow_engine_add transparently forwards to MLAddData.
+   * The HTML5 pipeline is deferred until the final chunk in HTMLEnd.
+   */
+  bow_engine_add(li->hs, (char *)data, len);
 
   return;
 }
@@ -96,7 +101,12 @@ void *closure;
 
   SinkGetData(li->wp, &data, &len, &mh);
 
-  MLEndData(li->hs, (char *)data, len);
+  /*
+   * Final chunk: bow_engine_end detects the document type and routes:
+   *   HTML5 / scripted → html_parse + JS + dom_serialize → MLEndData
+   *   Legacy HTML 3.2  → MLEndData directly (unchanged behaviour)
+   */
+  bow_engine_end(li->hs, li->cres, (char *)data, len);
 
   return;
 }
