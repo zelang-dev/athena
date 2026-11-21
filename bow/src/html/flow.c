@@ -348,11 +348,12 @@ static void SetupHLine(HTMLInfo li, HFlow *hf, HLine *hl) {
 	HTMLBox c;
 	int x = hl->x;
 
-	if (hl->ff & FLOW_CENTER_JUSTIFY) {
+	if (hl->ff == FLOW_CENTER_JUSTIFY) {
 		if (hl->width < hl->maxwidth) x += hl->maxwidth / 2 - hl->width / 2;
-	} else if (hl->ff & FLOW_RIGHT_JUSTIFY) {
+	} else if (hl->ff == FLOW_RIGHT_JUSTIFY) {
 		if (hl->width < hl->maxwidth) x += hl->maxwidth - hl->width;
 	}
+	hl->x = x;
 
 	for (c = (HTMLBox)GListGetHead(hl->boxes); c != NULL;
 		c = (HTMLBox)GListGetNext(hl->boxes)) {

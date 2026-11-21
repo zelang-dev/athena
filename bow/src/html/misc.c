@@ -54,8 +54,43 @@ HTMLInsertStatus HTMLAnchorInsert(HTMLInfo li, HTMLEnv env, MLElement p) {
 	return(HTMLInsertOK);
 }
 
-void HTMLHxBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
+static HTMLFlowAlign HTMLResolveAlignment(HTMLInfo li, HTMLEnv env, MLElement p, HTMLFlowAlign default_align) {
+	char *style_attr;
+	char *val;
 	HTMLAttribID aid;
+
+	/* 1. Check inline style attribute: e.g. style="text-align: center" */
+	if (p != NULL && (style_attr = MLFindAttribute(p, "style")) != NULL) {
+		val = CSSGetInlineProperty(style_attr, "text-align");
+		if (val != NULL) {
+			if (strcasecmp(val, "center") == 0) return(FLOW_CENTER_JUSTIFY);
+			if (strcasecmp(val, "right") == 0) return(FLOW_RIGHT_JUSTIFY);
+			if (strcasecmp(val, "left") == 0) return(FLOW_LEFT_JUSTIFY);
+		}
+	}
+
+	/* 2. Check CSS stylesheet rules from li->css */
+	if (li != NULL && li->css != NULL && li->selectors != NULL) {
+		val = CSSFindProperty(li->css, li->selectors, "text-align");
+		if (val != NULL) {
+			if (strcasecmp(val, "center") == 0) return(FLOW_CENTER_JUSTIFY);
+			if (strcasecmp(val, "right") == 0) return(FLOW_RIGHT_JUSTIFY);
+			if (strcasecmp(val, "left") == 0) return(FLOW_LEFT_JUSTIFY);
+		}
+	}
+
+	/* 3. Check legacy HTML align attribute */
+	if (p != NULL) {
+		aid = HTMLAttributeToID(p, "align");
+		if (aid == ATTRIB_CENTER) return(FLOW_CENTER_JUSTIFY);
+		if (aid == ATTRIB_RIGHT) return(FLOW_RIGHT_JUSTIFY);
+		if (aid == ATTRIB_LEFT) return(FLOW_LEFT_JUSTIFY);
+	}
+
+	return(default_align);
+}
+
+void HTMLHxBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
 	HTMLTagID tagid;
 
 	tagid = HTMLTagToID(env->tag);
@@ -67,13 +102,7 @@ void HTMLHxBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
 	else if (tagid == TAG_H5) HTMLSetFontScale(env->fi, 1);
 	else if (tagid == TAG_H6) HTMLSetFontScale(env->fi, 0);
 
-	aid = HTMLAttributeToID(p, "align");
-	if (aid == ATTRIB_CENTER || aid == ATTRIB_RIGHT) {
-		if (aid == ATTRIB_CENTER)
-			env->ff = FLOW_CENTER_JUSTIFY;
-		else if (aid == ATTRIB_RIGHT)
-			env->ff = FLOW_RIGHT_JUSTIFY;
-	}
+	env->ff = HTMLResolveAlignment(li, env, p, env->ff);
 }
 
 void HTMLHxEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
@@ -91,15 +120,7 @@ void HTMLFontBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
 }
 
 void HTMLParaBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
-	HTMLAttribID aid;
-
-	aid = HTMLAttributeToID(p, "align");
-	if (aid == ATTRIB_CENTER || aid == ATTRIB_RIGHT) {
-		if (aid == ATTRIB_CENTER)
-			env->ff = FLOW_CENTER_JUSTIFY;
-		else if (aid == ATTRIB_RIGHT)
-			env->ff = FLOW_RIGHT_JUSTIFY;
-	}
+	env->ff = HTMLResolveAlignment(li, env, p, env->ff);
 }
 
 void HTMLParaEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
@@ -161,10 +182,7 @@ void HTMLCenterEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 }
 
 void HTMLDivBegin(HTMLInfo li, HTMLEnv env, MLElement p) {
-	HTMLAttribID aid = HTMLAttributeToID(p, "align");
-	if (aid == ATTRIB_CENTER) env->ff = FLOW_CENTER_JUSTIFY;
-	else if (aid == ATTRIB_LEFT) env->ff = FLOW_LEFT_JUSTIFY;
-	else if (aid == ATTRIB_RIGHT) env->ff = FLOW_RIGHT_JUSTIFY;
+	env->ff = HTMLResolveAlignment(li, env, p, env->ff);
 
 	HTMLAddLineBreak(li, env);
 }

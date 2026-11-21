@@ -389,6 +389,13 @@ static bool ParseRule(CSSContext css, CSSInput ci) {
 	cr->properties = plist;
 	GListAddTail(css->rules, cr);
 
+	CSSProperty p;
+	for (p = (CSSProperty)GListGetHead(plist); p != NULL;
+		p = (CSSProperty)GListGetNext(plist)) {
+		p->cr = cr;
+		GListAddTail(css->props, p);
+	}
+
 	return(true);
 }
 
@@ -460,24 +467,28 @@ void CSSDestroyContext(CSSContext css) {
 
 static bool SelectorListMatch(GList slist1, GList slist2) {
 	CSSSelector cs, ncs;
+	if (slist1 == NULL || slist2 == NULL) return(false);
 
 	/*
-	 * This code needs attention.  It compares two selector lists.
+	 * slist1 is the selector chain from the CSS rule (e.g. "div" or ".center" or "div p")
+	 * slist2 is the element selector stack
 	 */
 	for (cs = (CSSSelector)GListGetHead(slist1),
 		ncs = (CSSSelector)GListGetHead(slist2);
 		cs != NULL && ncs != NULL;
 		cs = (CSSSelector)GListGetNext(slist1),
 		ncs = (CSSSelector)GListGetNext(slist2)) {
-		if (scompare(ncs->tag, cs->tag) != 0 ||
-			scompare(ncs->id, cs->id) != 0 ||
-			scompare(ncs->class, cs->class) != 0 ||
-			scompare(ncs->pclass, cs->pclass) != 0) {
-			return(false);
+		if (cs->tag != NULL && scompare(ncs->tag, cs->tag) != 0) return(false);
+		if (cs->id != NULL && scompare(ncs->id, cs->id) != 0) return(false);
+		if (cs->class != NULL) {
+			if (ncs->class == NULL) return(false);
+			if (scompare(ncs->class, cs->class) != 0 &&
+				strstr(ncs->class, cs->class) == NULL) return(false);
 		}
+		if (cs->pclass != NULL && scompare(ncs->pclass, cs->pclass) != 0) return(false);
 	}
 
-	if (ncs != NULL || cs != NULL) return(false);
+	if (cs != NULL) return(false);
 
 	return(true);
 }
@@ -507,6 +518,8 @@ char *CSSFindProperty(CSSContext css, GList selectors, char *name) {
 	GList slist, xlist;
 	CSSSelector h;
 
+	if (css == NULL || selectors == NULL || name == NULL) return(NULL);
+
 	if ((h = GListGetHead(selectors)) != GListGetTail(selectors)) {
 		slist = GListCreate();
 		GListAddHead(slist, h);
@@ -514,7 +527,7 @@ char *CSSFindProperty(CSSContext css, GList selectors, char *name) {
 
 	for (p = (CSSProperty)GListGetHead(css->props); p != NULL;
 		p = (CSSProperty)GListGetNext(css->props)) {
-		if (scompare(p->name, name) == 0) {
+		if (scompare(p->name, name) == 0 && p->cr != NULL) {
 			for (xlist = (GList)GListGetHead(p->cr->selectors); xlist != NULL;
 				xlist = (GList)GListGetNext(p->cr->selectors)) {
 				if ((slist != NULL && SelectorListMatch(xlist, slist)) ||
@@ -527,6 +540,43 @@ char *CSSFindProperty(CSSContext css, GList selectors, char *name) {
 	}
 
 	if (slist != NULL) GListDestroy(slist);
+
+	return(NULL);
+}
+
+/*
+ * CSSGetInlineProperty
+ *
+ * Extract property value from an inline style string (e.g. "text-align: center; color: red")
+ */
+char *CSSGetInlineProperty(const char *style, const char *name) {
+	size_t nlen;
+	const char *p;
+
+	if (style == NULL || name == NULL) return(NULL);
+
+	nlen = strlen(name);
+	p = style;
+	while (*p != '\0') {
+		while (*p != '\0' && isspace8(*p)) p++;
+		if (strncasecmp(p, name, nlen) == 0) {
+			const char *q = p + nlen;
+			while (*q != '\0' && isspace8(*q)) q++;
+			if (*q == ':') {
+				q++;
+				while (*q != '\0' && isspace8(*q)) q++;
+				static char val[128];
+				size_t i = 0;
+				while (*q != '\0' && *q != ';' && !isspace8(*q) && i < sizeof(val) - 1) {
+					val[i++] = *q++;
+				}
+				val[i] = '\0';
+				if (i > 0) return(val);
+			}
+		}
+		while (*p != '\0' && *p != ';') p++;
+		if (*p == ';') p++;
+	}
 
 	return(NULL);
 }

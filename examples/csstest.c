@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
 	slist = GListCreate();
 
 	cs = CSSCreateSelector(mp);
-	CSSSetSelector(cs, "h3", NULL, NULL, NULL);
+	CSSSetSelector(cs, "body", NULL, NULL, NULL);
 	GListAddHead(slist, cs);
 
 	name = "color";

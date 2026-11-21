@@ -37,6 +37,8 @@ void CSSSetSelector _ArgProto((CSSSelector,
 
 char *CSSFindProperty _ArgProto((CSSContext, GList, char *));
 
+char *CSSGetInlineProperty _ArgProto((const char *, const char *));
+
 void CSSPrintSelectorList _ArgProto((GList));
 
 void CSSPrint _ArgProto((CSSContext));

@@ -134,7 +134,7 @@ void qjs_exit(void) {
 		JS_FreeValue(gl_ctx.ctx, gl_ctx.js_this);
 		js_std_free_handlers(gl_ctx.rt);
 		JS_FreeContext(gl_ctx.ctx);
-		JS_FreeRuntime(gl_ctx.rt);
+		//JS_FreeRuntime(gl_ctx.rt);
 		gl_ctx.ctx = NULL;
 		gl_ctx.rt = NULL;
 	}
@@ -1797,7 +1797,7 @@ static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
 	JS_SetPropertyStr(ctx, global, "Event", JS_DupValue(ctx, event_ctor));
 	JS_SetPropertyStr(ctx, global, "CustomEvent", event_ctor);
 
-	/* Console hook to capture output into js_buf */
+	/* Console hook to capture output into js_buf
 	JSValue console_obj = JS_NewObject(ctx);
 	JS_SetPropertyStr(ctx, console_obj, "log",
 		JS_NewCFunction(ctx, qjs_console_hook, "log", 1));
@@ -1807,7 +1807,7 @@ static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
 		JS_NewCFunction(ctx, qjs_console_hook, "error", 1));
 	JS_SetPropertyStr(ctx, console_obj, "info",
 		JS_NewCFunction(ctx, qjs_console_hook, "info", 1));
-	JS_SetPropertyStr(ctx, global, "console", console_obj);
+	JS_SetPropertyStr(ctx, global, "console", console_obj);*/
 
 	JS_SetPropertyStr(ctx, global, "fetch",
 		JS_NewCFunction(ctx, js_global_fetch, "fetch", 1));

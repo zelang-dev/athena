@@ -457,7 +457,14 @@ static bool BoxifyObject(HTMLInfo li, HTMLEnv env, HTMLObject obj) {
 		if ((cs = (CSSSelector)GListPop(li->oldselectors)) == NULL) {
 			cs = CSSCreateSelector(li->mp);
 		}
-		CSSSetSelector(cs, cenv->tag->name, NULL, NULL, NULL);
+		char *sel_id = NULL;
+		char *sel_class = NULL;
+		HTMLObject first_obj = (HTMLObject)GListGetHead(cenv->slist);
+		if (first_obj != NULL && (first_obj->type == HTML_BEGINTAG || first_obj->type == HTML_TAG)) {
+			sel_id = MLFindAttribute(first_obj->o.p, "id");
+			sel_class = MLFindAttribute(first_obj->o.p, "class");
+		}
+		CSSSetSelector(cs, cenv->tag->name, sel_id, sel_class, NULL);
 		GListAddHead(li->selectors, cs);
 
 		if (Boxify(li, cenv)) return(true);
