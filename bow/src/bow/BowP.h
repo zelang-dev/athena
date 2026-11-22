@@ -107,6 +107,7 @@ struct BowResourcesP {
 	ats_t *ats;				/* `athena` handle */
 	Bow_QJS *qjs;			/* `Bow_QJS` integration global handle */
 	void *js_data;			/* `data` from `qjs_fetchfile/qjs_readfile` */
+	void *active_html;		/* active HTMLInfo for live JS DOM repaints */
 };
 
 /*

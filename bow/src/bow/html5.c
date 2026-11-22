@@ -1193,7 +1193,8 @@ static void serialize_node(const HtmlDom_t *node, StrBuf *sb, bool pretty, int d
 		if (in_raw) {
             sb_append(sb, node->text);
             return;
-        }
+		}
+
 		if (pretty && is_whitespace_only(node->text))
 			return;
 
@@ -1219,8 +1220,17 @@ static void serialize_node(const HtmlDom_t *node, StrBuf *sb, bool pretty, int d
         return;
     }
 
-    if (node->type == NODE_ELEMENT) {
-        const HTMLTagInfo *info = html_lookup_tag(node->tag_name, strlen(node->tag_name));
+	if (node->type == NODE_ELEMENT) {
+		bool has_onclick = (dom_get_attr(node, "onclick") != NULL)
+			|| !JS_IsUndefined(node->js_onclick);
+		bool wrap_anchor = has_onclick && (node->tag_id != TAG_A);
+		if (wrap_anchor) {
+			char href_buf[64];
+			sprintf(href_buf, "<a href=\"bow-event:click?node=%p\">", (void *)node);
+			sb_append(sb, href_buf);
+		}
+
+		const HTMLTagInfo *info = html_lookup_tag(node->tag_name, strlen(node->tag_name));
         bool raw_tag = is_raw_text_tag(node->tag_id);
 
 		if (pretty)

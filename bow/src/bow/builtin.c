@@ -25,18 +25,16 @@
 
 #include "Bow.h"
 
-extern void InitModule_HTML _ArgProto((BowResources));
-extern void InitModule_Plain _ArgProto((BowResources));
-extern void InitModule_HTTP _ArgProto((BowResources));
-extern void InitModule_FTP _ArgProto((BowResources));
-extern void InitModule_File _ArgProto((BowResources));
-extern void InitModule_Image _ArgProto((BowResources));
-extern void InitModule_Mailto _ArgProto((BowResources));
+extern void InitModule_HTML(BowResources);
+extern void InitModule_Plain(BowResources);
+extern void InitModule_HTTP(BowResources);
+extern void InitModule_FTP(BowResources);
+extern void InitModule_File(BowResources);
+extern void InitModule_Image(BowResources);
+extern void InitModule_Mailto(BowResources);
+extern void InitModule_Data(BowResources);
 
-void
-InitBowBuiltins(cres)
-BowResources cres;
-{
+void InitBowBuiltins(BowResources cres) {
   InitModule_Plain(cres);
   InitModule_Image(cres);
   InitModule_HTML(cres);
@@ -44,6 +42,5 @@ BowResources cres;
   InitModule_FTP(cres);
   InitModule_File(cres);
   InitModule_Mailto(cres);
-
-  return;
+  InitModule_Data(cres);
 }

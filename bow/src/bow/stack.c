@@ -25,8 +25,8 @@
 #include <X11/IntrinsicP.h>
 #include <X11/StringDefs.h>
 
-
-#include "BowP.h"
+#include "common.h"
+#include "javascriptP.h"
 
 typedef enum {
 	StackNewAction,
@@ -69,17 +69,38 @@ struct BowStackP {
 	GList              ourls;
 };
 
-static void StackGUIResize _ArgProto((BowGUI, void *,
-	unsigned int, unsigned int));
-static bool StackPop _ArgProto((BowStack));
-static void StackOp _ArgProto((BowStack, BowRequest *,
-	StackOpAction));
-int StackSinkInit _ArgProto((BowSink, void *));
-static void StackSinkAdd _ArgProto((void *));
-static void StackSinkEnd _ArgProto((void *));
-static void StackSinkMessage _ArgProto((void *, char *));
-static void StackRenderAction _ArgProto((void *, BowRender,
-	BowRequest *, char *));
+static void StackGUIResize(BowGUI, void *, unsigned int, unsigned int);
+static bool StackPop(BowStack);
+static void StackOp(BowStack, BowRequest *,	StackOpAction);
+int StackSinkInit(BowSink, void *);
+static void StackSinkAdd(void *);
+static void StackSinkEnd(void *);
+static void StackSinkMessage(void *, char *);
+static void StackRenderAction(void *, BowRender, BowRequest *, char *);
+
+/* Helper: decode percent-encoded characters in javascript: URLs */
+static char *decode_js_uri(MemPool mp, const char *src) {
+	size_t len = strlen(src);
+	char *out = (char *)MPCGet(mp, len + 1);
+	size_t i = 0, j = 0;
+
+	while (i < len) {
+		if (src[i] == '%' && i + 2 < len &&
+			isxdigit((unsigned char)src[i + 1]) &&
+			isxdigit((unsigned char)src[i + 2])) {
+			char hex[3];
+			hex[0] = src[i + 1];
+			hex[1] = src[i + 2];
+			hex[2] = '\0';
+			out[j++] = (char)strtol(hex, NULL, 16);
+			i += 3;
+		} else {
+			out[j++] = src[i++];
+		}
+	}
+	out[j] = '\0';
+	return out;
+}
 
 /*
  * StackPop
@@ -171,6 +192,16 @@ void StackRedraw(BowStack cs) {
 	URLInfo *u;
 
 	if ((u = GListGetHead(cs->urls)) == NULL) return;
+
+	/* Preserve live QuickJS DOM state across window resizes */
+	if (cs->wc != NULL && cs->wc->cres != NULL &&
+		cs->wc->cres->active_html != NULL &&
+		cs->wc->cres->qjs != NULL &&
+		cs->wc->cres->qjs->dom_root != NULL) {
+		HTMLRepaintFromDOM((HTMLInfo)cs->wc->cres->active_html);
+		return;
+	}
+
 	StackOp(cs, RequestCreate(cs->wc->cres, u->url, NULL), StackReplaceAction);
 }
 
@@ -183,6 +214,50 @@ void StackCancel(BowStack cs) {
 	if (cs->wn != NULL) RenderCancel(cs->wn);
 }
 
+static void BowDispatchDOMClick(BowResources cres, HtmlDom_t *node) {
+	const char *code;
+	char *script;
+
+	if (!cres || !node || !qjs_is_running(cres))
+		return;
+
+	/* 1. Run inline onclick="..." attribute if present */
+	code = dom_get_attr(node, "onclick");
+	if (code != NULL && *code != '\0') {
+		/* Execute with `this` bound or in global scope */
+		bow_reEval_js(cres, code);
+	}
+
+	/* 2. Run JS property/listener if attached to node->js_onclick */
+	if (JS_IsFunction(cres->qjs->ctx, node->js_onclick)) {
+		JSValue this_obj = JS_IsUndefined(node->js_object)
+			? JS_GetGlobalObject(cres->qjs->ctx)
+			: JS_DupValue(cres->qjs->ctx, node->js_object);
+		JSValue ret = JS_Call(cres->qjs->ctx, node->js_onclick, this_obj, 0, NULL);
+		JS_FreeValue(cres->qjs->ctx, ret);
+		JS_FreeValue(cres->qjs->ctx, this_obj);
+
+		if (cres->active_html != NULL)
+			HTMLRepaintFromDOM((HTMLInfo)cres->active_html);
+	}
+}
+
+static void BowDispatchDOMLoad(BowResources cres) {
+	const char *onload_script =
+		"(function() {"
+		"  if (typeof window.onload === 'function') window.onload();"
+		"  if (document.body) {"
+		"    var code = document.body.getAttribute('onload');"
+		"    if (code) (new Function(code)).call(document.body);"
+		"  }"
+		"})();";
+
+	if (!cres || !qjs_is_running(cres))
+		return;
+
+	bow_reEval_js(cres, onload_script);
+}
+
 /*
  * StackAction
  */
@@ -193,10 +268,34 @@ void StackAction(BowStack cs, BowRequest *wr, char *action) {
 	size_t len;
 	bool newhead;
 
-	/*
-	 * Should probably give an error message here.
-	 */
 	if (wr == NULL) return;
+
+	/* 1. Intercept synthetic DOM events (<a href="bow-event:click?node=0x...">) */
+	if (wr->scheme != NULL && strcmp(wr->scheme, "bow-event") == 0) {
+		void *ptr = NULL;
+		if (wr->url != NULL &&
+		    strncmp(wr->url, "bow-event:click?node=", 21) == 0 &&
+		    sscanf(wr->url + 21, "%p", &ptr) == 1 && ptr != NULL) {
+			BowDispatchDOMClick(cs->wc->cres, (HtmlDom_t *)ptr);
+		}
+		RequestDestroy(wr);
+		return;
+	}
+
+	/* 2. Intercept javascript: pseudo-URLs (<a href="javascript:...">) */
+	if (wr->scheme != NULL && strcmp(wr->scheme, "javascript") == 0) {
+		if (wr->url != NULL && strncasecmp(wr->url, "javascript:", 11) == 0) {
+			MemPool jmp = MPCreate();
+			char *code = decode_js_uri(jmp, wr->url + 11);
+			if (code != NULL && *code != '\0') {
+				bow_reEval_js(cs->wc->cres, code);
+			}
+			MPDestroy(jmp);
+		}
+
+		RequestDestroy(wr);
+		return;
+	}
 
 	if (strcmp("open", action) == 0) {
 		mp = MPCreate();

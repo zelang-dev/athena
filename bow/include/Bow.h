@@ -38,6 +38,7 @@
 
 #include "css.h"
 #include "html.h"
+#include "bow_engine.h"
 
 typedef struct BowResourcesP *BowResources;
 typedef struct BowContextP     *BowContext;

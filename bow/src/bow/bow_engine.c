@@ -69,7 +69,6 @@
 
 #include "html.h"            /* HTMLInfo, MLState, MLAddData, MLEndData … */
 #include "javascriptP.h"     /* HtmlDom_t, qjs_*, bow_t */
-#include "bow_engine.h"      /* public API */
 
 /* ============================================================================
  * Internal helpers
@@ -83,8 +82,7 @@
  * HTML 3.2 (article, section, nav, header, footer, main, aside, canvas …).
  * This is intentionally liberal so that any modern page gets the full pipeline.
  */
-static bool
-bow_engine_has_html5_doctype(const char *data, size_t len)
+static bool bow_engine_has_html5_doctype(const char *data, size_t len)
 {
 	size_t i;
 	/* Quick prefix scan – most pages start with <!DOCTYPE */
@@ -145,8 +143,7 @@ bow_engine_has_html5_doctype(const char *data, size_t len)
  * Returns true if the document contains any <script element, indicating we
  * must run the JS pipeline regardless of DOCTYPE.
  */
-static bool
-bow_engine_has_script(const char *data, size_t len)
+static bool bow_engine_has_script(const char *data, size_t len)
 {
 	static const char needle[] = "<script";
 	size_t nlen = sizeof(needle) - 1;
@@ -173,8 +170,7 @@ typedef enum {
 	ENGINE_MODE_HTML5,    /* html5.c → JS → serialise → ml.c */
 } BowEngineMode;
 
-static BowEngineMode
-bow_engine_detect_mode(const char *data, size_t len)
+static BowEngineMode bow_engine_detect_mode(const char *data, size_t len)
 {
 	if (!data || len == 0)
 		return ENGINE_MODE_LEGACY;
@@ -197,8 +193,7 @@ bow_engine_detect_mode(const char *data, size_t len)
  * ml.c layout pipeline can process.  Returns a malloc'd string; caller frees.
  * Returns NULL on failure.
  */
-static char *
-bow_engine_dom_to_html(HtmlDom_t *dom)
+static char *bow_engine_dom_to_html(HtmlDom_t *dom)
 {
 	if (!dom)
 		return NULL;
@@ -222,8 +217,7 @@ bow_engine_dom_to_html(HtmlDom_t *dom)
  * Returns true if script execution completed (even if individual scripts
  * threw exceptions), false if the QJS engine could not be initialised at all.
  */
-static bool
-bow_engine_run_scripts(bow_t web, HtmlDom_t *dom)
+static bool bow_engine_run_scripts(bow_t web, HtmlDom_t *dom)
 {
 	if (!web || !dom)
 		return false;
@@ -236,10 +230,9 @@ bow_engine_run_scripts(bow_t web, HtmlDom_t *dom)
 		}
 	}
 
-	/*
-	 * Bind the freshly-parsed DOM as the runtime document root so that JS
-	 * `document.*` calls operate on the correct tree.
-	 */
+	/* Bind parsed DOM as active document root before running <script> tags so that JS
+	 * `document.*` calls operate on the correct tree.*/
+	qjs_bind_dom(web, dom);
 	qjs_run_script(web, dom, NULL, false);
 	return true;
 }
@@ -255,7 +248,7 @@ bow_engine_run_scripts(bow_t web, HtmlDom_t *dom)
  *   1. Parse raw bytes with html5.c → HtmlDom_t tree
  *   2. Run all embedded <script> blocks through QuickJS
  *   3. Serialise the (possibly JS-mutated) DOM back to HTML
- *   4. Feed the serialised HTML into the ml.c / layout pipeline
+ *   4. Feed the serialized HTML into the ml.c / layout pipeline
  *
  * On any failure the function falls back gracefully to feeding the original
  * raw bytes through ml.c so the page is never lost.
@@ -267,12 +260,11 @@ bow_engine_run_scripts(bow_t web, HtmlDom_t *dom)
  *   len   – length of data
  *   is_end – true when this is the final chunk (calls MLEndData)
  */
-static void
-bow_engine_html5_pipeline(MLState hs, bow_t web,
+static void bow_engine_html5_pipeline(MLState hs, bow_t web,
                            char *data, size_t len, bool is_end)
 {
 	HtmlDom_t *dom = NULL;
-	char      *serialised = NULL;
+	char      *serialized = NULL;
 	char      *null_terminated = NULL;
 
 	if (!data || len == 0)
@@ -304,26 +296,28 @@ bow_engine_html5_pipeline(MLState hs, bow_t web,
 	}
 
 	/* 4. Serialise the (possibly mutated) DOM */
-	serialised = bow_engine_dom_to_html(dom);
-	if (!serialised || serialised[0] == '\0') {
+	serialized = bow_engine_dom_to_html(dom);
+	if (!serialized || serialized[0] == '\0') {
 		/* Serialisation produced nothing – fall back to raw bytes */
 		fprintf(stderr, "bow_engine: DOM serialisation empty, falling back to legacy ml.c\n");
-		free(serialised);
+		free(serialized);
 		goto fallback;
 	}
 
-	/* 5. Feed serialised HTML into ml.c layout pipeline */
+	/* 5. Feed serialized HTML into ml.c layout pipeline */
 	{
-		size_t slen = strlen(serialised);
+		size_t slen = strlen(serialized);
 		if (is_end)
-			MLEndData(hs, serialised, slen);
+			MLEndData(hs, serialized, slen);
 		else
-			MLAddData(hs, serialised, slen);
+			MLAddData(hs, serialized, slen);
 	}
 
-	/* Cleanup */
-	free(serialised);
-	dom_free(dom);
+	/* Cleanup: keep dom alive if bound to web->qjs->dom_root for live JS */
+	free(serialized);
+	if (!web || !web->qjs || web->qjs->dom_root != dom)
+		dom_free(dom);
+
 	free(null_terminated);
 	return;
 
@@ -357,8 +351,7 @@ fallback:
  * Partial chunks are always forwarded to MLAddData.  The full pipeline runs
  * only on the final chunk in bow_engine_end().
  */
-void
-bow_engine_add(MLState hs, char *data, size_t len)
+void bow_engine_add(MLState hs, char *data, size_t len)
 {
 	if (!hs || !data || len == 0)
 		return;
@@ -383,8 +376,7 @@ bow_engine_add(MLState hs, char *data, size_t len)
  *   data – complete HTML bytes accumulated so far
  *   len  – length
  */
-void
-bow_engine_end(MLState hs, bow_t web, char *data, size_t len)
+void bow_engine_end(MLState hs, bow_t web, char *data, size_t len)
 {
 	if (!hs || !data || len == 0) {
 		if (hs)
@@ -414,8 +406,7 @@ bow_engine_end(MLState hs, bow_t web, char *data, size_t len)
  *   data – complete HTML bytes
  *   len  – length
  */
-void
-bow_engine_process(MLState hs, bow_t web, char *data, size_t len)
+void bow_engine_process(MLState hs, bow_t web, char *data, size_t len)
 {
 	if (!hs || !data || len == 0)
 		return;
@@ -442,7 +433,7 @@ bow_engine_process(MLState hs, bow_t web, char *data, size_t len)
  * ml.c layout pipeline.
  *
  * The fragment is first passed through html5.c so that any nested <script>
- * tags inside it are also executed.  The resulting serialised subtree is then
+ * tags inside it are also executed.  The resulting serialized subtree is then
  * fed to MLAddData so it flows into the existing layout context.
  *
  * Parameters:
@@ -450,11 +441,10 @@ bow_engine_process(MLState hs, bow_t web, char *data, size_t len)
  *   web     – bow_t for JS context (may be NULL)
  *   html    – null-terminated HTML fragment string
  */
-void
-bow_engine_inject_html(MLState hs, bow_t web, const char *html)
+void bow_engine_inject_html(MLState hs, bow_t web, const char *html)
 {
 	HtmlDom_t *dom;
-	char      *serialised;
+	char      *serialized;
 	size_t     slen;
 
 	if (!hs || !html || html[0] == '\0')
@@ -474,14 +464,14 @@ bow_engine_inject_html(MLState hs, bow_t web, const char *html)
 		qjs_run_script(web, dom, NULL, false);
 
 	/* Serialise and inject */
-	serialised = bow_engine_dom_to_html(dom);
-	if (serialised && serialised[0] != '\0') {
-		slen = strlen(serialised);
-		MLAddData(hs, serialised, slen);
-		free(serialised);
+	serialized = bow_engine_dom_to_html(dom);
+	if (serialized && serialized[0] != '\0') {
+		slen = strlen(serialized);
+		MLAddData(hs, serialized, slen);
+		free(serialized);
 	} else {
-		/* Serialisation failed – inject raw fragment */
-		free(serialised);
+		/* Serialization failed – inject raw fragment */
+		free(serialized);
 		slen = strlen(html);
 		MLAddData(hs, (char *)html, slen);
 	}
@@ -490,18 +480,17 @@ bow_engine_inject_html(MLState hs, bow_t web, const char *html)
 }
 
 /* ============================================================================
- * Convenience – get a serialised snapshot of the current live DOM
+ * Convenience – get a serialized snapshot of the current live DOM
  * ============================================================================ */
 
 /*
  * bow_engine_get_dom_snapshot
  *
- * Returns a malloc'd string with the current DOM serialised to HTML.
- * Returns NULL if no DOM is available or serialisation fails.
+ * Returns a malloc'd string with the current DOM serialized to HTML.
+ * Returns NULL if no DOM is available or serialization fails.
  * Caller is responsible for freeing the returned string.
  */
-char *
-bow_engine_get_dom_snapshot(bow_t web)
+char *bow_engine_get_dom_snapshot(bow_t web)
 {
 	if (!web || !web->qjs || !web->qjs->dom_root)
 		return NULL;

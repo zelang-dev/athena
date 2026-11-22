@@ -105,5 +105,6 @@ HtmlDom_t *dom_previous_sibling(const HtmlDom_t *node);
 void dom_set_inner_html(HtmlDom_t *node, const char *html);
 void dom_set_outer_html(HtmlDom_t *node, const char *html);
 HtmlDom_t *dom_clone_node(const HtmlDom_t *node, bool deep);
+void qjs_bind_dom(bow_t web, HtmlDom_t *dom);
 
 #endif /* _JAVASCRIPT_P_H__ */

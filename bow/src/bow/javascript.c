@@ -6,12 +6,117 @@
 
 static Bow_QJS gl_ctx = {0};
 static volatile bool g_run_pipeline = true;
+static jsMessage_cb g_js_msg_cb = NULL;
+static void *g_js_msg_closure = NULL;
 
 /* Forward declarations */
 static JSValue create_js_dom_wrapper(JSContext *ctx, HtmlDom_t *node);
 static JSValue create_js_nodelist(JSContext *ctx, HtmlDom_t **items, size_t count);
 static void notify_mutation(const char *type, HtmlDom_t *target);
 static void execute_script_blocks(JSContext *ctx, HtmlDom_t *n);
+static void run_javascript(JSContext *ctx, const char *script, int is_mod);
+static void js_free_dom(HtmlDom_t *node);
+
+void bow_jsMessage_set(jsMessage_cb cb, void *closure) {
+	g_js_msg_cb = cb;
+	g_js_msg_closure = closure;
+}
+
+static JSValue js_bow_post_message(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	const char *handler_name;
+	const char *payload = NULL;
+	JSValue json_val = JS_UNDEFINED;
+
+	(void)this_val;
+	if (argc < 1)
+		return JS_ThrowTypeError(ctx, "bow.postMessage requires a handler name");
+
+	handler_name = JS_ToCString(ctx, argv[0]);
+	if (!handler_name)
+		return JS_EXCEPTION;
+
+	if (argc >= 2 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1])) {
+		if (JS_IsString(argv[1])) {
+			payload = JS_ToCString(ctx, argv[1]);
+		} else {
+			json_val = JS_JSONStringify(ctx, argv[1], JS_UNDEFINED, JS_UNDEFINED);
+			if (!JS_IsException(json_val))
+				payload = JS_ToCString(ctx, json_val);
+		}
+	}
+
+	if (g_js_msg_cb != NULL) {
+		g_js_msg_cb(handler_name, payload ? payload : "", g_js_msg_closure);
+	}
+
+	if (payload)
+		JS_FreeCString(ctx, payload);
+	if (!JS_IsUndefined(json_val))
+		JS_FreeValue(ctx, json_val);
+	JS_FreeCString(ctx, handler_name);
+
+	return JS_UNDEFINED;
+}
+
+/* Bind an externally parsed HtmlDom_t tree as the active document root */
+void qjs_bind_dom(bow_t web, HtmlDom_t *dom) {
+	if (!web || !web->qjs || !web->qjs->ctx || !dom)
+		return;
+
+	if (web->qjs->dom_root && web->qjs->dom_root != dom) {
+		js_free_dom(web->qjs->dom_root);
+	}
+	web->qjs->dom_root = dom;
+
+	JSValue global = JS_GetGlobalObject(web->qjs->ctx);
+	JSValue doc_obj = JS_GetPropertyStr(web->qjs->ctx, global, "document");
+	if (JS_IsObject(doc_obj)) {
+		JS_SetOpaque(doc_obj, dom);
+	}
+
+	JS_FreeValue(web->qjs->ctx, doc_obj);
+	JS_FreeValue(web->qjs->ctx, global);
+}
+
+static unsigned long long hash_dom_snapshot(bow_t web) {
+	char *snap = bow_engine_get_dom_snapshot(web);
+	unsigned long long h = 14695981039346656037ULL;
+	size_t i;
+
+	if (!snap)
+		return 0;
+
+	size_t len = strlen(snap);
+	for (i = 0; i < len; i++) {
+		h ^= (unsigned char)snap[i];
+		h *= 1099511628211ULL;
+	}
+	free(snap);
+	return h;
+}
+
+void bow_reEval_js(bow_t web, const char *script) {
+	unsigned long long before_hash;
+	unsigned long long after_hash;
+
+	if (!web || !script || !*script)
+		return;
+
+	if (!qjs_is_running(web)) {
+		if (!qjs_init(web))
+			return;
+	}
+
+	before_hash = hash_dom_snapshot(web);
+	run_javascript(web->qjs->ctx, script, 0);
+	after_hash = hash_dom_snapshot(web);
+
+	if (before_hash != 0 && after_hash != 0 && before_hash != after_hash) {
+		if (web->active_html != NULL) {
+			HTMLRepaintFromDOM((HTMLInfo)web->active_html);
+		}
+	}
+}
 
 static void free_node_listeners(JSContext *ctx, HtmlDom_t *node) {
 	if (!node)
@@ -1870,6 +1975,12 @@ static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
 	JS_SetPropertyStr(ctx, extra_config, "engine", JS_NewString(ctx, "Bow 0.6.0-QuickJS"));
 	JS_SetPropertyStr(ctx, global, "sysConfig", extra_config);
 	gl_ctx.js_obs = obs_proto;
+
+	JSValue bridge_obj = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, bridge_obj, "postMessage",
+		JS_NewCFunction(ctx, js_bow_post_message, "postMessage", 2));
+	JS_SetPropertyStr(ctx, global, "bow", bridge_obj);
+
 	JS_FreeValue(ctx, global);
 }
 

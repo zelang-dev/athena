@@ -27,6 +27,7 @@ extern "C" {
 
 #include <stddef.h>   /* size_t */
 #include "ml.h"       /* MLState */
+typedef void (*jsMessage_cb)(const char *handler_name, const char *payload, void *closure);
 
 /*
  * bow_t is BowResources (struct BowResourcesP *) — the central per-instance
@@ -193,6 +194,19 @@ void bow_engine_inject_html(MLState hs, bow_t web, const char *html);
  * Caller must free() the returned string.
  */
 char *bow_engine_get_dom_snapshot(bow_t web);
+
+/*
+ * WebView API: set the local directory used to resolve relative
+ * subresources (e.g., <img src="logo.png">) inside data: documents.
+ * Pass NULL to fall back to the process current working directory.
+ */
+void bow_assetDatadir_set(const char *);
+
+/* For JS usage: window.bow.postMessage("action", { key: "value" }) */
+void bow_jsMessage_set(jsMessage_cb cb, void *closure);
+
+/* Evaluate JS from C host (for native-to-JS replies) */
+void bow_reEval_js(bow_t web, const char *script);
 
 #ifdef __cplusplus
 }

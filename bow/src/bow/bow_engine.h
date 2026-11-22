@@ -97,7 +97,7 @@ void bow_engine_process(MLState hs, bow_t web, char *data, size_t len);
  *
  * Inject a dynamically generated HTML fragment into the active layout flow.
  * The fragment is parsed by html5.c, any embedded <script> tags are executed,
- * and the resulting serialised subtree is fed to MLAddData.
+ * and the resulting serialized subtree is fed to MLAddData.
  *
  * Parameters:
  *   hs   – active MLState
@@ -172,7 +172,7 @@ void bow_engine_process(MLState hs, bow_t web, char *data, size_t len);
  *
  * Inject a dynamically generated HTML fragment into the active layout flow.
  * The fragment is parsed by html5.c, any embedded <script> tags are executed,
- * and the resulting serialised subtree is fed to MLAddData.
+ * and the resulting serialized subtree is fed to MLAddData.
  *
  * Parameters:
  *   hs   – active MLState

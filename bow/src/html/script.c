@@ -111,6 +111,9 @@ void HTMLScript(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *url;
 	HTMLInlineInfo ii;
 
+	if (li != NULL && li->is_repainting)
+		return;
+
 	if (!qjs_is_running(li->cres))
 		qjs_init(li->cres);
 
@@ -126,6 +129,10 @@ void HTMLScript(HTMLInfo li, HTMLEnv env, MLElement p) {
 void HTMLScriptEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *text;
 	size_t len;
+
+	if (li != NULL && li->is_repainting)
+		return;
+
 	MLGetText(p, &text, &len);
 	if (text == NULL)
 		return;
@@ -143,6 +150,10 @@ void HTMLScriptEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 void HTMLScriptExec(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *text;
 	size_t len;
+
+	if (li != NULL && li->is_repainting)
+		return;
+
 	MLGetText(p, &text, &len);
 	if (text == NULL)
 		return;
