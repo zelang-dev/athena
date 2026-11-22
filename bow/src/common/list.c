@@ -40,28 +40,10 @@ struct GListP {
 	struct GNodeP *c;
 };
 
-/*
-#define TRACKER 1
-*/
-
-#ifdef TRACKER
-struct track {
-	GList gl;
-	int line;
-	char *file;
-	struct track *next;
-};
-
-static struct track *track_list = NULL;
-#endif
-
 static void FreeListNode _ArgProto((GList, struct GNodeP *));
 static struct GNodeP *GetFreedNode _ArgProto((GList));
 
 static void FreeListNode(GList gl, struct GNodeP *f) {
-#ifdef TRACKER
-	memset(f, 0, sizeof(struct GNodeP));
-#endif
 	f->next = gl->f;
 	gl->f = f;
 	return;
@@ -92,23 +74,11 @@ GList GListCreateX(MemPool mp) {
 GList GListCreateTrack(int line, char *file) {
 	MemPool mp;
 	GList gl;
-#ifdef TRACKER
-	struct track *f;
-#endif
 
 	mp = MPCreate();
 	gl = (GList)MPCGet(mp, sizeof(struct GListP));
 	gl->mp = mp;
 	gl->localmp = true;
-
-#ifdef TRACKER
-	f = (struct track *)malloc(sizeof(struct track));
-	f->gl = gl;
-	f->line = line;
-	f->file = file;
-	f->next = track_list;
-	track_list = f;
-#endif
 
 	return(gl);
 }
@@ -161,22 +131,8 @@ void GListAddTail(GList gl, void *thing) {
 }
 
 void GListDestroy(GList gl) {
-#ifdef TRACKER
-	struct track *f;
-#endif
-
-	if (gl->localmp) MPDestroy(gl->mp);
-
-#ifdef TRACKER
-	for (f = track_list; f != NULL; f = f->next) {
-		if (f->gl == gl) {
-			f->gl = NULL;
-			break;
-		}
-	}
-#endif
-
-	return;
+	if (gl && gl->localmp)
+		MPDestroy(gl->mp);
 }
 
 void *GListGetHead(GList gl) {
@@ -242,16 +198,6 @@ MemPool GListMP(GList gl) {
 }
 
 void GListPrintStatus(void) {
-#ifdef TRACKER
-	struct track *f;
-
-	for (f = track_list; f != NULL; f = f->next) {
-		if (f->gl != NULL) {
-			fprintf(stderr, "GList unfreed: Line %d, File %s\n", f->line, f->file);
-		}
-	}
-#endif
-	return;
 }
 
 void GListClear(GList gl) {

@@ -600,10 +600,26 @@ static void dispatch_dom_event_internal(JSContext *ctx, HtmlDom_t *target, const
 			curr = next;
 		}
 
-		if (strcmp(type, "click") == 0 && !JS_IsUndefined(curr_node->js_onclick) && !JS_IsNull(curr_node->js_onclick)) {
-			JSValue arg = event_obj;
-			JSValue ret = JS_Call(ctx, curr_node->js_onclick, this_elem, 1, &arg);
-			JS_FreeValue(ctx, ret);
+		if (strcmp(type, "click") == 0) {
+			if (!JS_IsUndefined(curr_node->js_onclick) && !JS_IsNull(curr_node->js_onclick)) {
+				JSValue arg = event_obj;
+				JSValue ret = JS_Call(ctx, curr_node->js_onclick, this_elem, 1, &arg);
+				if (JS_IsException(ret)) {
+					JSValue ex = JS_GetException(ctx);
+					JS_FreeValue(ctx, ex);
+				}
+				JS_FreeValue(ctx, ret);
+			} else {
+				const char *attr_code = dom_get_attr(curr_node, "onclick");
+				if (attr_code && *attr_code) {
+					JSValue fn = JS_Eval(ctx, attr_code, strlen(attr_code), "<onclick>", JS_EVAL_TYPE_GLOBAL);
+					if (JS_IsException(fn)) {
+						JSValue ex = JS_GetException(ctx);
+						JS_FreeValue(ctx, ex);
+					}
+					JS_FreeValue(ctx, fn);
+				}
+			}
 		}
 
 		JS_FreeValue(ctx, this_elem);
@@ -1683,13 +1699,12 @@ static JSValue js_dom_remove_eventlistener(JSContext *ctx, JSValueConst this_val
 	}
 	return JS_UNDEFINED;
 }
-
 static JSValue js_dom_dispatch_event(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
 	HtmlDom_t *n = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!n || argc < 1)
 		return JS_FALSE;
 
-	/* Supports both W3C dispatchEvent(eventObj) and string-based dispatchEvent("click", ...) */
+	/* 1. Standard W3C: el.dispatchEvent(new Event('click')) */
 	if (JS_IsObject(argv[0])) {
 		JSValue type_val = JS_GetPropertyStr(ctx, argv[0], "type");
 		const char *ev_type = JS_ToCString(ctx, type_val);
@@ -1699,8 +1714,12 @@ static JSValue js_dom_dispatch_event(JSContext *ctx, JSValueConst this_val, int 
 			JS_FreeCString(ctx, ev_type);
 		}
 		JS_FreeValue(ctx, type_val);
-	} else if (JS_IsString(argv[0])) {
-		const char *ev_type = JS_ToCString(ctx, argv[0]);
+	}
+
+	/* 2. String shorthand: el.dispatchEvent('click') OR el.dispatchEvent('id', 'click') */
+	else if (JS_IsString(argv[0])) {
+		JSValue type_arg = (argc >= 2 && JS_IsString(argv[1])) ? argv[1] : argv[0];
+		const char *ev_type = JS_ToCString(ctx, type_arg);
 		if (ev_type) {
 			JSValue ev_obj = JS_NewObject(ctx);
 			JS_SetPropertyStr(ctx, ev_obj, "type", JS_NewString(ctx, ev_type));

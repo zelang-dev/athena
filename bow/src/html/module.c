@@ -84,11 +84,10 @@ static void HTMLEnd(void *closure) {
 	size_t len;
 	MIMEHeader mh;
 
-	if (li->cancel) return;
+	if (li->cancel)
+		return;
 
 	SinkGetData(li->wp, &data, &len, &mh);
-	li->cres->active_html = li;
-	bow_engine_end(li->hs, li->cres, (char *)data, len);
 
 	/* mark this HTMLInfo as active before running engine */
 	li->cres->active_html = (void *)li;
@@ -479,15 +478,12 @@ void HTMLSetFinalPosition(HTMLInfo li) {
 }
 
 void HTMLRepaintFromDOM(HTMLInfo li) {
-
-	if (li == NULL || li->cres == NULL || li->cancel)
+	if (!li || li->cres == NULL || li->cancel)
 		return;
-
 
 	char *snapshot = bow_engine_get_dom_snapshot(li->cres);
-	if (snapshot == NULL) {
+	if (!snapshot)
 		return;
-	}
 
 	/* Preserve current scroll position across repaint */
 	if (li->ps == NULL) {

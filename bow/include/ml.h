@@ -41,7 +41,7 @@ typedef enum
 /*
  * Functions for providing raw data to the markup-language code.
  */
-typedef void (*MLElementHandler) _ArgProto((void *, MLElement));
+typedef void (*MLElementHandler)(void *, MLElement);
 
 MLState MLInit _ArgProto((MLElementHandler, void *));
 void MLAddData _ArgProto((MLState, char *, size_t));
@@ -51,14 +51,14 @@ void MLDestroy _ArgProto((MLState));
 /*
  * Functions for extracting information about elements created
  */
-char *MLFindAttribute _ArgProto((MLElement, char *));
-char *MLTagName _ArgProto((MLElement));
-void MLGetText _ArgProto((MLElement, char **, size_t *));
+char *MLFindAttribute(MLElement, char *);
+char *MLTagName(MLElement);
+void MLGetText(MLElement, char **, size_t *);
 MLElementType MLGetType(MLElement);
-int MLAttributeToInt _ArgProto((MLElement, char *));
+int MLAttributeToInt(MLElement, char *);
 
 /*
  * Random stuff
  */
-MLElement MLCreateTag _ArgProto((MLState, char *, size_t));
+MLElement MLCreateTag(MLState, char *, size_t);
 #endif /* __ML_H__ */

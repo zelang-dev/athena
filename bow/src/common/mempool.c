@@ -47,263 +47,167 @@
 #define MPPOOLSIZE BUFSIZ
 
 #ifndef MPALIGN
-typedef struct Alignment
-{
-  union { int a; char *b; size_t c; off_t d; long e; } align;
+typedef struct Alignment {
+	union { int a; char *b; size_t c; off_t d; long e; } align;
 } Alignment;
 #define MPALIGNSIZE(x) ((x / sizeof(Alignment) + 1) * sizeof(Alignment))
 #else
 #define MPALIGNSIZE(x) ((x / MPALIGN + 1) * MPALIGN)
 #endif
 
-/*
-#define TRACKER 1
-*/
-
-#ifdef TRACKER
-struct track
-{
-  MemPool mp;
-  int line;
-  char *file;
-  struct track *next;
-};
-
-static struct track *track_list = NULL;
-#endif
-
-struct pool
-{
-  size_t used, len;
+struct pool {
+	size_t used, len;
 #ifdef MPDEBUG
-  void *mem;
+	void *mem;
 #endif
-  struct pool *next;
+	struct pool *next;
 };
 
-struct MemPoolP
-{
-  struct pool *plist;
-  size_t len;
+struct MemPoolP {
+	struct pool *plist;
+	size_t len;
 };
 
 #ifndef MPDEBUG
-static struct pool *create_pool _ArgProto((size_t));
-static void *use_pool _ArgProto((struct pool *, size_t));
+static struct pool *create_pool(size_t);
+static void *use_pool(struct pool *, size_t);
 
 /*
  * create_pool
  */
-static struct pool *
-create_pool(alen)
-size_t alen;
-{
-  size_t blen, len, plen;
-  struct pool *pool;
+static struct pool *create_pool(size_t alen) {
+	size_t blen, len, plen;
+	struct pool *pool;
 
-  plen = MPALIGNSIZE(sizeof(struct pool));
-  len = MPALIGNSIZE(alen) + plen;
-  blen = (len / MPPOOLSIZE + 1) * MPPOOLSIZE;
-  pool = (struct pool *)malloc(blen);
-  if (pool == NULL)
-  {
-    fprintf (stderr, "create_pool malloc failed: %ld\n", (long)blen);
-    return(NULL);
-  }
-  pool->len = blen;
-  pool->used = plen;
-  pool->next = NULL;
+	plen = MPALIGNSIZE(sizeof(struct pool));
+	len = MPALIGNSIZE(alen) + plen;
+	blen = (len / MPPOOLSIZE + 1) * MPPOOLSIZE;
+	pool = (struct pool *)malloc(blen);
+	if (pool == NULL) {
+		fprintf(stderr, "create_pool malloc failed: %ld\n", (long)blen);
+		return(NULL);
+	}
+	pool->len = blen;
+	pool->used = plen;
+	pool->next = NULL;
 
-  return(pool);
+	return(pool);
 }
 
 /*
  * use_pool
  */
-static void *
-use_pool(pool, len)
-struct pool *pool;
-size_t len;
-{
-  byte *mem;
+static void *use_pool(struct pool *pool, size_t len) {
+	byte *mem;
 
-  len = MPALIGNSIZE(len);
-  if (pool->used + len > pool->len) return(NULL);
-  mem = (byte *)pool + pool->used;
-  pool->used += len;
-  return((void *)mem);
+	len = MPALIGNSIZE(len);
+	if (pool->used + len > pool->len) return(NULL);
+	mem = (byte *)pool + pool->used;
+	pool->used += len;
+	return((void *)mem);
 }
 #endif
 
 /*
  * MPCreate
  */
-MemPool
-MPCreateTrack(line, file)
-int line;
-char *file;
-{
-  MemPool mp;
-  struct pool *pool;
-#ifdef TRACKER
-  struct track *f;
-#endif
+MemPool MPCreateTrack(int line, char *file) {
+	MemPool mp;
+	struct pool *pool;
 
 #ifndef MPDEBUG
-  pool = create_pool(sizeof(struct MemPoolP));
-  if (pool == NULL) return(NULL);
-  mp = (MemPool)use_pool(pool, sizeof(struct MemPoolP));
-  myassert(mp != NULL, "MPCreate: use_pool failed!");
-  mp->plist = pool;
-  mp->len = pool->len;
+	pool = create_pool(sizeof(struct MemPoolP));
+	if (pool == NULL) return(NULL);
+	mp = (MemPool)use_pool(pool, sizeof(struct MemPoolP));
+	myassert(mp != NULL, "MPCreate: use_pool failed!");
+	mp->plist = pool;
+	mp->len = pool->len;
 #else
-  mp = (MemPool)malloc(sizeof(struct MemPoolP));
-  if (mp == NULL) return(NULL);
-  memset(mp, 0, sizeof(struct MemPoolP));
+	mp = (MemPool)malloc(sizeof(struct MemPoolP));
+	if (mp == NULL) return(NULL);
+	memset(mp, 0, sizeof(struct MemPoolP));
 #endif
 
-#ifdef TRACKER
-  f = (struct track *)malloc(sizeof(struct track));
-  if (f == NULL) abort();
-  f->mp = mp;
-  f->line = line;
-  f->file = file;
-  f->next = track_list;
-  track_list = f;
-#endif
-
-  return(mp);
+	return(mp);
 }
 
 /*
  * MPGet
  */
-void *
-MPGet(mp, len)
-MemPool mp;
-size_t len;
-{
-  struct pool *pool;
-  void *mem;
+void *MPGet(MemPool mp, size_t len) {
+	struct pool *pool;
+	void *mem;
 
-  myassert(len > 0, "MPGet: must allocate sizes greater than zero!");
+	myassert(len > 0, "MPGet: must allocate sizes greater than zero!");
 
 #ifndef MPDEBUG
-  pool = mp->plist;
-  if ((mem = use_pool(pool, len)) == NULL)
-  {
-    pool = create_pool(len);
-    pool->next = mp->plist;
-    mp->len += pool->len;
-    mp->plist = pool;
-    mem = use_pool(pool, len);
-    myassert(mem != NULL, "MPGet: use_pool failed!");
-  }
+	pool = mp->plist;
+	if ((mem = use_pool(pool, len)) == NULL) {
+		pool = create_pool(len);
+		pool->next = mp->plist;
+		mp->len += pool->len;
+		mp->plist = pool;
+		mem = use_pool(pool, len);
+		myassert(mem != NULL, "MPGet: use_pool failed!");
+	}
 #else
-  pool = (struct pool *)malloc(sizeof(struct pool));
-  if (pool == NULL) return(NULL);
-  pool->next = mp->plist;
-  mp->plist = pool;
-  mem = pool->mem = malloc(len);
+	pool = (struct pool *)malloc(sizeof(struct pool));
+	if (pool == NULL) return(NULL);
+	pool->next = mp->plist;
+	mp->plist = pool;
+	mem = pool->mem = malloc(len);
 #endif
 
-  return(mem);
+	return(mem);
 }
 
 /*
  * MPCGet
  */
-void *
-MPCGet(mp, len)
-MemPool mp;
-size_t len;
-{
-  void *m;
-  m = MPGet(mp, len);
-  memset(m, 0, len);
-  return(m);
+void *MPCGet(MemPool mp, size_t len) {
+	void *m;
+	m = MPGet(mp, len);
+	memset(m, 0, len);
+	return(m);
 }
 
 /*
  * MPStrDup
  */
-char *
-MPStrDup(mp, s)
-MemPool mp;
-const char *s;
-{
-  size_t len;
-  char *ns;
+char *MPStrDup(MemPool mp, const char *s) {
+	size_t len;
+	char *ns;
 
-  if (s == NULL) return(NULL);
-  len = strlen(s);
-  ns = (char *)MPGet(mp, len + 1);
-  strcpy(ns, s);
-  return(ns);
+	if (s == NULL) return(NULL);
+	len = strlen(s);
+	ns = (char *)MPGet(mp, len + 1);
+	strcpy(ns, s);
+	return(ns);
 }
 
 /*
  * MPDestroy
  */
-void
-MPDestroy(mp)
-MemPool mp;
-{
-  struct pool *m, *t;
-#ifdef TRACKER
-  struct track *f;
-#endif
+void MPDestroy(MemPool mp) {
+	struct pool *m, *t;
+	if (!mp)
+		return;
 
-  for (m = mp->plist; m != NULL; )
-  {
-    t = m;
-    m = m->next;
+	for (m = mp->plist; m != NULL; ) {
+		t = m;
+		m = m->next;
 #ifdef MPDEBUG
-    free(t->mem);
+		free(t->mem);
 #endif
-    free(t);
-  }
+		free(t);
+	}
 #ifdef MPDEBUG
-  free(mp);
+	free(mp);
 #endif
-
-#ifdef TRACKER
-  for (f = track_list; f != NULL; f = f->next)
-  {
-    if (f->mp == mp)
-    {
-      f->mp = NULL;
-      break;
-    }
-  }
-#endif
-
-  return;
 }
 
 /*
  * MPPrintStats
  */
-void
-MPPrintStatus()
-{
-#ifdef TRACKER
-  struct track *f;
-  size_t total;
-
-  total = 0;
-  for (f = track_list; f != NULL; f = f->next)
-  {
-    if (f->mp != NULL)
-    {
-      fprintf (stderr, "MP unfreed: Line %d, File %s, Length %ld\n",
-	       f->line, f->file, (long)f->mp->len);
-      total += f->mp->len;
-    }
-  }
-
-  fprintf (stderr, "Total unfreed: %ld\n", (long)total);
-#endif
-
-  return;
+void MPPrintStatus(void) {
 }

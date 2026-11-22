@@ -78,22 +78,25 @@ struct MLStateP {
 	int count;                   /* call count */
 };
 
-static MLAttribute hs_parse_tag _ArgProto((MLState, char *, size_t));
-static void hs_add_element _ArgProto((MLState, MLElement));
-static MLElement hs_create_element _ArgProto((MLState, char *, size_t));
-static MLElement hs_create_text _ArgProto((MLState, char *, size_t));
-static MLElement hs_create_tag _ArgProto((MLState, char *, size_t));
-static char *hs_condense _ArgProto((MLState, char *, size_t, size_t *));
-static MLAttribute hs_create_attribute _ArgProto((MLState, char *, size_t));
-static void hs_push _ArgProto((MLState, int));
-static size_t hs_pop _ArgProto((MLState));
-static void hs_handle_data _ArgProto((MLState, char *, size_t, bool));
+static MLAttribute hs_parse_tag(MLState, char *, size_t);
+static void hs_add_element(MLState, MLElement);
+static MLElement hs_create_element(MLState, char *, size_t);
+static MLElement hs_create_text(MLState, char *, size_t);
+static MLElement hs_create_tag(MLState, char *, size_t);
+static char *hs_condense(MLState, char *, size_t, size_t *);
+static MLAttribute hs_create_attribute(MLState, char *, size_t);
+static void hs_push(MLState, int);
+static size_t hs_pop(MLState);
+static void hs_handle_data(MLState, char *, size_t, bool);
 
 /*
  * hs_push
  */
 static void hs_push(MLState hs, int state) {
 	struct PState *ps;
+	if (!hs)
+		return;
+
 	ps = (struct PState *)MPCGet(hs->tmp, sizeof(struct PState));
 	ps->off = hs->off;
 	ps->state = state;
@@ -107,7 +110,9 @@ static void hs_push(MLState hs, int state) {
  */
 static size_t hs_pop(MLState hs) {
 	size_t off;
-	if (hs->plist == NULL) abort();
+	if (!hs || hs->plist == NULL)
+		abort();
+
 	off = hs->plist->off;
 	hs->plist = hs->plist->next;
 	return(off);
@@ -217,6 +222,9 @@ static char *hs_condense(MLState hs, char *text, size_t len, size_t *newlen) {
 	char *b, *bcp;
 	char *x;
 
+	if (!hs)
+		return NULL;
+
 	/*
 	 * allocate a buffer for the new text.  the new text will be smaller than
 	 * the incoming text
@@ -276,6 +284,9 @@ MLAttribute hs_parse_tag(MLState hs, char *text, size_t len) {
 	char *cp, *start, *lastcp;
 	MLAttribute tahead, tatail, ta;
 	size_t newlen;
+
+	if (!hs)
+		return NULL;
 
 	tahead = NULL;
 	tatail = NULL;
@@ -348,6 +359,9 @@ static void hs_add_element(MLState hs, MLElement p) {
 static MLElement hs_create_element(MLState hs, char *ptext, size_t plen) {
 	MLElement p;
 
+	if (!hs)
+		return NULL;
+
 	p = (MLElement)MPCGet(hs->mp, sizeof(struct MLElementP));
 	p->ptext = ptext;
 	p->plen = plen;
@@ -363,6 +377,9 @@ static MLElement hs_create_text(MLState hs, char *text, size_t len) {
 	size_t newlen;
 	size_t i;
 	MLElement p;
+
+	if (!hs)
+		return NULL;
 
 	/* Check for an entity */
 	for (cp = text, i = 0; i < len && *cp != '&'; cp++, i++)
@@ -385,6 +402,9 @@ static MLElement hs_create_text(MLState hs, char *text, size_t len) {
  */
 static MLElement hs_create_tag(MLState hs, char *text, size_t len) {
 	MLElement p;
+
+	if (!hs)
+		return NULL;
 
 	p = hs_create_element(hs, text, len);
 	p->ta = hs_parse_tag(hs, text + 1, len - 2);
@@ -422,6 +442,9 @@ MLState MLInit(MLElementHandler func, void *closure) {
  * MLDestroy
  */
 void MLDestroy(MLState hs) {
+	if (!hs)
+		return;
+
 	MPDestroy(hs->mp);
 }
 
@@ -433,7 +456,7 @@ void hs_handle_data(MLState hs, char *data, size_t len, bool dend) {
 	size_t poff;
 	MLElement n;
 
-	if (data == NULL || len == 0) return;
+	if (!hs || data == NULL || len == 0) return;
 
 	hs->data = data;
 	hs->len = len;
@@ -520,6 +543,9 @@ void hs_handle_data(MLState hs, char *data, size_t len, bool dend) {
  * MLAddData
  */
 void MLAddData(MLState hs, char *data, size_t len) {
+	if (!hs)
+		return;
+
 	hs_handle_data(hs, data, len, false);
 }
 
@@ -530,7 +556,8 @@ void MLEndData(MLState hs, char *data, size_t len) {
 	MLElement p;
 	size_t poff;
 
-	if (data == NULL || len == 0 || len < hs->off) return;
+	if (!hs || data == NULL || len == 0 || len < hs->off)
+		return;
 
 	hs_handle_data(hs, data, len, true);
 
@@ -557,10 +584,11 @@ void MLEndData(MLState hs, char *data, size_t len) {
  */
 char *MLFindAttribute(MLElement p, char *name) {
 	MLAttribute ta;
-
-	for (ta = p->ta; ta != NULL; ta = ta->next) {
-		if (strcasecmp(ta->name, name) == 0) {
-			return(ta->value == NULL ? "" : ta->value);
+	if (p) {
+		for (ta = p->ta; ta != NULL; ta = ta->next) {
+			if (strcasecmp(ta->name, name) == 0) {
+				return(ta->value == NULL ? "" : ta->value);
+			}
 		}
 	}
 
@@ -571,8 +599,10 @@ char *MLFindAttribute(MLElement p, char *name) {
  * MLGetText
  */
 void MLGetText(MLElement p, char **text, size_t *len) {
-	*text = p->ptext;
-	*len = p->plen;
+	if (p) {
+		*text = p->ptext;
+		*len = p->plen;
+	}
 }
 
 /*
@@ -586,7 +616,7 @@ MLElementType MLGetType(MLElement p) {
  * MLTagName
  */
 char *MLTagName(MLElement p) {
-	if ((p->type == ML_BEGINTAG || p->type == ML_ENDTAG) && p->ta != NULL) {
+	if (p && (p->type == ML_BEGINTAG || p->type == ML_ENDTAG) && p->ta != NULL) {
 		return(p->ta->name);
 	}
 	return(NULL);
@@ -605,7 +635,7 @@ MLElement MLCreateTag(MLState hs, char *text, size_t len) {
 int MLAttributeToInt(MLElement p, char *name) {
 	char *value;
 
-	if ((value = MLFindAttribute(p, name)) == NULL) return(-1);
+	if (!p || (value = MLFindAttribute(p, name)) == NULL) return(-1);
 
 	return(atoi(value));
 }

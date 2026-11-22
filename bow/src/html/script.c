@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "html.h"
+#include "javascriptP.h"
 
 struct HTMLInlineP {
 	HTMLInfo li;
@@ -26,6 +27,19 @@ struct HTMLInlineP {
 	BowRenderHooks orh;
 	void *rc;
 };
+
+static bool script_already_handled_by_engine(HTMLInfo li) {
+	if (!li)
+		return true;
+
+	if (li->is_repainting)
+		return true;
+
+	if (li->cres && li->cres->qjs && li->cres->qjs->dom_root != NULL)
+		return true;
+
+	return false;
+}
 
 /*
  * jsEnd
@@ -111,6 +125,9 @@ void HTMLScript(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *url;
 	HTMLInlineInfo ii;
 
+	if (script_already_handled_by_engine(li))
+		return;
+
 	if (li != NULL && li->is_repainting)
 		return;
 
@@ -129,6 +146,9 @@ void HTMLScript(HTMLInfo li, HTMLEnv env, MLElement p) {
 void HTMLScriptEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *text;
 	size_t len;
+
+	if (script_already_handled_by_engine(li))
+		return;
 
 	if (li != NULL && li->is_repainting)
 		return;
@@ -150,6 +170,9 @@ void HTMLScriptEnd(HTMLInfo li, HTMLEnv env, MLElement p) {
 void HTMLScriptExec(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *text;
 	size_t len;
+
+	if (script_already_handled_by_engine(li))
+		return;
 
 	if (li != NULL && li->is_repainting)
 		return;
