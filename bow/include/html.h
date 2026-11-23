@@ -416,6 +416,12 @@ void HTMLButtonEnd(HTMLInfo li, HTMLEnv env, MLElement p);
  */
 void HTMLImg(HTMLInfo, HTMLEnv, MLElement);
 HTMLInsertStatus HTMLImgInsert(HTMLInfo, HTMLEnv, MLElement);
+void HTMLCanvas(HTMLInfo, HTMLEnv, MLElement);
+void HTMLCanvasResize(int w, int h);
+void HTMLCanvasClearRect(int x, int y, int w, int h);
+void HTMLCanvasStrokeSegments(XSegment *segs, int nsegs, const char *color_str);
+void HTMLCanvasFlush(void);
+void HTMLCanvasGetBounds(int *x, int *y, int *w, int *h);
 
 /*
  * script.c

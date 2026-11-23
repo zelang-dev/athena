@@ -487,7 +487,7 @@ typedef struct JS_AsyncTask JS_Task;
 typedef struct JS_ESMPromise JS_Promise;
 typedef struct JS_EventsList JS_Listener;
 typedef struct JS_Mutation JS_Observer;
-typedef struct JS_CanvasAction JS_Canvas;
+typedef struct JS_CanvasContext JS_Canvas;
 typedef struct BowResourcesP *BowResources;
 typedef struct BowStackP *BowStack;
 typedef struct BowContextP *BowContext;

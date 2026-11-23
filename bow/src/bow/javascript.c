@@ -16,6 +16,14 @@ static void notify_mutation(const char *type, HtmlDom_t *target);
 static void execute_script_blocks(JSContext *ctx, HtmlDom_t *n);
 static void run_javascript(JSContext *ctx, const char *script, int is_mod);
 static void js_free_dom(HtmlDom_t *node);
+static JSValue js_canvas_get_context(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
+// Create CanvasRenderingContext2D object
+static JSValue create_canvas_context(JSContext *ctx, JSValue obj);
+extern void HTMLCanvasResize(int w, int h);
+extern void HTMLCanvasClearRect(int x, int y, int w, int h);
+extern void HTMLCanvasStrokeSegments(XSegment *segs, int nsegs, const char *color_str);
+extern void HTMLCanvasFlush(void);
+extern void HTMLCanvasGetBounds(int *x, int *y, int *w, int *h);
 
 void bow_jsMessage_set(jsMessage_cb cb, void *closure) {
 	g_js_msg_cb = cb;
@@ -166,19 +174,6 @@ void qjs_exit(void) {
 	g_run_pipeline = false;
 	usleep(50000); /* Allow async threads to exit gracefully */
 
-	if (gl_ctx.canvas_queue) {
-		pthread_mutex_lock(&gl_ctx.canvas_mutex);
-		JS_Canvas *cmd = gl_ctx.canvas_queue;
-		while (cmd) {
-			JS_Canvas *next = cmd->next;
-			free(cmd->text);
-			free(cmd);
-			cmd = next;
-		}
-		gl_ctx.canvas_queue = NULL;
-		pthread_mutex_unlock(&gl_ctx.canvas_mutex);
-	}
-
 	if (gl_ctx.task_queue) {
 		pthread_mutex_lock(&gl_ctx.task_mutex);
 		JS_Task *task = gl_ctx.task_queue;
@@ -188,7 +183,6 @@ void qjs_exit(void) {
 			if (gl_ctx.ctx) {
 				JS_FreeValue(gl_ctx.ctx, task->resolve);
 				JS_FreeValue(gl_ctx.ctx, task->reject);
-				JS_FreeValue(gl_ctx.ctx, task->timeout);
 			}
 			free(task);
 			task = next;
@@ -212,20 +206,9 @@ void qjs_exit(void) {
 	js_free_dom(gl_ctx.dom_root);
 	gl_ctx.dom_root = NULL;
 
-	if (gl_ctx.render_canvas) {
-		Display *dpy = XtDisplay(gl_ctx.render_canvas);
-		if (gl_ctx.gc)
-			XFreeGC(dpy, gl_ctx.gc);
-
-		if (gl_ctx.font_normal)
-			XFreeFont(dpy, gl_ctx.font_normal);
-
-		if (gl_ctx.font_bold)
-			XFreeFont(dpy, gl_ctx.font_bold);
-
-		if (gl_ctx.font_italic)
-			XFreeFont(dpy, gl_ctx.font_italic);
-		gl_ctx.render_canvas = NULL;
+	if (gl_ctx.canvas) {
+		//free(gl_ctx.canvas);
+		gl_ctx.canvas = NULL;
 	}
 
 	if (gl_ctx.js_buf) {
@@ -245,7 +228,7 @@ void qjs_exit(void) {
 		JS_FreeValue(gl_ctx.ctx, gl_ctx.js_this);
 		js_std_free_handlers(gl_ctx.rt);
 		JS_FreeContext(gl_ctx.ctx);
-		//JS_FreeRuntime(gl_ctx.rt);
+		JS_FreeRuntime(gl_ctx.rt);
 		gl_ctx.ctx = NULL;
 		gl_ctx.rt = NULL;
 	}
@@ -390,15 +373,8 @@ static void *js_async_pipeline(void *arg) {
 				free(task);
 				continue;
 			}
-			if (task->type == TASK_SETTIMEOUT) {
-				usleep(task->delay * 1000);
-				if (!JS_IsUndefined(task->timeout) && !JS_IsNull(task->timeout)) {
-					JSValue ret = JS_Call(ctx, task->timeout, JS_UNDEFINED, 0, NULL);
-					JS_FreeValue(ctx, ret);
-					JS_FreeValue(ctx, task->timeout);
-				}
-				free(task);
-			} else if (task->url) {
+
+			if (task->url) {
 				char *payload = qjs_fetchfile(task->url);
 				if (payload && task->type == TASK_FETCH) {
 					JSValue res_obj = JS_NewObject(ctx);
@@ -463,7 +439,6 @@ static JSValue js_global_fetch(JSContext *ctx, JSValueConst this_val, int argc, 
 	task->url = strdup(url);
 	task->resolve = JS_DupValue(ctx, resolving_funcs[0]);
 	task->reject = JS_DupValue(ctx, resolving_funcs[1]);
-	task->timeout = JS_UNDEFINED;
 
 	JS_FreeValue(ctx, resolving_funcs[0]);
 	JS_FreeValue(ctx, resolving_funcs[1]);
@@ -474,32 +449,6 @@ static JSValue js_global_fetch(JSContext *ctx, JSValueConst this_val, int argc, 
 	pthread_mutex_unlock(&gl_ctx.task_mutex);
 	JS_FreeCString(ctx, url);
 	return promise;
-}
-
-static JSValue js_global_set_timeout(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	(void)this_val;
-	if (argc < 1 || !JS_IsFunction(ctx, argv[0]))
-		return JS_UNDEFINED;
-
-	JSValue callback = JS_DupValue(ctx, argv[0]);
-	int32_t delay = 0;
-	if (argc >= 2)
-		JS_ToInt32(ctx, &delay, argv[1]);
-	if (delay < 0)
-		delay = 0;
-
-	JS_Task *task = (JS_Task *)calloc(1, sizeof(JS_Task));
-	task->type = TASK_SETTIMEOUT;
-	task->timeout = callback;
-	task->delay = (useconds_t)delay;
-	task->reject = JS_UNDEFINED;
-	task->resolve = JS_UNDEFINED;
-
-	pthread_mutex_lock(&gl_ctx.task_mutex);
-	task->next = gl_ctx.task_queue;
-	gl_ctx.task_queue = task;
-	pthread_mutex_unlock(&gl_ctx.task_mutex);
-	return JS_UNDEFINED;
 }
 
 static JSModuleDef *js_async_module_loader(JSContext *ctx, const char *name, void *opaque) {
@@ -514,7 +463,6 @@ static JSModuleDef *js_async_module_loader(JSContext *ctx, const char *name, voi
 		task->url = strdup(name);
 		task->resolve = JS_DupValue(ctx, resolving_funcs[0]);
 		task->reject = JS_DupValue(ctx, resolving_funcs[1]);
-		task->timeout = JS_UNDEFINED;
 
 		JS_FreeValue(ctx, resolving_funcs[0]);
 		JS_FreeValue(ctx, resolving_funcs[1]);
@@ -540,11 +488,16 @@ static void run_javascript(JSContext *ctx, const char *script, int is_mod) {
 		(is_mod ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL));
 	js_std_loop(ctx);
 	if (JS_IsException(v)) {
+		JSValue stack = JS_GetPropertyStr(ctx, v, "stack");
+		const char *s = JS_ToCString(ctx, stack);
 		JSValue ex = JS_GetException(ctx);
 		const char *msg = JS_ToCString(ctx, ex);
-		fprintf(stderr, "Runtime Exception: %s\n", msg ? msg : "(unknown)");
+		fprintf(stderr, "Exception: %s\n%s\n", msg ? msg : "", s ? s : "");
+		if (s)
+			JS_FreeCString(ctx, s);
 		if (msg)
 			JS_FreeCString(ctx, msg);
+		JS_FreeValue(ctx, stack);
 		JS_FreeValue(ctx, ex);
 	}
 
@@ -645,6 +598,104 @@ void qjs_click_event(Widget w, XtPointer data, XEvent *ev, Boolean *cont) {
 			JS_FreeValue(gl_ctx.ctx, mouse_event);
 		}
 	}
+}
+typedef struct {
+	bow_t    web;
+	JSValue  callback;
+} QJSTimerData;
+
+static void qjs_xt_timeout_cb(XtPointer client_data, XtIntervalId *id) {
+	QJSTimerData *td = (QJSTimerData *)client_data;
+	JSContext *ctx;
+	JSContext *pctx;
+
+	(void)id;
+	if (!td)
+		return;
+
+	if (td->web && td->web->qjs && td->web->qjs->ctx) {
+		ctx = td->web->qjs->ctx;
+		if (!JS_IsUndefined(td->callback) && !JS_IsNull(td->callback)) {
+			JSValue ret = JS_Call(ctx, td->callback, JS_UNDEFINED, 0, NULL);
+			if (JS_IsException(ret)) {
+				JSValue ex = JS_GetException(ctx);
+				const char *msg = JS_ToCString(ctx, ex);
+				fprintf(stderr, "Timer Exception: %s\n", msg ? msg : "(unknown)");
+				if (msg)
+					JS_FreeCString(ctx, msg);
+				JS_FreeValue(ctx, ex);
+			}
+			JS_FreeValue(ctx, ret);
+			JS_FreeValue(ctx, td->callback);
+		}
+		while (JS_ExecutePendingJob(JS_GetRuntime(ctx), &pctx) > 0)
+			;
+	}
+	free(td);
+}
+
+static JSValue js_global_set_timeout(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	bow_t web = (bow_t)JS_GetContextOpaque(ctx);
+	int32_t delay = 0;
+	QJSTimerData *td;
+	XtIntervalId tid;
+
+	(void)this_val;
+	if (argc < 1 || !JS_IsFunction(ctx, argv[0]) || !web || !web->appcon)
+		return JS_UNDEFINED;
+
+	if (argc >= 2)
+		JS_ToInt32(ctx, &delay, argv[1]);
+	if (delay < 0)
+		delay = 0;
+
+	td = (QJSTimerData *)calloc(1, sizeof(QJSTimerData));
+	if (!td)
+		return JS_EXCEPTION;
+
+	td->web = web;
+	td->callback = JS_DupValue(ctx, argv[0]);
+
+	tid = XtAppAddTimeOut(web->appcon, (unsigned long)delay, qjs_xt_timeout_cb, td);
+	return JS_NewInt64(ctx, (int64_t)tid);
+}
+
+void qjs_fire_onload(bow_t web) {
+	JSContext *ctx;
+	JSValue global, onload_fn, ret;
+	JSContext *pctx;
+
+	if (!web || !web->qjs || !web->qjs->ctx)
+		return;
+
+	ctx = web->qjs->ctx;
+	global = JS_GetGlobalObject(ctx);
+	onload_fn = JS_GetPropertyStr(ctx, global, "onload");
+
+	if (JS_IsFunction(ctx, onload_fn)) {
+		ret = JS_Call(ctx, onload_fn, global, 0, NULL);
+		if (JS_IsException(ret)) {
+			JSValue ex = JS_GetException(ctx);
+			const char *msg = JS_ToCString(ctx, ex);
+			JSValue stack = JS_GetPropertyStr(ctx, ex, "stack");
+			const char *s = JS_ToCString(ctx, stack);
+			fprintf(stderr, "window.onload Exception: %s\n%s\n", msg ? msg : "", s ? s : "");
+			if (s)
+				JS_FreeCString(ctx, s);
+
+			if (msg)
+				JS_FreeCString(ctx, msg);
+			JS_FreeValue(ctx, stack);
+			JS_FreeValue(ctx, ex);
+		}
+		JS_FreeValue(ctx, ret);
+	}
+
+	JS_FreeValue(ctx, onload_fn);
+	JS_FreeValue(ctx, global);
+
+	while (JS_ExecutePendingJob(JS_GetRuntime(ctx), &pctx) > 0)
+		;
 }
 
 #if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
@@ -779,12 +830,21 @@ static void js_object_finalizer(JSRuntime *rt, JSValue val) {
 	}
 }
 
+static void canvas_finalizer(JSRuntime *rt, JSValue val) {
+	//JS_Canvas *data = JS_GetOpaque(val, gl_ctx.canvas_class_id);
+}
+
 static JSClassDef js_dom_obs_class = { "JS_Observer" };
 static JSClassDef js_dom_node_class = {
 	"HtmlDom_t",
 	.finalizer = js_object_finalizer,
 	.gc_mark = js_object_mark,
 };
+static JSClassDef js_dom_canvas_class = {
+	"JS_Canvas",
+	.finalizer = canvas_finalizer
+};
+
 
 static void push_log(bow_t web, const char *text) {
 	if (!web || !web->qjs || !text)
@@ -932,10 +992,24 @@ static JSValue create_js_dom_wrapper(JSContext *ctx, HtmlDom_t *node) {
 	if (!node)
 		return JS_NULL;
 
-	JSValue obj = JS_NewObjectClass(ctx, gl_ctx.js_class_id);
-	if (JS_IsException(obj))
-		return obj;
-	JS_SetOpaque(obj, node);
+	JSValue obj;
+	if (node->tag_id == TAG_CANVAS) {
+		obj = JS_NewObjectClass(ctx, gl_ctx.canvas_class_id);
+		if (JS_IsException(obj))
+			return obj;
+
+		JS_SetPropertyStr(ctx, obj, "getContext",
+			JS_NewCFunction(ctx, js_canvas_get_context, "getContext", 1));
+
+		if (gl_ctx.canvas)
+			JS_SetOpaque(obj, gl_ctx.canvas);
+	} else {
+		obj = JS_NewObjectClass(ctx, gl_ctx.js_class_id);
+		if (JS_IsException(obj))
+			return obj;
+		JS_SetOpaque(obj, node);
+	}
+
 	return obj;
 }
 
@@ -1639,6 +1713,219 @@ static JSValue js_dom_get_element_by_id(JSContext *ctx, JSValueConst this_val, i
 	return create_js_dom_wrapper(ctx, found);
 }
 
+// Utility: ensure path capacity
+static void ensure_path_capacity(JS_Canvas *cctx, int needed) {
+	if (cctx->path_capacity < needed) {
+		cctx->path_capacity = needed * 2;
+		cctx->path_points = realloc(cctx->path_points,
+			sizeof(XPoint) * cctx->path_capacity);
+	}
+}
+
+// beginPath JS binding
+static JSValue js_beginPath(JSContext *ctx, JSValueConst this_val,
+	int argc, JSValueConst *argv) {
+	JS_Canvas *cctx = gl_ctx.canvas;
+	if (!cctx)
+		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
+
+	cctx->path_count = 0;
+	return JS_UNDEFINED;
+}
+
+static JSValue js_getBoundingRect(JSContext *ctx, JSValueConst this_val,
+	int argc, JSValueConst *argv) {
+	JS_Canvas *cctx = gl_ctx.canvas;
+	if (!cctx)
+		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
+
+	int x, y, w, h;
+	HTMLCanvasGetBounds(&x, &y, &w, &h);
+	JS_SetPropertyStr(ctx, this_val, "x", JS_NewInt32(ctx, x));
+	JS_SetPropertyStr(ctx, this_val, "y", JS_NewInt32(ctx, y));
+	JS_SetPropertyStr(ctx, this_val, "w", JS_NewInt32(ctx, w));
+	JS_SetPropertyStr(ctx, this_val, "h", JS_NewInt32(ctx, h));
+	return JS_UNDEFINED;
+}
+
+// moveTo JS binding
+static JSValue js_moveTo(JSContext *ctx, JSValueConst this_val,
+	int argc, JSValueConst *argv) {
+	JS_Canvas *cctx = gl_ctx.canvas;
+	if (!cctx)
+		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
+
+	int x, y;
+	if (argc < 2 ||
+		JS_ToInt32(ctx, &x, argv[0]) ||
+		JS_ToInt32(ctx, &y, argv[1])) {
+		return JS_ThrowTypeError(ctx, "moveTo expects 2 integers");
+	}
+
+	ensure_path_capacity(cctx, cctx->path_count + 1);
+	cctx->path_points[cctx->path_count].x = x;
+	cctx->path_points[cctx->path_count].y = y;
+	cctx->path_count++;
+	return JS_UNDEFINED;
+}
+
+// lineTo JS binding
+static JSValue js_lineTo(JSContext *ctx, JSValueConst this_val,
+	int argc, JSValueConst *argv) {
+	JS_Canvas *cctx = gl_ctx.canvas;
+	if (!cctx)
+		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
+
+	int x, y;
+	if (argc < 2 ||
+		JS_ToInt32(ctx, &x, argv[0]) ||
+		JS_ToInt32(ctx, &y, argv[1])) {
+		return JS_ThrowTypeError(ctx, "lineTo expects 2 integers");
+	}
+
+	ensure_path_capacity(cctx, cctx->path_count + 1);
+	cctx->path_points[cctx->path_count].x = x;
+	cctx->path_points[cctx->path_count].y = y;
+	cctx->path_count++;
+	return JS_UNDEFINED;
+}
+
+// stroke JS binding
+static JSValue js_stroke(JSContext *ctx, JSValueConst this_val,
+	int argc, JSValueConst *argv) {
+	JS_Canvas *cctx = gl_ctx.canvas;
+	if (!cctx)
+		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
+
+	if (cctx->path_count > 1) {
+		XDrawLines(cctx->display, cctx->window, cctx->gc,
+			cctx->path_points, cctx->path_count, CoordModeOrigin);
+		XFlush(cctx->display);
+	}
+	return JS_UNDEFINED;
+}
+
+// fill JS binding
+static JSValue js_fill(JSContext *ctx, JSValueConst this_val,
+	int argc, JSValueConst *argv) {
+	JS_Canvas *cctx = gl_ctx.canvas;
+	if (!cctx)
+		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
+
+	if (cctx->path_count > 2) {
+		XFillPolygon(cctx->display, cctx->window, cctx->gc,
+			cctx->path_points, cctx->path_count, Complex, CoordModeOrigin);
+		XFlush(cctx->display);
+	}
+	return JS_UNDEFINED;
+}
+
+// fillRect JS binding
+static JSValue js_fillRect(JSContext *ctx, JSValueConst this_val,
+	int argc, JSValueConst *argv) {
+	trace;
+	JS_Canvas *cctx = gl_ctx.canvas;
+	if (!cctx)
+		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
+
+	int x, y, w, h;
+	if (argc == 1) {
+		JS_SetPropertyStr(ctx, this_val, "width", JS_NewInt32(ctx, cctx->canvas_w));
+		JS_SetPropertyStr(ctx, this_val, "height", JS_NewInt32(ctx, cctx->canvas_h));
+		return JS_UNDEFINED;
+	}
+
+	if (argc < 4 ||
+		JS_ToInt32(ctx, &x, argv[0]) ||
+		JS_ToInt32(ctx, &y, argv[1]) ||
+		JS_ToInt32(ctx, &w, argv[2]) ||
+		JS_ToInt32(ctx, &h, argv[3])) {
+		return JS_ThrowTypeError(ctx, "fillRect expects 4 integers");
+	}
+
+	XFillRectangle(cctx->display, cctx->window, cctx->gc, x, y, w, h);
+	XFlush(cctx->display);
+	return JS_UNDEFINED;
+}
+
+// clearRect JS binding
+static JSValue js_clearRect(JSContext *ctx, JSValueConst this_val,
+	int argc, JSValueConst *argv) {
+	JS_Canvas *cctx = gl_ctx.canvas;
+	if (!cctx)
+		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
+
+	int x, y, w, h;
+	if (argc == 1) {
+		JS_SetPropertyStr(ctx, this_val, "width", JS_NewInt32(ctx, cctx->canvas_w));
+		JS_SetPropertyStr(ctx, this_val, "height", JS_NewInt32(ctx, cctx->canvas_h));
+		return JS_UNDEFINED;
+	}
+
+	if (argc < 4 ||
+		JS_ToInt32(ctx, &x, argv[0]) ||
+		JS_ToInt32(ctx, &y, argv[1]) ||
+		JS_ToInt32(ctx, &w, argv[2]) ||
+		JS_ToInt32(ctx, &h, argv[3])) {
+		return JS_ThrowTypeError(ctx, "fillRect expects 4 integers");
+	}
+
+	HTMLCanvasClearRect(x, y, w, h);
+	return JS_UNDEFINED;
+}
+
+// strokeRect JS binding
+static JSValue js_strokeRect(JSContext *ctx, JSValueConst this_val,
+	int argc, JSValueConst *argv) {
+	JS_Canvas *cctx = gl_ctx.canvas;
+	if (!cctx)
+		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
+
+	int x, y, w, h;
+	if (argc < 4 ||
+		JS_ToInt32(ctx, &x, argv[0]) ||
+		JS_ToInt32(ctx, &y, argv[1]) ||
+		JS_ToInt32(ctx, &w, argv[2]) ||
+		JS_ToInt32(ctx, &h, argv[3])) {
+		return JS_ThrowTypeError(ctx, "strokeRect expects 4 integers");
+	}
+
+	XDrawRectangle(cctx->display, cctx->window, cctx->gc, x, y, w, h);
+	XFlush(cctx->display);
+	return JS_UNDEFINED;
+}
+
+static JSValue create_canvas_context(JSContext *ctx, JSValue obj) {
+	JS_SetPropertyStr(ctx, obj, "getBoundingClientRect",
+		JS_NewCFunction(ctx, js_getBoundingRect, "getBoundingClientRect", 0));
+	JS_SetPropertyStr(ctx, obj, "beginPath",
+		JS_NewCFunction(ctx, js_beginPath, "beginPath", 0));
+	JS_SetPropertyStr(ctx, obj, "moveTo",
+		JS_NewCFunction(ctx, js_moveTo, "moveTo", 2));
+	JS_SetPropertyStr(ctx, obj, "lineTo",
+		JS_NewCFunction(ctx, js_lineTo, "lineTo", 2));
+	JS_SetPropertyStr(ctx, obj, "stroke",
+		JS_NewCFunction(ctx, js_stroke, "stroke", 0));
+	JS_SetPropertyStr(ctx, obj, "fill",
+		JS_NewCFunction(ctx, js_fill, "fill", 0));
+	JS_SetPropertyStr(ctx, obj, "fillRect",
+		JS_NewCFunction(ctx, js_fillRect, "fillRect", 4));
+	JS_SetPropertyStr(ctx, obj, "clearRect",
+		JS_NewCFunction(ctx, js_clearRect, "clearRect", 4));
+	JS_SetPropertyStr(ctx, obj, "strokeRect",
+		JS_NewCFunction(ctx, js_strokeRect, "strokeRect", 4));
+
+	//JSValue canvas = JS_NewObject(ctx);
+//	JS_SetPropertyStr(ctx, canvas, "canvas", JS_DupValue(ctx, obj));
+	return obj;
+}
+
+static JSValue js_canvas_get_context(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	JSValue ctx_obj = JS_NewObject(ctx);
+	JS_SetPropertyStr(ctx, this_val, "canvas", create_canvas_context(ctx, JS_DupValue(ctx, ctx_obj)));
+	return ctx_obj;
+}
+
 /* ============================================================================
  * Event Listeners & Event Dispatching
  * ============================================================================ */
@@ -1808,16 +2095,43 @@ static void define_accessor(JSContext *ctx, JSValue proto, const char *name,
 	JS_FreeAtom(ctx, atom);
 }
 
+static JSValue js_doc_get_body(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	(void)this_val;
+	if (!gl_ctx.dom_root)
+		return JS_NULL;
+	HtmlDom_t *body = dom_query_selector(gl_ctx.dom_root, "body");
+	return create_js_dom_wrapper(ctx, body ? body : gl_ctx.dom_root);
+}
+
+static JSValue js_doc_get_head(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	(void)this_val;
+	if (!gl_ctx.dom_root)
+		return JS_NULL;
+	HtmlDom_t *head = dom_query_selector(gl_ctx.dom_root, "head");
+	return head ? create_js_dom_wrapper(ctx, head) : JS_NULL;
+}
+
+static JSValue js_doc_get_document_element(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+	(void)this_val;
+	if (!gl_ctx.dom_root)
+		return JS_NULL;
+	HtmlDom_t *html = dom_query_selector(gl_ctx.dom_root, "html");
+	return create_js_dom_wrapper(ctx, html ? html : gl_ctx.dom_root);
+}
+
 static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
 #if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
 	JS_NewClassID(rt, &gl_ctx.js_class_id);
 	JS_NewClassID(rt, &gl_ctx.observer_class_id);
+	JS_NewClassID(rt, &gl_ctx.canvas_class_id);
 #else
 	JS_NewClassID(&gl_ctx.js_class_id);
 	JS_NewClassID(&gl_ctx.observer_class_id);
+	JS_NewClassID(&gl_ctx.canvas_class_id);
 #endif
 	JS_NewClass(rt, gl_ctx.js_class_id, &js_dom_node_class);
 	JS_NewClass(rt, gl_ctx.observer_class_id, &js_dom_obs_class);
+	JS_NewClass(rt, gl_ctx.canvas_class_id, &js_dom_canvas_class);
 
 	JSValue proto = JS_NewObject(ctx);
 
@@ -1902,30 +2216,6 @@ static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
 	JS_SetClassProto(ctx, gl_ctx.js_class_id, proto);
 }
 
-static JSValue js_doc_get_body(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	(void)this_val;
-	if (!gl_ctx.dom_root)
-		return JS_NULL;
-	HtmlDom_t *body = dom_query_selector(gl_ctx.dom_root, "body");
-	return create_js_dom_wrapper(ctx, body ? body : gl_ctx.dom_root);
-}
-
-static JSValue js_doc_get_head(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	(void)this_val;
-	if (!gl_ctx.dom_root)
-		return JS_NULL;
-	HtmlDom_t *head = dom_query_selector(gl_ctx.dom_root, "head");
-	return head ? create_js_dom_wrapper(ctx, head) : JS_NULL;
-}
-
-static JSValue js_doc_get_document_element(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	(void)this_val;
-	if (!gl_ctx.dom_root)
-		return JS_NULL;
-	HtmlDom_t *html = dom_query_selector(gl_ctx.dom_root, "html");
-	return create_js_dom_wrapper(ctx, html ? html : gl_ctx.dom_root);
-}
-
 static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
 	JSValue global = JS_GetGlobalObject(ctx);
 
@@ -1978,9 +2268,6 @@ static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
 	JS_SetPropertyStr(ctx, global, "setTimeout",
 		JS_NewCFunction(ctx, js_global_set_timeout, "setTimeout", 2));
 
-	JSValue canvas = JS_NewObject(ctx);
-	JS_SetPropertyStr(ctx, global, "canvas", canvas);
-
 	JSValue obs_proto = JS_NewObject(ctx);
 	JS_SetPropertyStr(ctx, obs_proto, "observe",
 		JS_NewCFunction(ctx, js_observer_observe, "observe", 2));
@@ -2012,6 +2299,7 @@ bool qjs_init(bow_t web) {
 		qjs_free(web);
 
 	if (!web->qjs) {
+		gl_ctx.web = web;
 		web->qjs = &gl_ctx;
 		if (!web->ats) {
 			XInitThreads();
@@ -2022,7 +2310,6 @@ bool qjs_init(bow_t web) {
 		g_run_pipeline = true;
 		pthread_t thread;
 		pthread_mutex_init(&gl_ctx.task_mutex, NULL);
-		pthread_mutex_init(&gl_ctx.canvas_mutex, NULL);
 		pthread_create(&thread, NULL, js_async_pipeline, NULL);
 		pthread_detach(thread);
 	}
@@ -2040,15 +2327,32 @@ bool qjs_init(bow_t web) {
 
 	web->qjs->ctx = JS_NewContext(web->qjs->rt);
 	if (!web->qjs->ctx) {
-		g_run_pipeline = false;
-		webview_debug("%s", "Failed to create QuickJS context.");
 		js_std_free_handlers(web->qjs->rt);
 		JS_FreeRuntime(web->qjs->rt);
 		web->qjs->rt = NULL;
 		web->qjs = NULL;
+		g_run_pipeline = false;
+		webview_debug("%s", "Failed to create QuickJS context.");
 		return false;
 	}
 
+	JS_Canvas *cctx = js_mallocz(web->qjs->ctx, sizeof(JS_Canvas));
+	if (!cctx) {
+		js_std_free_handlers(web->qjs->rt);
+		JS_FreeContext(web->qjs->ctx);
+		JS_FreeRuntime(web->qjs->rt);
+		web->qjs->rt = NULL;
+		web->qjs = NULL;
+		g_run_pipeline = false;
+		webview_debug("%s", "Failed to create `JS_Canvas` context.");
+		return false;
+	}
+
+	if (gl_ctx.canvas) {
+		free(gl_ctx.canvas);
+	}
+
+	gl_ctx.canvas = cctx;
 	js_init_module_std(web->qjs->ctx, "std");
 	js_init_module_os(web->qjs->ctx, "os");
 	js_std_add_helpers(web->qjs->ctx, 0, NULL);
@@ -2058,13 +2362,15 @@ bool qjs_init(bow_t web) {
 	web->qjs->js_obs = JS_UNDEFINED;
 	web->qjs->js_this = JS_NewObject(web->qjs->ctx);
 	if (JS_IsException(web->qjs->js_this)) {
-		g_run_pipeline = false;
 		js_std_free_handlers(web->qjs->rt);
 		JS_FreeContext(web->qjs->ctx);
 		JS_FreeRuntime(web->qjs->rt);
+		free(gl_ctx.canvas);
+		gl_ctx.canvas = NULL;
 		web->qjs->rt = NULL;
 		web->qjs->ctx = NULL;
 		web->qjs = NULL;
+		g_run_pipeline = false;
 		return false;
 	}
 
@@ -2108,11 +2414,64 @@ FORCEINLINE bool qjs_func_set(bow_t web, const char *namespace) {
 	return r;
 }
 
+static const char *
+strip_file_url_prefix(const char *u) {
+	if (!u)
+		return NULL;
+	if (strncmp(u, "file://", 7) == 0) {
+		u += 7;
+		/* Strip optional host (e.g. "localhost") before the leading '/' */
+		if (strncmp(u, "localhost/", 10) == 0)
+			u += 9; /* keep leading '/' */
+	} else if (strncmp(u, "file:", 5) == 0) {
+		u += 5;
+	}
+	return u;
+}
+
+static void resolve_script_path(bow_t web, const char *src, char *out, size_t out_sz) {
+	const char *burl = NULL;
+	const char *p, *slash;
+	size_t dir_len;
+
+	if (!src || !out || out_sz == 0)
+		return;
+
+	src = strip_file_url_prefix(src);
+
+	/* Absolute filesystem path or remote URL — use directly */
+	if (*src == '/' || strstr(src, "://") != NULL) {
+		snprintf(out, out_sz, "%s", src);
+		return;
+	}
+
+	/* Extract directory from active document base URL */
+	if (web && web->active_html)
+		burl = ((HTMLInfo)web->active_html)->burl;
+
+	p = strip_file_url_prefix(burl);
+	if (p) {
+		slash = strrchr(p, '/');
+		if (slash != NULL) {
+			dir_len = (size_t)(slash - p + 1);
+			if (dir_len + strlen(src) + 1 < out_sz) {
+				memcpy(out, p, dir_len);
+				snprintf(out + dir_len, out_sz - dir_len, "%s", src);
+				return;
+			}
+		}
+	}
+
+	snprintf(out, out_sz, "%s", src);
+}
+
 FORCEINLINE char *qjs_get_file(const char *path_url) {
 	if (!path_url || strlen(path_url) == 0)
 		return NULL;
 
-	return (strncmp(path_url, "http", 4) == 0) ? qjs_fetchfile(path_url) : qjs_readfile(path_url);
+	char f[PATH_MAX] = {0};
+	resolve_script_path(gl_ctx.web, path_url, f, PATH_MAX);
+	return (strncmp(path_url, "http", 4) == 0) ? qjs_fetchfile(path_url) : qjs_readfile(f);
 }
 
 HtmlDom_t *qjs_parse(bow_t web, const char *html) {

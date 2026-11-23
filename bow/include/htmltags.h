@@ -136,8 +136,9 @@ static struct HTMLTagP tlist[] =
 
   /* inline.c */
   { "img", TAG_IMG, HTMLImg, NULL, NULL, NULL, NULL,
-	MARKUP_EMPTY,
-	NULL, HTMLImgInsert, NULL },
+	MARKUP_EMPTY, NULL, HTMLImgInsert, NULL},
+	{"canvas", TAG_CANVAS, HTMLCanvas, NULL, NULL, NULL, NULL,
+	MARKUP_CLAMP, NULL, NULL, NULL},
 
   /* list.c */
   { "ul", TAG_UL, HTMLULBegin, HTMLListEnd, NULL, HTMLListAddBox, NULL,

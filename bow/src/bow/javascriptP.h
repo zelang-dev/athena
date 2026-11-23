@@ -28,17 +28,17 @@ struct JS_ESMPromise {
 	JS_Promise *next;
 };
 
-typedef enum {
-	CMD_RECT, CMD_LINE, CMD_TEXT
-} CanvasActionType;
-
-struct JS_CanvasAction {
-	CanvasActionType type;
-	int x, y, w, h;
-	unsigned long color;
-	char *text;
-	XFontStruct *font;
-	JS_Canvas *next;
+// Structure to hold Canvas drawing context and path state
+struct JS_CanvasContext {
+	Display *display;
+	Window window;
+	Widget canvas;
+	Pixmap buffer;
+	GC gc;
+	XPoint *path_points;
+	int path_count;
+	int path_capacity;
+	int canvas_w, canvas_h;
 };
 
 typedef enum {
@@ -47,11 +47,9 @@ typedef enum {
 
 struct JS_AsyncTask {
 	TaskType type;
-	useconds_t delay;
 	char *url;
 	JSValue resolve;
 	JSValue reject;
-	JSValue timeout;
 	JS_Task *next;
 };
 
@@ -77,26 +75,19 @@ struct HtmlNode_S {
 struct QJS_Info {
 	int scroll_offset_y, js_dom_count;
 	size_t js_buf_size, js_script_size;
-	JSClassID js_class_id, observer_class_id, nodelist_class_id;
+	JSClassID js_class_id, observer_class_id, nodelist_class_id, canvas_class_id;
 	JSValue js_this;
 	JSValue js_obs;
 	char *js_buf;
 	char *js_script;
-	Pixmap canvas_buffer;
-	int canvas_w, canvas_h;
-	Widget render_canvas;
-	GC gc;
-	XFontStruct *font_normal;
-	XFontStruct *font_bold;
-	XFontStruct *font_italic;
 	HtmlDom_t *dom_root;
+	bow_t web;
 	JSContext *ctx;
 	JSRuntime *rt;
+	JS_Canvas *canvas;
 	JS_Observer *observers;
 	JS_Promise *module_promises;
-	JS_Canvas *canvas_queue;
 	JS_Task *task_queue;
-	pthread_mutex_t canvas_mutex;
 	pthread_mutex_t task_mutex;
 };
 
@@ -106,5 +97,6 @@ void dom_set_inner_html(HtmlDom_t *node, const char *html);
 void dom_set_outer_html(HtmlDom_t *node, const char *html);
 HtmlDom_t *dom_clone_node(const HtmlDom_t *node, bool deep);
 void qjs_bind_dom(bow_t web, HtmlDom_t *dom);
+void qjs_fire_onload(bow_t web);
 
 #endif /* _JAVASCRIPT_P_H__ */

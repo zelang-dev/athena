@@ -53,7 +53,7 @@ else()
     set(PROJECT__ARCH ${CMAKE_MATCH_1})
 	message(STATUS "Target architecture - ${PROJECT__ARCH}")
 
-	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -rdynamic -no-pie -D USE_DEBUG")
+	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -rdynamic -no-pie -D USE_DEBUG -DDUMP_LEAKS")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-format -fno-strict-aliasing -D NeedFunctionPrototypes")
 
 	find_package(opentls QUIET)

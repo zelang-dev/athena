@@ -313,6 +313,11 @@ static void bow_engine_html5_pipeline(MLState hs, bow_t web,
 			MLAddData(hs, serialized, slen);
 	}
 
+	/* 6. Layout boxes (including <canvas>) now exist; fire window.onload / DOMContentLoaded */
+	if (is_end && web && qjs_is_running(web)) {
+		qjs_fire_onload(web);
+	}
+
 	/* Cleanup: keep dom alive if bound to web->qjs->dom_root for live JS */
 	free(serialized);
 	if (!web || !web->qjs || web->qjs->dom_root != dom)

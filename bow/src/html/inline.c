@@ -1,23 +1,7 @@
 /*
  * inline.c
  *
- * libhtml - HTML->X renderer
- *
- * Copyright (c) 1995-1997, John Kilburg <john@cs.unlv.edu>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * libhtml5 - HTML->X renderer
  */
 
 
@@ -25,6 +9,7 @@
 
 
 #include "html.h"
+#include "../bow/javascriptP.h"
 
 struct HTMLInlineP {
 	HTMLInfo li;
@@ -49,32 +34,40 @@ struct HTMLInlineP {
 	void *rc;
 };
 
-static int ImgInit _ArgProto((BowSink, void *));
-static void ImgAdd _ArgProto((void *));
-static void ImgEnd _ArgProto((void *));
-static void ImgMessage _ArgProto((void *, char *));
+typedef struct {
+	HTMLInfo     li;
+	HTMLBox      box;
+	unsigned int width;
+	unsigned int height;
+	Pixmap       pixmap;
+	GC           gc;
+} HTMLCanvasData;
 
-static void DestroyInline _ArgProto((HTMLInfo, HTMLBox));
-static bool InlineSelectCallback _ArgProto((void *, int, int, char *));
-static bool InlineMotionCallback _ArgProto((void *, int, int));
+/* track active canvas box so 2D context can draw at 60fps */
+static HTMLCanvasData *g_active_canvas = NULL;
 
-void InlineResizeCallback _ArgProto((BowGUI, void *,
-	unsigned int, unsigned int));
+static int ImgInit(BowSink, void *);
+static void ImgAdd(void *);
+static void ImgEnd(void *);
+static void ImgMessage(void *, char *);
 
-static void InlineContinue _ArgProto((HTMLInline));
+static void DestroyInline(HTMLInfo, HTMLBox);
+static bool InlineSelectCallback(void *, int, int, char *);
+static bool InlineMotionCallback(void *, int, int);
 
-static void SetupInline _ArgProto((HTMLInfo, HTMLBox));
-static void AddInline _ArgProto((HTMLInline));
+void InlineResizeCallback(BowGUI, void *, unsigned int, unsigned int);
 
-static void HandleInlineReload _ArgProto((HTMLInfo, BowRequest *));
+static void InlineContinue(HTMLInline);
+
+static void SetupInline(HTMLInfo, HTMLBox);
+static void AddInline(HTMLInline);
+
+static void HandleInlineReload(HTMLInfo, BowRequest *);
 
 /*
  * InlineContinue
  */
-static void
-InlineContinue(isp)
-HTMLInline isp;
-{
+static void InlineContinue(HTMLInline isp){
 	if (isp->delayed) {
 		isp->delayed = false;
 		HTMLContinueLayout(isp->li);
@@ -85,29 +78,19 @@ HTMLInline isp;
 /*
  * SetupInline
  */
-static void
-SetupInline(li, box)
-HTMLInfo li;
-HTMLBox box;
-{
+static void SetupInline(HTMLInfo li, HTMLBox box) {
 	HTMLInline isp = (HTMLInline)box->closure;
 
 	isp->setupcalled = true;
 	if (isp->wd != NULL) {
 		GUIMap(isp->wd, box->x + isp->hspace, box->y + isp->vspace);
 	}
-
-	return;
 }
 
 /*
  * DestroyInline
  */
-static void
-DestroyInline(li, box)
-HTMLInfo li;
-HTMLBox box;
-{
+static void DestroyInline(HTMLInfo li, HTMLBox box) {
 	HTMLInline isp = (HTMLInline)box->closure;
 
 	if (isp->wn != NULL) {
@@ -122,17 +105,12 @@ HTMLBox box;
 		GUIDestroy(isp->wd);
 		isp->wd = NULL;
 	}
-
-	return;
 }
 
 /*
  * AddInline
  */
-static void
-AddInline(isp)
-HTMLInline isp;
-{
+static void AddInline(HTMLInline isp) {
 	HTMLBox box;
 	HTMLAttribID aid;
 	int border;
@@ -156,19 +134,12 @@ HTMLInline isp;
 	box->closure = isp;
 
 	HTMLEnvAddBox(isp->li, isp->env, box);
-
-	return;
 }
 
 /*
  * InlineResizeCallback
  */
-void
-InlineResizeCallback(wd, closure, width, height)
-BowGUI wd;
-void *closure;
-unsigned int width, height;
-{
+void InlineResizeCallback(BowGUI wd, void *closure, unsigned int width, unsigned int height) {
 	HTMLInline isp = (HTMLInline)closure;
 
 	if (isp->box == NULL) {
@@ -177,19 +148,12 @@ unsigned int width, height;
 		AddInline(isp);
 		InlineContinue(isp);
 	}
-
-	return;
 }
 
 /*
  * InlineSelectCallback
  */
-static bool
-InlineSelectCallback(closure, x, y, action)
-void *closure;
-int x, y;
-char *action;
-{
+static bool InlineSelectCallback(void *closure, int x, int y, char *action) {
 	HTMLInline isp = (HTMLInline)closure;
 	HTMLAnchor a;
 	GList list;
@@ -216,11 +180,7 @@ char *action;
 	return(true);
 }
 
-static bool
-InlineMotionCallback(closure, x, y)
-void *closure;
-int x, y;
-{
+static bool InlineMotionCallback(void *closure, int x, int y) {
 	HTMLInline isp = (HTMLInline)closure;
 	HTMLAnchor a;
 	GList list;
@@ -252,11 +212,7 @@ int x, y;
 /*
  * ImgMessage
  */
-static void
-ImgMessage(closure, message)
-void *closure;
-char *message;
-{
+static void ImgMessage(void *closure, char *message) {
 	HTMLInline isp = (HTMLInline)closure;
 
 	if (isp->li->wn != NULL) RenderSendMessage(isp->li->wn, message);
@@ -266,10 +222,7 @@ char *message;
 /*
  * ImgEnd
  */
-static void
-ImgEnd(closure)
-void *closure;
-{
+static void ImgEnd(void *closure) {
 	HTMLInline isp = (HTMLInline)closure;
 	RenderEnd(isp->wn);
 	return;
@@ -290,11 +243,7 @@ void *closure;
 /*
  * ImgInit
  */
-static int
-ImgInit(wp, closure)
-BowSink wp;
-void *closure;
-{
+static int ImgInit(BowSink wp, void *closure) {
 	HTMLInline isp = (HTMLInline)closure;
 	BowRenderHooks *rh;
 	char *ctype;
@@ -330,15 +279,8 @@ void *closure;
  * Public functions
  *
  */
-HTMLInline
-HTMLCreateInline(li, env, url, ii, orh, rc)
-HTMLInfo li;
-HTMLEnv env;
-char *url;
-HTMLInlineInfo *ii;
-BowRenderHooks *orh;
-void *rc;
-{
+HTMLInline HTMLCreateInline(HTMLInfo li, HTMLEnv env, char *url,
+	HTMLInlineInfo *ii, BowRenderHooks *orh, void *rc) {
 	BowSinkHooks hooks;
 	HTMLInline isp;
 	BowRequest *wr;
@@ -405,42 +347,27 @@ void *rc;
 /*
  * HTMLInlineToBox
  */
-HTMLBox
-HTMLInlineToBox(is)
-HTMLInline is;
-{
+HTMLBox HTMLInlineToBox(HTMLInline is) {
 	return(is->box);
 }
 
 /*
  * HTMLInlineToInfo
  */
-HTMLInfo
-HTMLInlineToInfo(is)
-HTMLInline is;
-{
+HTMLInfo HTMLInlineToInfo(HTMLInline is) {
 	return(is->li);
 }
 
 /*
  * HTMLInlineDestroy
  */
-void
-HTMLInlineDestroy(is)
-HTMLInline is;
-{
-	return;
+void HTMLInlineDestroy(HTMLInline is) {
 }
 
 /*
  * HTMLImg
  */
-void
-HTMLImg(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+void HTMLImg(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *url;
 	HTMLInlineInfo ii;
 
@@ -450,8 +377,6 @@ MLElement p;
 	ii.p = p;
 
 	HTMLCreateInline(li, env, url, &ii, NULL, NULL);
-
-	return;
 }
 
 /*
@@ -461,12 +386,7 @@ MLElement p;
  * could check for conditional image loading.  The idea here is to
  * start the download as soon as possible.
  */
-HTMLInsertStatus
-HTMLImgInsert(li, env, p)
-HTMLInfo li;
-HTMLEnv env;
-MLElement p;
-{
+HTMLInsertStatus HTMLImgInsert(HTMLInfo li, HTMLEnv env, MLElement p) {
 	char *url;
 	BowRequest *wr;
 	BowSink wp;
@@ -496,11 +416,7 @@ MLElement p;
 /*
  * HandleInlineReload
  */
-static void
-HandleInlineReload(li, wr)
-HTMLInfo li;
-BowRequest *wr;
-{
+static void HandleInlineReload(HTMLInfo li, BowRequest *wr) {
 	char *xurl;
 
 	for (xurl = (char *)GListGetHead(li->loads); xurl != NULL;
@@ -515,4 +431,172 @@ BowRequest *wr;
 	}
 
 	return;
+}
+
+static void DestroyCanvas(HTMLInfo li, HTMLBox box) {
+	HTMLCanvasData *cd = (HTMLCanvasData *)box->closure;
+
+	if (cd == NULL)
+		return;
+
+	if (g_active_canvas == cd)
+		g_active_canvas = NULL;
+
+	if (cd->gc != NULL) {
+		XFreeGC(li->dpy, cd->gc);
+		cd->gc = NULL;
+	}
+
+	if (cd->pixmap != None) {
+		XFreePixmap(li->dpy, cd->pixmap);
+		cd->pixmap = None;
+	}
+}
+
+static void RenderCanvas(HTMLInfo li, HTMLBox box, Region r) {
+	HTMLCanvasData *cd = (HTMLCanvasData *)box->closure;
+	int screen;
+
+	(void)r;
+	if (cd == NULL || li->dpy == NULL || li->win == None)
+		return;
+
+	if (cd->pixmap != None) {
+		XCopyArea(li->dpy, cd->pixmap, li->win, li->gc,
+			0, 0, cd->width, cd->height, box->x, box->y);
+	}
+
+	/* Draw 1px border so the canvas box is visible */
+	screen = DefaultScreen(li->dpy);
+	XSetForeground(li->dpy, li->gc, BlackPixel(li->dpy, screen));
+	if (cd->width > 1 && cd->height > 1) {
+		XDrawRectangle(li->dpy, li->win, li->gc,
+			box->x, box->y, cd->width - 1, cd->height - 1);
+	}
+	XSetForeground(li->dpy, li->gc, li->fg);
+}
+
+void HTMLCanvas(HTMLInfo li, HTMLEnv env, MLElement p) {
+	HTMLCanvasData *cd;
+	HTMLBox box;
+	int w, h;
+	int screen;
+
+	w = MLAttributeToInt(p, "width");
+	if (w <= 0) w = 300; /* HTML5 default width */
+
+	h = MLAttributeToInt(p, "height");
+	if (h <= 0) h = 150; /* HTML5 default height */
+
+	cd = (HTMLCanvasData *)MPCGet(li->mp, sizeof(HTMLCanvasData));
+	cd->li = li;
+	cd->width = (unsigned int)w;
+	cd->height = (unsigned int)h;
+	g_active_canvas = cd;
+
+	screen = DefaultScreen(li->dpy);
+	cd->pixmap = XCreatePixmap(li->dpy, li->win,
+		cd->width, cd->height,
+		DefaultDepth(li->dpy, screen));
+	cd->gc = XCreateGC(li->dpy, cd->pixmap, 0, NULL);
+	XSetForeground(li->dpy, cd->gc, WhitePixel(li->dpy, screen));
+	XFillRectangle(li->dpy, cd->pixmap, cd->gc, 0, 0, cd->width, cd->height);
+
+	box = HTMLCreateBox(li, env);
+	cd->box = box;
+	box->width = cd->width;
+	box->height = cd->height;
+	box->baseline = cd->height;
+	box->render = RenderCanvas;
+	box->destroy = DestroyCanvas;
+	box->closure = cd;
+	HTMLEnvAddBox(li, env, box);
+	if (li->cres->qjs->canvas) {
+		li->cres->qjs->canvas->display = li->dpy;
+		li->cres->qjs->canvas->buffer = cd->pixmap;
+		li->cres->qjs->canvas->gc = cd->gc;
+		li->cres->qjs->canvas->window = li->win;
+		li->cres->qjs->canvas->canvas = li->widget;
+		li->cres->qjs->canvas->canvas_w = cd->width;
+		li->cres->qjs->canvas->canvas_h = cd->height;
+	}
+}
+
+void HTMLCanvasResize(int w, int h) {
+	HTMLCanvasData *cd = g_active_canvas;
+	int screen;
+
+	if (cd == NULL || cd->li == NULL || w <= 0 || h <= 0)
+		return;
+	if ((int)cd->width == w && (int)cd->height == h)
+		return;
+
+	screen = DefaultScreen(cd->li->dpy);
+	if (cd->pixmap != None)
+		XFreePixmap(cd->li->dpy, cd->pixmap);
+
+	cd->width = (unsigned int)w;
+	cd->height = (unsigned int)h;
+	cd->pixmap = XCreatePixmap(cd->li->dpy, cd->li->win,
+		cd->width, cd->height,
+		DefaultDepth(cd->li->dpy, screen));
+	XSetForeground(cd->li->dpy, cd->gc, WhitePixel(cd->li->dpy, screen));
+	XFillRectangle(cd->li->dpy, cd->pixmap, cd->gc, 0, 0, cd->width, cd->height);
+
+	if (cd->box != NULL) {
+		cd->box->width = cd->width;
+		cd->box->height = cd->height;
+		cd->box->baseline = cd->height;
+	}
+}
+
+void HTMLCanvasClearRect(int x, int y, int w, int h) {
+	HTMLCanvasData *cd = g_active_canvas;
+	int screen;
+
+	if (cd == NULL || cd->pixmap == None)
+		return;
+	screen = DefaultScreen(cd->li->dpy);
+	XSetForeground(cd->li->dpy, cd->gc, WhitePixel(cd->li->dpy, screen));
+	XFillRectangle(cd->li->dpy, cd->pixmap, cd->gc, x, y, w, h);
+}
+
+void HTMLCanvasStrokeSegments(XSegment *segs, int nsegs, const char *color_str) {
+	HTMLCanvasData *cd = g_active_canvas;
+	unsigned long pixel;
+
+	if (cd == NULL || cd->pixmap == None || nsegs <= 0)
+		return;
+
+	if (color_str && GUIGetNamedColor(cd->li->wd, (char *)color_str, &pixel) == 0)
+		XSetForeground(cd->li->dpy, cd->gc, pixel);
+	else
+		XSetForeground(cd->li->dpy, cd->gc, cd->li->fg);
+
+	XDrawSegments(cd->li->dpy, cd->pixmap, cd->gc, segs, nsegs);
+}
+
+void HTMLCanvasFlush(void) {
+	HTMLCanvasData *cd = g_active_canvas;
+	if (cd == NULL || cd->pixmap == None || cd->box == NULL)
+		return;
+
+	/* Fast blit directly to window without re-parsing HTML */
+	XCopyArea(cd->li->dpy, cd->pixmap, cd->li->win, cd->li->gc,
+		0, 0, cd->width, cd->height, cd->box->x, cd->box->y);
+	XFlush(cd->li->dpy);
+}
+
+void HTMLCanvasGetBounds(int *x, int *y, int *w, int *h) {
+	if (g_active_canvas && g_active_canvas->box) {
+		if (x) *x = g_active_canvas->box->x;
+		if (y) *y = g_active_canvas->box->y;
+		if (w) *w = (int)g_active_canvas->width;
+		if (h) *h = (int)g_active_canvas->height;
+	} else {
+		if (x) *x = 0;
+		if (y) *y = 0;
+		if (w) *w = 300;
+		if (h) *h = 150;
+	}
 }
