@@ -21,10 +21,10 @@ static void js_free_dom(HtmlDom_t *node);
 static JSValue js_canvas_get_context(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
 static JSValue js_getBoundingRect(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
 /* HTMLCanvasElement width & height getters/setters */
-static JSValue js_canvas_get_width(JSContext *ctx, JSValue this_val, int argc, JSValue *argv);
-static JSValue js_canvas_set_width(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv);
-static JSValue js_canvas_get_height(JSContext *ctx, JSValue this_val, int argc, JSValue *argv);
-static JSValue js_canvas_set_height(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv);
+static JSValue js_canvas_get_width(JSContext *ctx, JSValueConst this_val);
+static JSValue js_canvas_set_width(JSContext *ctx, JSValueConst this_val, JSValueConst val);
+static JSValue js_canvas_get_height(JSContext *ctx, JSValueConst this_val);
+static JSValue js_canvas_set_height(JSContext *ctx, JSValueConst this_val, JSValueConst val);
 // Create CanvasRenderingContext2D object
 static JSValue create_canvas_context(JSContext *ctx, JSValue obj);
 extern void HTMLCanvasResize(int w, int h);
@@ -1107,8 +1107,8 @@ static JSValue create_js_dom_wrapper(JSContext *ctx, HtmlDom_t *node) {
 			return obj;
 
 		JS_SetOpaque(obj, node);
-		define_accessor(ctx, obj, "width", js_canvas_get_width, js_canvas_set_width);
-		define_accessor(ctx, obj, "height", js_canvas_get_height, js_canvas_set_height);
+		define_accessor(ctx, obj, "width", (JSCFunction *)js_canvas_get_width, (JSCFunction *)js_canvas_set_width);
+		define_accessor(ctx, obj, "height", (JSCFunction *)js_canvas_get_height, (JSCFunction *)js_canvas_set_height);
 		JS_SetPropertyStr(ctx, obj, "getContext",
 			JS_NewCFunction(ctx, js_canvas_get_context, "getContext", 1));
 		JS_SetPropertyStr(ctx, obj, "getBoundingClientRect",
@@ -1953,16 +1953,16 @@ static JSValue js_getBoundingRect(JSContext *ctx, JSValueConst this_val, int arg
 }
 
 static JSValue js_ctx_get_stroke_style(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	(void)this_val; (void)argc; (void)argv;
+	(void)this_val;
 	JS_Canvas *cctx = gl_ctx.canvas;
 	return JS_NewString(ctx, (cctx && cctx->stroke_style[0]) ? cctx->stroke_style : "#000000");
 }
 
-static JSValue js_ctx_set_stroke_style(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+static JSValue js_ctx_set_stroke_style(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
 	(void)this_val;
 	JS_Canvas *cctx = gl_ctx.canvas;
-	if (cctx && argc >= 1) {
-		const char *s = JS_ToCString(ctx, argv[0]);
+	if (cctx) {
+		const char *s = JS_ToCString(ctx, val);
 		if (s) {
 			snprintf(cctx->stroke_style, sizeof(cctx->stroke_style), "%s", s);
 			JS_FreeCString(ctx, s);
@@ -1971,17 +1971,17 @@ static JSValue js_ctx_set_stroke_style(JSContext *ctx, JSValueConst this_val, in
 	return JS_UNDEFINED;
 }
 
-static JSValue js_ctx_get_fill_style(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	(void)this_val; (void)argc; (void)argv;
+static JSValue js_ctx_get_fill_style(JSContext *ctx, JSValueConst this_val) {
+	(void)this_val;
 	JS_Canvas *cctx = gl_ctx.canvas;
 	return JS_NewString(ctx, (cctx && cctx->fill_style[0]) ? cctx->fill_style : "#000000");
 }
 
-static JSValue js_ctx_set_fill_style(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+static JSValue js_ctx_set_fill_style(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
 	(void)this_val;
 	JS_Canvas *cctx = gl_ctx.canvas;
-	if (cctx && argc >= 1) {
-		const char *s = JS_ToCString(ctx, argv[0]);
+	if (cctx) {
+		const char *s = JS_ToCString(ctx, val);
 		if (s) {
 			snprintf(cctx->fill_style, sizeof(cctx->fill_style), "%s", s);
 			JS_FreeCString(ctx, s);
@@ -1990,18 +1990,18 @@ static JSValue js_ctx_set_fill_style(JSContext *ctx, JSValueConst this_val, int 
 	return JS_UNDEFINED;
 }
 
-static JSValue js_canvas_get_width(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	(void)this_val; (void)argc; (void)argv;
+static JSValue js_canvas_get_width(JSContext *ctx, JSValueConst this_val) {
+	(void)this_val;
 	int x, y, w, h;
 	HTMLCanvasGetBounds(&x, &y, &w, &h);
 	return JS_NewInt32(ctx, w);
 }
 
-static JSValue js_canvas_set_width(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+static JSValue js_canvas_set_width(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.canvas_class_id);
 	int32_t w = 300;
-	if (argc >= 1)
-		JS_ToInt32(ctx, &w, argv[0]);
+	if (JS_ToInt32(ctx, &w, val) < 0)
+		return JS_EXCEPTION;
 	if (w <= 0)
 		w = 300;
 
@@ -2016,18 +2016,18 @@ static JSValue js_canvas_set_width(JSContext *ctx, JSValueConst this_val, int ar
 	return JS_UNDEFINED;
 }
 
-static JSValue js_canvas_get_height(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	(void)this_val; (void)argc; (void)argv;
+static JSValue js_canvas_get_height(JSContext *ctx, JSValueConst this_val) {
+	(void)this_val;
 	int x, y, w, h;
 	HTMLCanvasGetBounds(&x, &y, &w, &h);
 	return JS_NewInt32(ctx, h);
 }
 
-static JSValue js_canvas_set_height(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+static JSValue js_canvas_set_height(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.canvas_class_id);
 	int32_t h = 150;
-	if (argc >= 1)
-		JS_ToInt32(ctx, &h, argv[0]);
+	if (JS_ToInt32(ctx, &h, val) < 0)
+		return JS_EXCEPTION;
 	if (h <= 0)
 		h = 150;
 
@@ -2118,8 +2118,10 @@ static JSValue js_strokeRect(JSContext *ctx, JSValueConst this_val,
 }
 
 static JSValue create_canvas_context(JSContext *ctx, JSValue obj) {
-	define_accessor(ctx, obj, "strokeStyle", js_ctx_get_stroke_style, js_ctx_set_stroke_style);
-	define_accessor(ctx, obj, "fillStyle", js_ctx_get_fill_style, js_ctx_set_fill_style);
+	define_accessor(ctx, obj, "strokeStyle", (JSCFunction *)js_ctx_get_stroke_style,
+		(JSCFunction *)js_ctx_set_stroke_style);
+	define_accessor(ctx, obj, "fillStyle", (JSCFunction *)js_ctx_get_fill_style,
+		(JSCFunction *)js_ctx_set_fill_style);
 	JS_SetPropertyStr(ctx, obj, "beginPath",
 		JS_NewCFunction(ctx, js_beginPath, "beginPath", 0));
 	JS_SetPropertyStr(ctx, obj, "moveTo",
