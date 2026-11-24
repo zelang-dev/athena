@@ -44,13 +44,11 @@ struct BowGUIP
   BowTask        resize_task;
 };
 
-static void ResizeTask _ArgProto((void *));
-
-void GUIToplevelResize _ArgProto((Widget, void *, void *));
-static void GUIExpose _ArgProto((Widget, void *, int, int,
-				 unsigned int, unsigned int));
-static void GUIMotion _ArgProto((Widget, void *, int, int, int));
-static void GUISelect _ArgProto((Widget, void *, int, int, int));
+static void ResizeTask(void *);
+void GUIToplevelResize(Widget, void *, void *);
+static void GUIExpose(Widget, void *, int, int, unsigned int, unsigned int);
+static void GUIMotion(Widget, void *, int, int, int);
+static void GUISelect(Widget, void *, int, int, int);
 
 /*
  * GUIAddRender

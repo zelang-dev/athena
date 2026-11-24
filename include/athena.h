@@ -946,7 +946,7 @@ C_API bool qjs_is_running(bow_t web);
 C_API bool qjs_is_module(const char *filepath);
 C_API HtmlDom_t *qjs_parse(bow_t web, const char *html);
 C_API void qjs_run_script(bow_t web, HtmlDom_t *parsed, const char *js, bool is_module);
-C_API void qjs_click_event(Widget w, XtPointer data, XEvent *ev, Boolean *cont);
+C_API void qjs_mouse_event(Widget w, XtPointer data, XEvent *ev, Boolean *cont);
 C_API void qjs_exit(void);
 
 C_API bow_t bow_alloc(void);

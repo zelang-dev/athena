@@ -7,6 +7,7 @@
 
 #include "BowP.h"
 
+typedef struct QJSTimerData_S QJSTimerData;
 struct JS_EventsList {
 	char *type;
 	char *id;
@@ -38,6 +39,14 @@ struct JS_CanvasContext {
 	XPoint *path_points;
 	int path_count;
 	int path_capacity;
+	XSegment *segments;
+	int seg_count;
+	int seg_capacity;
+	int pen_x;
+	int pen_y;
+	bool has_pen;
+	char stroke_style[64];
+	char fill_style[64];
 	int canvas_w, canvas_h;
 };
 
@@ -75,7 +84,7 @@ struct HtmlNode_S {
 struct QJS_Info {
 	int scroll_offset_y, js_dom_count;
 	size_t js_buf_size, js_script_size;
-	JSClassID js_class_id, observer_class_id, nodelist_class_id, canvas_class_id;
+	JSClassID js_class_id, observer_class_id, canvas_class_id;
 	JSValue js_this;
 	JSValue js_obs;
 	char *js_buf;
@@ -88,6 +97,7 @@ struct QJS_Info {
 	JS_Observer *observers;
 	JS_Promise *module_promises;
 	JS_Task *task_queue;
+	QJSTimerData *timers;
 	pthread_mutex_t task_mutex;
 };
 

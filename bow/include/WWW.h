@@ -31,18 +31,18 @@ extern WidgetClass           wwwWidgetClass;
 /*
  * Prototypes
  */
-Widget WWWGetDrawWidget _ArgProto((Widget));
-int WWWSetDrawSize _ArgProto((Widget, unsigned int, unsigned int));
-int WWWGetDrawSize _ArgProto((Widget, unsigned int *, unsigned int *));
-void WWWMoveChild _ArgProto((Widget, int, int));
+Widget WWWGetDrawWidget(Widget);
+int WWWSetDrawSize(Widget, unsigned int, unsigned int);
+int WWWGetDrawSize(Widget, unsigned int *, unsigned int *);
+void WWWMoveChild(Widget, int, int);
 
-void WWWSetScrollBar _ArgProto((Widget, bool));
+void WWWSetScrollBar(Widget, bool);
 
-void WWWSetResizeCallback _ArgProto((Widget, void (*)(), void *));
-void WWWSetExposeCallback _ArgProto((Widget, void (*)(), void *));
-void WWWSetSelectCallback _ArgProto((Widget, void (*)(), void *));
-void WWWSetMotionCallback _ArgProto((Widget, void (*)(), void *));
+void WWWSetResizeCallback(Widget, void (*)(), void *);
+void WWWSetExposeCallback(Widget, void (*)(), void *);
+void WWWSetSelectCallback(Widget, void (*)(), void *);
+void WWWSetMotionCallback(Widget, void (*)(), void *);
 
-void WWWGetScrollPosition _ArgProto((Widget, int *, int *));
+void WWWGetScrollPosition(Widget, int *, int *);
 
 #endif

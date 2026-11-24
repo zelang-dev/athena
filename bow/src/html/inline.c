@@ -528,6 +528,7 @@ void HTMLCanvasResize(int w, int h) {
 
 	if (cd == NULL || cd->li == NULL || w <= 0 || h <= 0)
 		return;
+
 	if ((int)cd->width == w && (int)cd->height == h)
 		return;
 
@@ -548,6 +549,32 @@ void HTMLCanvasResize(int w, int h) {
 		cd->box->height = cd->height;
 		cd->box->baseline = cd->height;
 	}
+
+	if (cd->li->cres && cd->li->cres->qjs && cd->li->cres->qjs->canvas) {
+		cd->li->cres->qjs->canvas->buffer = cd->pixmap;
+		cd->li->cres->qjs->canvas->canvas_w = w;
+		cd->li->cres->qjs->canvas->canvas_h = h;
+	}
+
+	/* Re-run layout so centering (margin: 0 auto) and surrounding text flow update */
+	if (!cd->li->is_repainting) {
+		HTMLRepaintFromDOM(cd->li);
+	}
+}
+
+void HTMLCanvasFillPolygon(XPoint *pts, int npts, const char *color_str) {
+	HTMLCanvasData *cd = g_active_canvas;
+	unsigned long pixel;
+
+	if (cd == NULL || cd->pixmap == None || npts < 3)
+		return;
+
+	if (color_str && GUIGetNamedColor(cd->li->wd, (char *)color_str, &pixel) == 0)
+		XSetForeground(cd->li->dpy, cd->gc, pixel);
+	else
+		XSetForeground(cd->li->dpy, cd->gc, cd->li->fg);
+
+	XFillPolygon(cd->li->dpy, cd->pixmap, cd->gc, pts, npts, Complex, CoordModeOrigin);
 }
 
 void HTMLCanvasClearRect(int x, int y, int w, int h) {
