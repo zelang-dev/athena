@@ -506,15 +506,12 @@ typedef BowStack bowdata_t;
 
 typedef struct hist hist_t;
 struct webview_priv {
-	Widget window;
-	Widget scroller;
-	Widget webview;
 	Widget inspector_window;
 	int ready;
 	int js_busy;
 	int should_exit;
 	ats_t *ats;
-	bow_t web;
+	bow_t webview;
 	bowview_t context;
 	hist_t *backhist, *forwhist;
 };

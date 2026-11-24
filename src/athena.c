@@ -1851,7 +1851,7 @@ ats_wnd ats_toolbar_set(ats_t *ui, ats_wnd on, _platform_cb button, char *imagef
 
 	XtVaSetValues(w, XtNbitmap, MwLoadPixmap(XtDisplay(on), color, imagefile), NULL);
 	if (ui->app->app_data && ((ui->bar_info && ui->bar_info->override))
-		|| (!ui->web->priv.context && ui->web->showtoolbar && ui->web->priv.web))
+		|| (!ui->web->priv.context && ui->web->showtoolbar && ui->web->priv.webview))
 		XtAddCallback(w, XtNcallback, button, (XtPointer)ui->app->app_data);
 	else
 		XtAddCallback(w, XtNcallback, button, (XtPointer)ui);
@@ -2061,7 +2061,7 @@ void ats_close(ats_t *ui) {
 		}
 
 		if (ui->webview_set) {
-			if (qjs_is_running(ui->web->priv.web))
+			if (qjs_is_running(ui->web->priv.webview))
 				qjs_exit();
 		}
 

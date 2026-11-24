@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
 	ui.height = 512;
 	bow_t globalcres = bow_create(&ui);
 	if (globalcres) {
-		ui.web->priv.web = globalcres;
+		ui.web->priv.webview = globalcres;
 		bow_window(globalcres, (argc > 1 ? argv[argc - 1] : NULL), NULL);
 
 		/*

@@ -9,8 +9,8 @@ struct hist {
 
 int webview_create(ats_t *ui, webview_t *w) {
 	ui->webview_set = true;
-	if ((w->priv.web = bow_create(ui))) {
-		bow_window(w->priv.web, w->url, NULL);
+	if ((w->priv.webview = bow_create(ui))) {
+		bow_window(w->priv.webview, w->url, NULL);
 		return 1;
 	}
 
