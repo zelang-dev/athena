@@ -2060,6 +2060,11 @@ void ats_close(ats_t *ui) {
 			ui->buf = NULL;
 		}
 
+		if (ui->webview_set) {
+			if (qjs_is_running(ui->web->priv.web))
+				qjs_exit();
+		}
+
 		if (ui->wnd)
 			XtDestroyWidget(ui->wnd);
 

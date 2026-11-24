@@ -605,12 +605,24 @@ void HTMLCanvasStrokeSegments(XSegment *segs, int nsegs, const char *color_str) 
 
 void HTMLCanvasFlush(void) {
 	HTMLCanvasData *cd = g_active_canvas;
+	int screen;
+
 	if (cd == NULL || cd->pixmap == None || cd->box == NULL)
 		return;
 
 	/* Fast blit directly to window without re-parsing HTML */
 	XCopyArea(cd->li->dpy, cd->pixmap, cd->li->win, cd->li->gc,
 		0, 0, cd->width, cd->height, cd->box->x, cd->box->y);
+
+	/* Keep 1px border visible across animation frames */
+	screen = DefaultScreen(cd->li->dpy);
+	XSetForeground(cd->li->dpy, cd->li->gc, BlackPixel(cd->li->dpy, screen));
+	if (cd->width > 1 && cd->height > 1) {
+		XDrawRectangle(cd->li->dpy, cd->li->win, cd->li->gc,
+			cd->box->x, cd->box->y, cd->width - 1, cd->height - 1);
+	}
+	XSetForeground(cd->li->dpy, cd->li->gc, cd->li->fg);
+
 	XFlush(cd->li->dpy);
 }
 

@@ -215,9 +215,9 @@ void qjs_exit(void) {
 	gl_ctx.dom_root = NULL;
 
 	if (gl_ctx.canvas) {
-		js_free(gl_ctx.ctx, gl_ctx.canvas);
 		free(gl_ctx.canvas->path_points);
-		gl_ctx.canvas->path_points = NULL;
+		free(gl_ctx.canvas->segments);
+		js_free(gl_ctx.ctx, gl_ctx.canvas);
 		gl_ctx.canvas = NULL;
 	}
 
@@ -895,51 +895,12 @@ uint8_t *JS_GetUint8Array(JSContext *ctx, size_t *pbyte_length, JSValueConst obj
 #endif
 
 static void js_object_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_func) {
-	HtmlDom_t *data = JS_GetOpaque(val, gl_ctx.js_class_id);
-	if (!data)
-		return;
-
-	if (!JS_IsUndefined(data->js_onclick))
-		JS_MarkValue(rt, data->js_onclick, mark_func);
-
-	JS_Listener *curr = data->listeners;
-	while (curr != NULL) {
-		JS_Listener *next = curr->next;
-		JS_MarkValue(rt, curr->callback, mark_func);
-		curr = next;
-	}
 }
 
 static void js_object_finalizer(JSRuntime *rt, JSValue val) {
-	HtmlDom_t *data = JS_GetOpaque(val, gl_ctx.js_class_id);
-	if (!data)
-		return;
-
-	/* Only free detached orphan nodes; nodes attached to dom_root are owned by the DOM tree */
-	if (!data->parent && data != gl_ctx.dom_root) {
-		if (!JS_IsUndefined(data->js_onclick)) {
-			JS_FreeValueRT(rt, data->js_onclick);
-			data->js_onclick = JS_UNDEFINED;
-		}
-		JS_Listener *curr = data->listeners;
-		while (curr != NULL) {
-			JS_Listener *next = curr->next;
-			free(curr->type);
-			free(curr->id);
-			JS_FreeValueRT(rt, curr->callback);
-			free(curr);
-			curr = next;
-		}
-		data->listeners = NULL;
-		data->js_object = JS_UNDEFINED;
-		dom_free(data);
-	} else {
-		data->js_object = JS_UNDEFINED;
-	}
 }
 
 static void canvas_finalizer(JSRuntime *rt, JSValue val) {
-	//JS_Canvas *data = JS_GetOpaque(val, gl_ctx.canvas_class_id);
 }
 
 static JSClassDef js_dom_obs_class = { "JS_Observer" };
