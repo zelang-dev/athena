@@ -74,6 +74,16 @@
  * Internal helpers
  * ============================================================================ */
 
+static void bow_engine_strip_bom(char **data, size_t *len) {
+	if (data && *data && len && *len >= 3) {
+		unsigned char *u = (unsigned char *)(*data);
+		if (u[0] == 0xEF && u[1] == 0xBB && u[2] == 0xBF) {
+			*data += 3;
+			*len -= 3;
+		}
+	}
+}
+
 /*
  * bow_engine_has_html5_doctype
  *
@@ -389,6 +399,7 @@ void bow_engine_end(MLState hs, bow_t web, char *data, size_t len)
 		return;
 	}
 
+	bow_engine_strip_bom(&data, &len);
 	BowEngineMode mode = bow_engine_detect_mode(data, len);
 
 	if (mode == ENGINE_MODE_HTML5) {
@@ -416,6 +427,7 @@ void bow_engine_process(MLState hs, bow_t web, char *data, size_t len)
 	if (!hs || !data || len == 0)
 		return;
 
+	bow_engine_strip_bom(&data, &len);
 	BowEngineMode mode = bow_engine_detect_mode(data, len);
 
 	if (mode == ENGINE_MODE_HTML5) {

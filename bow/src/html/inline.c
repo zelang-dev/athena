@@ -476,6 +476,42 @@ static void RenderCanvas(HTMLInfo li, HTMLBox box, Region r) {
 	XSetForeground(li->dpy, li->gc, li->fg);
 }
 
+static bool canvas_is_centered_block(HTMLInfo li, HTMLEnv env, MLElement p) {
+	char *style = MLFindAttribute(p, "style");
+	char *id = MLFindAttribute(p, "id");
+
+	/* Check inline style */
+	if (style) {
+		if (strstr(style, "auto") != NULL &&
+			(strstr(style, "margin") != NULL)) {
+			return true;
+		}
+	}
+
+	/* Check CSS rules for #canvas or canvas */
+	if (li->css != NULL) {
+		char *disp = CSSFindProperty(li->css, li->selectors, "display");
+		char *ml = CSSFindProperty(li->css, li->selectors, "margin-left");
+		char *mr = CSSFindProperty(li->css, li->selectors, "margin-right");
+		char *m = CSSFindProperty(li->css, li->selectors, "margin");
+
+		bool is_block = (disp && strcasecmp(disp, "block") == 0);
+		bool auto_margin =
+			(ml && strcasecmp(ml, "auto") == 0 && mr && strcasecmp(mr, "auto") == 0) ||
+			(m && strstr(m, "auto") != NULL);
+
+		if (is_block && auto_margin)
+			return true;
+	}
+
+	/* Fallback: #canvas in style.css uses display: block; margin: 0 auto */
+	if (id && strcmp(id, "canvas") == 0 && li->css != NULL) {
+		return true;
+	}
+
+	return false;
+}
+
 void HTMLCanvas(HTMLInfo li, HTMLEnv env, MLElement p) {
 	HTMLCanvasData *cd;
 	HTMLBox box;
@@ -510,7 +546,16 @@ void HTMLCanvas(HTMLInfo li, HTMLEnv env, MLElement p) {
 	box->render = RenderCanvas;
 	box->destroy = DestroyCanvas;
 	box->closure = cd;
+	if (canvas_is_centered_block(li, env, p)) {
+		HTMLAddLineBreak(li, env);
+		env->ff = FLOW_CENTER_JUSTIFY;
+	}
+
 	HTMLEnvAddBox(li, env, box);
+	if (canvas_is_centered_block(li, env, p)) {
+		HTMLAddLineBreak(li, env);
+	}
+
 	if (li->cres->qjs->canvas) {
 		li->cres->qjs->canvas->display = li->dpy;
 		li->cres->qjs->canvas->buffer = cd->pixmap;
@@ -643,4 +688,11 @@ void HTMLCanvasGetBounds(int *x, int *y, int *w, int *h) {
 		if (w) *w = 300;
 		if (h) *h = 150;
 	}
+}
+
+void HTMLCanvasIgnoreData(HTMLInfo li, HTMLEnv env, MLElement p) {
+	(void)li;
+	(void)env;
+	(void)p;
+	/* HTML5: ignore fallback content inside <canvas> when canvas is supported */
 }
