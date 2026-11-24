@@ -2006,24 +2006,26 @@ static JSValue js_canvas_set_height(JSContext *ctx, JSValueConst this_val, JSVal
 // fillRect JS binding
 static JSValue js_fillRect(JSContext *ctx, JSValueConst this_val,
 	int argc, JSValueConst *argv) {
-	trace;
 	JS_Canvas *cctx = gl_ctx.canvas;
 	if (!cctx)
 		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
 
 	int x, y, w, h;
-	if (argc == 1) {
-		JS_SetPropertyStr(ctx, this_val, "width", JS_NewInt32(ctx, cctx->canvas_w));
-		JS_SetPropertyStr(ctx, this_val, "height", JS_NewInt32(ctx, cctx->canvas_h));
-		return JS_UNDEFINED;
-	}
-
 	if (argc < 4 ||
 		JS_ToInt32(ctx, &x, argv[0]) ||
 		JS_ToInt32(ctx, &y, argv[1]) ||
 		JS_ToInt32(ctx, &w, argv[2]) ||
 		JS_ToInt32(ctx, &h, argv[3])) {
 		return JS_ThrowTypeError(ctx, "fillRect expects 4 integers");
+	}
+
+	if (cctx->fill_style[0]) {
+		XColor sxc, exc;
+		if (XAllocNamedColor(cctx->display,
+			DefaultColormap(cctx->display, DefaultScreen(cctx->display)),
+			cctx->fill_style, &sxc, &exc)) {
+			XSetForeground(cctx->display, cctx->gc, sxc.pixel);
+		}
 	}
 
 	XFillRectangle(cctx->display, cctx->buffer, cctx->gc, x, y, w, h);

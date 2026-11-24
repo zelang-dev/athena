@@ -138,7 +138,7 @@ static struct HTMLTagP tlist[] =
   {"img", TAG_IMG, HTMLImg, NULL, NULL, NULL, NULL,
 	MARKUP_EMPTY, NULL, HTMLImgInsert, NULL},
   {"canvas", TAG_CANVAS, HTMLCanvas, NULL, NULL, NULL, NULL,
-	MARKUP_CLAMP, NULL, NULL, NULL},
+	MARKUP_NONE, NULL, NULL, NULL},
 
   /* list.c */
   {"ul", TAG_UL, HTMLULBegin, HTMLListEnd, NULL, HTMLListAddBox, NULL,
@@ -174,7 +174,7 @@ static struct HTMLTagP tlist[] =
 	MARKUP_CLAMP,
 	NULL, NULL, NULL},
   {"link", TAG_LINK, HTMLLink, NULL, NULL, NULL, NULL,
-	MARKUP_CLAMP, NULL, NULL, NULL},
+	MARKUP_EMPTY, NULL, NULL, NULL},
   {"style", TAG_STYLE, NULL, HTMLStyleEnd, NULL, NULL, NULL,
 	MARKUP_CLAMP, NULL, NULL, NULL},
   {"script", TAG_SCRIPT, HTMLScript, HTMLScriptEnd, HTMLScriptExec, NULL, NULL,

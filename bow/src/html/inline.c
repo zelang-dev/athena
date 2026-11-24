@@ -524,6 +524,7 @@ void HTMLCanvas(HTMLInfo li, HTMLEnv env, MLElement p) {
 
 void HTMLCanvasResize(int w, int h) {
 	HTMLCanvasData *cd = g_active_canvas;
+	HTMLInfo li;
 	int screen;
 
 	if (cd == NULL || cd->li == NULL || w <= 0 || h <= 0)
@@ -532,17 +533,18 @@ void HTMLCanvasResize(int w, int h) {
 	if ((int)cd->width == w && (int)cd->height == h)
 		return;
 
-	screen = DefaultScreen(cd->li->dpy);
+	li = cd->li;
+	screen = DefaultScreen(li->dpy);
 	if (cd->pixmap != None)
-		XFreePixmap(cd->li->dpy, cd->pixmap);
+		XFreePixmap(li->dpy, cd->pixmap);
 
 	cd->width = (unsigned int)w;
 	cd->height = (unsigned int)h;
-	cd->pixmap = XCreatePixmap(cd->li->dpy, cd->li->win,
+	cd->pixmap = XCreatePixmap(li->dpy, li->win,
 		cd->width, cd->height,
-		DefaultDepth(cd->li->dpy, screen));
-	XSetForeground(cd->li->dpy, cd->gc, WhitePixel(cd->li->dpy, screen));
-	XFillRectangle(cd->li->dpy, cd->pixmap, cd->gc, 0, 0, cd->width, cd->height);
+		DefaultDepth(li->dpy, screen));
+	XSetForeground(li->dpy, cd->gc, WhitePixel(li->dpy, screen));
+	XFillRectangle(li->dpy, cd->pixmap, cd->gc, 0, 0, cd->width, cd->height);
 
 	if (cd->box != NULL) {
 		cd->box->width = cd->width;
@@ -550,15 +552,18 @@ void HTMLCanvasResize(int w, int h) {
 		cd->box->baseline = cd->height;
 	}
 
-	if (cd->li->cres && cd->li->cres->qjs && cd->li->cres->qjs->canvas) {
-		cd->li->cres->qjs->canvas->buffer = cd->pixmap;
-		cd->li->cres->qjs->canvas->canvas_w = w;
-		cd->li->cres->qjs->canvas->canvas_h = h;
+	if (li->cres && li->cres->qjs && li->cres->qjs->canvas) {
+		li->cres->qjs->canvas->buffer = cd->pixmap;
+		li->cres->qjs->canvas->canvas_w = w;
+		li->cres->qjs->canvas->canvas_h = h;
 	}
 
-	/* Re-run layout so centering (margin: 0 auto) and surrounding text flow update */
-	if (!cd->li->is_repainting) {
-		HTMLRepaintFromDOM(cd->li);
+	/* Clear old window pixels (including old 300x150 box position) before re-layout */
+	if (!li->is_repainting) {
+		if (li->dpy != NULL && li->win != None) {
+			XClearWindow(li->dpy, li->win);
+		}
+		HTMLRepaintFromDOM(li);
 	}
 }
 
