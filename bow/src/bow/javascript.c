@@ -2344,8 +2344,11 @@ static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
 	define_accessor(ctx, proto, "nextElementSibling",    js_dom_get_next_element_sibling,   NULL);
 	define_accessor(ctx, proto, "previousElementSibling",js_dom_get_previous_element_sibling,NULL);
 	define_accessor(ctx, proto, "length",                js_dom_get_length,                 NULL);
-	define_accessor(ctx, proto, "childElementCount",     js_dom_get_child_element_count,    NULL);
-	define_accessor(ctx, proto, "onclick",               js_dom_get_onclick,                js_dom_set_onclick);
+	define_accessor(ctx, proto, "childElementCount", js_dom_get_child_element_count, NULL);
+
+
+	JS_SetPropertyStr(ctx, proto, "onclick", JS_NewCFunction(ctx, js_dom_get_onclick, "onclick", 0));
+	JS_SetPropertyStr(ctx, proto, "onclick", JS_NewCFunction(ctx, js_dom_set_onclick, "setclick", 1));
 
 	/* Standard W3C Node Type Constants on Node prototype */
 	JS_SetPropertyStr(ctx, proto, "ELEMENT_NODE",  JS_NewInt32(ctx, 1));

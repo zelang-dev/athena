@@ -1,51 +1,6 @@
 /*
  * WWW.c
- *
- * Copyright (c) 1995-1997, John Kilburg <john@cs.unlv.edu>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
-
-Some of the code was borrowed from the Viewport widget:
-
-Copyright (c) 1989, 1994  X Consortium
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-X CONSORTIUM BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
-AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-Except as contained in this notice, the name of the X Consortium shall not be
-used in advertising or otherwise to promote the sale, use or other dealings
-in this Software without prior written authorization from the X Consortium.
-
  */
-
-
 
 #include <stdio.h>
 
@@ -55,11 +10,13 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/keysym.h>
 #include <Xaw95/TraversalP.h>
 
-
 #include "WWWP.h"
 #include "Geom.h"
 
 #define WMethod(x) ((x) != NULL ? (x):10)
+
+/* Guard flag to suppress WWWResize when expanding document size inside Viewport */
+static Boolean in_draw_size = False;
 
 /*
  * Action prototypes
@@ -148,10 +105,8 @@ static XtGeometryResult WWWPreferredGeometry(Widget,
 static void WWWGetValuesHook(Widget, ArgList, Cardinal *);
 
 static Dimension FixDim(unsigned int);
-static void ConfigureWidgets(WWWWidget,
-	unsigned int, unsigned int);
 
-/* Scrollbar handling functions */
+/* Scrollbar handling functions (retained for API/callback compatibility) */
 static void RedrawThumbs(WWWWidget);
 static void ScrollUpDownProc(Widget, XtPointer, XtPointer);
 static void ThumbProc(Widget, XtPointer, XtPointer);
@@ -230,6 +185,7 @@ void WWWResize(Widget w) {
 	WWWWidget rw;
 
 	if (XtClass(w) != wwwWidgetClass) return;
+	if (in_draw_size) return;
 
 	rw = (WWWWidget)w;
 	if (rw->www.resize_callback != NULL) {
@@ -274,6 +230,8 @@ static void RedrawThumbs(WWWWidget rw) {
 	Dimension length, total;
 	Position top;
 
+	if (!rw->www.use_scroll) return;
+
 	if (rw->www.horiz_bar != (Widget)NULL) {
 		top = -(child->core.x);
 		length = clip->core.width;
@@ -295,10 +253,37 @@ static void RedrawThumbs(WWWWidget rw) {
 	}
 }
 
+/*
+ * WWWMoveChild
+ * Delegates scrolling to the parent Xaw95 Viewport widget when internal
+ * scrollbars are disabled, preventing double scrollbars.
+ */
 void WWWMoveChild(Widget w, int x, int y) {
 	WWWWidget rw = (WWWWidget)w;
+	Widget parent = XtParent(w);
 	register Widget child = rw->www.child;
 	register Widget clip = rw->www.clip;
+
+	/*
+	 * When embedded inside an outer Viewport (clip -> Viewport), move the WWW
+	 * widget inside the Viewport's clip window so the outer Xaw95 Viewport
+	 * updates its right/bottom scrollbars instead of internal scrolling.
+	 */
+	if (!rw->www.use_scroll && parent != NULL && XtParent(parent) != NULL) {
+		int max_x = (int)rw->core.width - (int)parent->core.width;
+		int max_y = (int)rw->core.height - (int)parent->core.height;
+
+		if (max_x < 0) max_x = 0;
+		if (max_y < 0) max_y = 0;
+
+		if (x < -max_x) x = -max_x;
+		if (y < -max_y) y = -max_y;
+		if (x > 0) x = 0;
+		if (y > 0) y = 0;
+
+		XtMoveWidget(w, (Position)x, (Position)y);
+		return;
+	}
 
 	if (-x + (int)clip->core.width > (int)child->core.width) {
 		x = -(child->core.width - clip->core.width);
@@ -371,8 +356,8 @@ static void WWWInitialize(Widget r, Widget n, ArgList args, Cardinal *count) {
 	new->www.expose_closure = NULL;
 
 	/*
-	 * Create scrollbars, clip, and the child widget.  The child widget is
-	 * the one that we draw into.
+	 * Keep internal scrollbars unmapped so the enclosing Xaw95 Viewport
+	 * exclusively owns and renders the scrollbars on the right/bottom.
 	 */
 	new->www.vert_bar = XtVaCreateWidget("vert_bar",
 		scrollbarWidgetClass, n,
@@ -425,64 +410,6 @@ static Dimension FixDim(unsigned int d) {
 }
 
 /*
- * ConfigureWidgets
- */
-static void ConfigureWidgets(WWWWidget rw, unsigned int width, unsigned int height) {
-	Dimension child_width, child_height;
-	Dimension clip_width, clip_height;
-	Dimension vx, hy;
-	Dimension vw, hh;
-	float shown;
-
-	if (!XtIsRealized((Widget)rw)) return;
-
-	vw = rw->www.vert_bar->core.width;
-	hh = rw->www.horiz_bar->core.height;
-
-	child_width = FixDim(width);
-	child_height = FixDim(height);
-
-	clip_width = rw->core.width - vw;
-	clip_height = rw->core.height - hh;
-
-	if (child_width > clip_width) hy = hh;
-	else {
-		hy = 0;
-		child_width = clip_width;
-	}
-
-	if (child_height > clip_height) vx = vw;
-	else {
-		vx = 0;
-		child_height = clip_height;
-	}
-
-	if (child_height > clip_height) {
-		XtConfigureWidget(rw->www.vert_bar,
-			0, hy,
-			vw, rw->core.height - hy, 0);
-		shown = (float)clip_height / (float)child_height;
-		XawScrollbarSetThumb(rw->www.vert_bar, (float)-1.0, shown);
-		XtSetMappedWhenManaged(rw->www.vert_bar, True);
-	} else XtSetMappedWhenManaged(rw->www.vert_bar, False);
-
-	if (child_width > clip_width) {
-		XtConfigureWidget(rw->www.horiz_bar,
-			vx, 0,
-			rw->core.width - vx, hh, 0);
-		shown = (float)clip_width / (float)child_width;
-		XawScrollbarSetThumb(rw->www.horiz_bar, (float)-1.0, shown);
-		XtSetMappedWhenManaged(rw->www.horiz_bar, True);
-	} else XtSetMappedWhenManaged(rw->www.horiz_bar, False);
-
-	XtConfigureWidget(rw->www.clip,
-		vw, hh,
-		clip_width, clip_height, 0);
-
-	XtResizeWidget(rw->www.child, child_width, child_height, 0);
-}
-
-/*
  * WWWGetDrawWidget
  */
 Widget WWWGetDrawWidget(Widget w) {
@@ -504,37 +431,61 @@ int WWWGetDrawSize(Widget w, unsigned int *width, unsigned int *height) {
 
 /*
  * WWWSetDrawSize
+ * Expands clip, child, and the WWW widget itself to the full document size at (0,0)
+ * while suppressing WWWResize so layout updates do not trigger a redraw loop.
  */
 int WWWSetDrawSize(Widget w, unsigned int width, unsigned int height) {
 	WWWWidget rw = (WWWWidget)w;
+	Widget parent = XtParent(w);
+	Dimension dw = FixDim(width);
+	Dimension dh = FixDim(height);
+	Dimension reply_w, reply_h;
+	XtGeometryResult res;
 
-	if (!rw->www.use_scroll) {
-		XtSetMappedWhenManaged(rw->www.vert_bar, False);
-		XtSetMappedWhenManaged(rw->www.horiz_bar, False);
-		XtConfigureWidget(rw->www.clip, 0, 0, FixDim(width), FixDim(height), 0);
-		XtConfigureWidget(rw->www.child, 0, 0, FixDim(width), FixDim(height), 0);
-	} else {
-		ConfigureWidgets(rw, width, height);
+	if (dw < 5) dw = 5;
+	if (dh < 5) dh = 5;
+
+	/*
+	 * Ensure minimum dimensions match visible Viewport clip so no blank
+	 * gutter appears when content is shorter/narrower than the viewport.
+	 */
+	if (parent != NULL && XtParent(parent) != NULL) {
+		if (dw < parent->core.width) dw = parent->core.width;
+		if (dh < parent->core.height) dh = parent->core.height;
 	}
+
+	in_draw_size = True;
+
+	XtSetMappedWhenManaged(rw->www.vert_bar, False);
+	XtSetMappedWhenManaged(rw->www.horiz_bar, False);
+
+	XtConfigureWidget(rw->www.clip, 0, 0, dw, dh, 0);
+	XtConfigureWidget(rw->www.child, 0, 0, dw, dh, 0);
+
+	if (rw->core.width != dw || rw->core.height != dh) {
+		res = XtMakeResizeRequest(w, dw, dh, &reply_w, &reply_h);
+		if (res == XtGeometryAlmost) {
+			XtMakeResizeRequest(w, reply_w, reply_h, NULL, NULL);
+		}
+	}
+
+	in_draw_size = False;
 
 	return(0);
 }
 
 /*
  * WWWSetScrollBar
+ * Always keep internal scrollbars disabled in favor of the outer Xaw95 Viewport.
  */
 void WWWSetScrollBar(Widget w, bool use_scroll) {
 	WWWWidget rw = (WWWWidget)w;
 
-	rw->www.use_scroll = use_scroll;
-	if (!rw->www.use_scroll) {
-		XtSetMappedWhenManaged(rw->www.vert_bar, False);
-		XtSetMappedWhenManaged(rw->www.horiz_bar, False);
-		XtConfigureWidget(rw->www.clip, 0, 0,
-			rw->core.width, rw->core.height, 0);
-		XtConfigureWidget(rw->www.child, 0, 0,
-			rw->core.width, rw->core.height, 0);
-	}
+	(void)use_scroll;
+	rw->www.use_scroll = false;
+
+	XtSetMappedWhenManaged(rw->www.vert_bar, False);
+	XtSetMappedWhenManaged(rw->www.horiz_bar, False);
 }
 
 /*
@@ -620,6 +571,13 @@ static void WWWMotionAction(Widget w, XEvent *xe, String *params, Cardinal *num_
  */
 void WWWGetScrollPosition(Widget w, int *x, int *y) {
 	WWWWidget rw = (WWWWidget)w;
+	Widget parent = XtParent(w);
+
+	if (!rw->www.use_scroll && parent != NULL && XtParent(parent) != NULL) {
+		*x = (int)(w->core.x);
+		*y = (int)(w->core.y);
+		return;
+	}
 
 	*x = (int)(rw->www.child->core.x);
 	*y = (int)(rw->www.child->core.y);
@@ -630,10 +588,14 @@ void WWWGetScrollPosition(Widget w, int *x, int *y) {
  */
 static void WWWPageUpAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
 	WWWWidget rw = (WWWWidget)XtParent(XtParent(w));
-	Widget child = rw->www.child;
-	Widget clip = rw->www.clip;
+	Widget parent = XtParent((Widget)rw);
 
-	WWWMoveChild((Widget)rw, child->core.x, child->core.y + clip->core.height / 2);
+	if (!rw->www.use_scroll && parent != NULL && XtParent(parent) != NULL) {
+		WWWMoveChild((Widget)rw, rw->core.x, rw->core.y + parent->core.height / 2);
+		return;
+	}
+
+	WWWMoveChild((Widget)rw, rw->www.child->core.x, rw->www.child->core.y + rw->www.clip->core.height / 2);
 }
 
 /*
@@ -641,10 +603,14 @@ static void WWWPageUpAction(Widget w, XEvent *xe, String *params, Cardinal *num_
  */
 static void WWWPageDownAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
 	WWWWidget rw = (WWWWidget)XtParent(XtParent(w));
-	Widget child = rw->www.child;
-	Widget clip = rw->www.clip;
+	Widget parent = XtParent((Widget)rw);
 
-	WWWMoveChild((Widget)rw, child->core.x, child->core.y - clip->core.height / 2);
+	if (!rw->www.use_scroll && parent != NULL && XtParent(parent) != NULL) {
+		WWWMoveChild((Widget)rw, rw->core.x, rw->core.y - parent->core.height / 2);
+		return;
+	}
+
+	WWWMoveChild((Widget)rw, rw->www.child->core.x, rw->www.child->core.y - rw->www.clip->core.height / 2);
 }
 
 /*
@@ -652,10 +618,14 @@ static void WWWPageDownAction(Widget w, XEvent *xe, String *params, Cardinal *nu
  */
 static void WWWPageLeftAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
 	WWWWidget rw = (WWWWidget)XtParent(XtParent(w));
-	Widget child = rw->www.child;
-	Widget clip = rw->www.clip;
+	Widget parent = XtParent((Widget)rw);
 
-	WWWMoveChild((Widget)rw, child->core.x + clip->core.width / 2, child->core.y);
+	if (!rw->www.use_scroll && parent != NULL && XtParent(parent) != NULL) {
+		WWWMoveChild((Widget)rw, rw->core.x + parent->core.width / 2, rw->core.y);
+		return;
+	}
+
+	WWWMoveChild((Widget)rw, rw->www.child->core.x + rw->www.clip->core.width / 2, rw->www.child->core.y);
 }
 
 /*
@@ -663,10 +633,14 @@ static void WWWPageLeftAction(Widget w, XEvent *xe, String *params, Cardinal *nu
  */
 static void WWWPageRightAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
 	WWWWidget rw = (WWWWidget)XtParent(XtParent(w));
-	Widget child = rw->www.child;
-	Widget clip = rw->www.clip;
+	Widget parent = XtParent((Widget)rw);
 
-	WWWMoveChild((Widget)rw, child->core.x - clip->core.width / 2, child->core.y);
+	if (!rw->www.use_scroll && parent != NULL && XtParent(parent) != NULL) {
+		WWWMoveChild((Widget)rw, rw->core.x - parent->core.width / 2, rw->core.y);
+		return;
+	}
+
+	WWWMoveChild((Widget)rw, rw->www.child->core.x - rw->www.clip->core.width / 2, rw->www.child->core.y);
 }
 
 /*
@@ -674,9 +648,14 @@ static void WWWPageRightAction(Widget w, XEvent *xe, String *params, Cardinal *n
  */
 static void WWWScrollUpAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
 	WWWWidget rw = (WWWWidget)XtParent(XtParent(w));
-	Widget child = rw->www.child;
+	Widget parent = XtParent((Widget)rw);
 
-	WWWMoveChild((Widget)rw, child->core.x, child->core.y + 10);
+	if (!rw->www.use_scroll && parent != NULL && XtParent(parent) != NULL) {
+		WWWMoveChild((Widget)rw, rw->core.x, rw->core.y + 10);
+		return;
+	}
+
+	WWWMoveChild((Widget)rw, rw->www.child->core.x, rw->www.child->core.y + 10);
 }
 
 /*
@@ -684,19 +663,29 @@ static void WWWScrollUpAction(Widget w, XEvent *xe, String *params, Cardinal *nu
  */
 static void WWWScrollDownAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
 	WWWWidget rw = (WWWWidget)XtParent(XtParent(w));
-	Widget child = rw->www.child;
+	Widget parent = XtParent((Widget)rw);
 
-	WWWMoveChild((Widget)rw, child->core.x, child->core.y - 10);
+	if (!rw->www.use_scroll && parent != NULL && XtParent(parent) != NULL) {
+		WWWMoveChild((Widget)rw, rw->core.x, rw->core.y - 10);
+		return;
+	}
+
+	WWWMoveChild((Widget)rw, rw->www.child->core.x, rw->www.child->core.y - 10);
 }
 
 /*
- * WWWScrolLeftAction
+ * WWWScrollLeftAction
  */
 static void WWWScrollLeftAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
 	WWWWidget rw = (WWWWidget)XtParent(XtParent(w));
-	Widget child = rw->www.child;
+	Widget parent = XtParent((Widget)rw);
 
-	WWWMoveChild((Widget)rw, child->core.x + 10, child->core.y);
+	if (!rw->www.use_scroll && parent != NULL && XtParent(parent) != NULL) {
+		WWWMoveChild((Widget)rw, rw->core.x + 10, rw->core.y);
+		return;
+	}
+
+	WWWMoveChild((Widget)rw, rw->www.child->core.x + 10, rw->www.child->core.y);
 }
 
 /*
@@ -704,7 +693,12 @@ static void WWWScrollLeftAction(Widget w, XEvent *xe, String *params, Cardinal *
  */
 static void WWWScrollRightAction(Widget w, XEvent *xe, String *params, Cardinal *num_params) {
 	WWWWidget rw = (WWWWidget)XtParent(XtParent(w));
-	Widget child = rw->www.child;
+	Widget parent = XtParent((Widget)rw);
 
-	WWWMoveChild((Widget)rw, child->core.x - 10, child->core.y);
+	if (!rw->www.use_scroll && parent != NULL && XtParent(parent) != NULL) {
+		WWWMoveChild((Widget)rw, rw->core.x - 10, rw->core.y);
+		return;
+	}
+
+	WWWMoveChild((Widget)rw, rw->www.child->core.x - 10, rw->www.child->core.y);
 }

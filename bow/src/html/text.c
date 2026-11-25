@@ -45,6 +45,9 @@ static void HTMLPreformatted _ArgProto((HTMLInfo, HTMLEnv, char *, size_t));
 static void RenderText(HTMLInfo li, HTMLBox box, Region r) {
 	TextState *ts = (TextState *)box->closure;
 	int x, y;
+	if (ts == NULL || ts->s == NULL || ts->len == 0)
+		return;
+
 	XFontStruct *font = HTMLGetFont(li, box->env);
 
 	XSetFont(li->dpy, li->gc, font->fid);
@@ -82,6 +85,10 @@ HTMLBox HTMLCreateTextBox(HTMLInfo li, HTMLEnv env, char *s, size_t slen) {
 		slen = 1;
 		bflags = BOX_SPACE;
 	} else {
+		char *copy = (char *)MPGet(li->mp, slen + 1);
+		memcpy(copy, s, slen);
+		copy[slen] = '\0';
+		s = copy;
 		bflags = BOX_NONE;
 	}
 
