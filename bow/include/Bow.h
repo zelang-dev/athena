@@ -31,9 +31,11 @@
 #if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
 #	include "quickjs-ng.h"
 #	include "quickjs-libc-ng.h"
+#	define JS_NAME	"QuickJS-NG"
 #else
 #	include "quickjs.h"
 #	include "quickjs-libc.h"
+#	define JS_NAME	"QuickJS"
 #endif
 
 #include "css.h"

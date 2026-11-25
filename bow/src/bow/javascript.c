@@ -504,7 +504,7 @@ static void run_javascript(JSContext *ctx, const char *script, int is_mod) {
 		const char *s = JS_ToCString(ctx, stack);
 		JSValue ex = JS_GetException(ctx);
 		const char *msg = JS_ToCString(ctx, ex);
-		fprintf(stderr, "Exception: %s\n%s\n", msg ? msg : "", s ? s : "");
+		fprintf(stderr, JS_NAME " Exception: %s\n%s\n", (msg ? msg : ""), (s ? s : ""));
 		if (s)
 			JS_FreeCString(ctx, s);
 		if (msg)
@@ -723,7 +723,7 @@ static void qjs_xt_timeout_cb(XtPointer client_data, XtIntervalId *id) {
 			if (JS_IsException(ret)) {
 				JSValue ex = JS_GetException(ctx);
 				const char *msg = JS_ToCString(ctx, ex);
-				fprintf(stderr, "Timer Exception: %s\n", msg ? msg : "(unknown)");
+				fprintf(stderr, "Timer Exception: %s\n", (msg ? msg : "(unknown)"));
 				if (msg)
 					JS_FreeCString(ctx, msg);
 				JS_FreeValue(ctx, ex);
@@ -787,7 +787,7 @@ void qjs_fire_onload(bow_t web) {
 			const char *msg = JS_ToCString(ctx, ex);
 			JSValue stack = JS_GetPropertyStr(ctx, ex, "stack");
 			const char *s = JS_ToCString(ctx, stack);
-			fprintf(stderr, "window.onload Exception: %s\n%s\n", msg ? msg : "", s ? s : "");
+			fprintf(stderr, "window.onload Exception: %s\n%s\n", (msg ? msg : ""), (s ? s : ""));
 			if (s)
 				JS_FreeCString(ctx, s);
 
@@ -940,6 +940,9 @@ static void push_log(bow_t web, const char *text) {
 static JSValue qjs_console_hook(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
 	(void)this_val;
 	bow_t web = (bow_t)JS_GetContextOpaque(ctx);
+	if (!web)
+		return;
+
 	int i;
 	for (i = 0; i < argc; i++) {
 		size_t len;
@@ -952,21 +955,6 @@ static JSValue qjs_console_hook(JSContext *ctx, JSValueConst this_val, int argc,
 		}
 	}
 	push_log(web, "\n");
-	return JS_UNDEFINED;
-}
-
-static JSValue js_native_system_log(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-	(void)this_val;
-	int i;
-
-	for (i = 0; i < argc; i++) {
-		const char *str = JS_ToCString(ctx, argv[i]);
-		if (str) {
-			fprintf(stdout, "%s\n", str);
-			JS_FreeCString(ctx, str);
-		}
-	}
-
 	return JS_UNDEFINED;
 }
 
@@ -1004,19 +992,12 @@ FORCEINLINE bool qjs_is_running(bow_t web) {
 	return web && web->qjs && web->qjs->ctx;
 }
 
-FORCEINLINE char *qjs_get_buf(bow_t web, unsigned long *size) {
+FORCEINLINE char *qjs_console_buf(bow_t web, unsigned long *size) {
 	*size = web->qjs->js_buf_size;
 	return web->qjs->js_buf;
 }
 
-FORCEINLINE void qjs_set_buf(bow_t web, char *data, unsigned long size) {
-	if (web && web->qjs) {
-		web->qjs->js_buf_size = size;
-		web->qjs->js_buf = data;
-	}
-}
-
-FORCEINLINE void qjs_free_buf(bow_t web) {
+FORCEINLINE void qjs_free_console(bow_t web) {
 	if (web && web->qjs && web->qjs->js_buf) {
 		free(web->qjs->js_buf);
 		web->qjs->js_buf_size = 0;
@@ -2440,7 +2421,8 @@ static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
 	JS_SetPropertyStr(ctx, global, "Event", JS_DupValue(ctx, event_ctor));
 	JS_SetPropertyStr(ctx, global, "CustomEvent", event_ctor);
 
-	/* Console hook to capture output into js_buf
+#ifndef USE_DEBUG
+	/* Console hook to capture output into js_buf */
 	JSValue console_obj = JS_NewObject(ctx);
 	JS_SetPropertyStr(ctx, console_obj, "log",
 		JS_NewCFunction(ctx, qjs_console_hook, "log", 1));
@@ -2450,7 +2432,8 @@ static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
 		JS_NewCFunction(ctx, qjs_console_hook, "error", 1));
 	JS_SetPropertyStr(ctx, console_obj, "info",
 		JS_NewCFunction(ctx, qjs_console_hook, "info", 1));
-	JS_SetPropertyStr(ctx, global, "console", console_obj);*/
+	JS_SetPropertyStr(ctx, global, "console", console_obj);
+#endif
 
 	JS_SetPropertyStr(ctx, global, "fetch",
 		JS_NewCFunction(ctx, js_global_fetch, "fetch", 1));

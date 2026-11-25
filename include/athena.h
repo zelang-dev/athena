@@ -936,9 +936,18 @@ C_API void qjs_set_script(bow_t web, char *data, unsigned long size);
 C_API void qjs_append_script(bow_t web, const char *text, size_t text_len);
 C_API void qjs_free_script(bow_t web);
 
-C_API char *qjs_get_buf(bow_t web, unsigned long *size);
-C_API void qjs_set_buf(bow_t web, char *data, unsigned long size);
-C_API void qjs_free_buf(bow_t web);
+/*
+ * Return pointer to current buffer contents in `console.log()`,
+ * - `console.log()` appends output to internal buffer.
+ * - Use `qjs_free_console()` to reset/release.
+ * - An additional `1kb` is added on buffer resizing.
+ *
+ * This always return `NULL` in `DEBUG` builds, `console.log()` goes to `stdout`.
+ */
+C_API char *qjs_console_buf(bow_t web, unsigned long *size);
+
+/* Reset/free current `console.log()` buffer contents */
+C_API void qjs_free_console(bow_t web);
 C_API bool qjs_is_running(bow_t web);
 C_API bool qjs_is_module(const char *filepath);
 C_API HtmlDom_t *qjs_parse(bow_t web, const char *html);
