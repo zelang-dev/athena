@@ -32,6 +32,10 @@
 
 #ifdef __linux__
 
+#ifndef USE_PLATFORM_ARH
+#	define USE_PLATFORM_ARH "Linux x86_64"
+#endif
+
 #ifndef _GNU_SOURCE
 #	define _GNU_SOURCE
 #endif

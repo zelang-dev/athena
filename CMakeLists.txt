@@ -174,6 +174,7 @@ if(BUILD_QUICKJS_NG)
 	add_compile_definitions(USE_QUICKJS_NG=1)
 endif()
 
+add_compile_definitions(USE_PLATFORM_ARH="Linux ${PROJECT__ARCH}")
 add_subdirectory(bow)
 target_link_libraries(${PROJECT_NAME} bow)
 

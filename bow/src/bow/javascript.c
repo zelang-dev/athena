@@ -18,6 +18,8 @@ static void execute_script_blocks(JSContext *ctx, HtmlDom_t *n);
 static void run_javascript(JSContext *ctx, const char *script, int is_mod);
 static void qjs_free_timers(JSContext *ctx);
 static void js_free_dom(HtmlDom_t *node);
+static void qjs_install_browser_env(JSContext *ctx, bow_t web);
+static void qjs_sync_location(bow_t web, const char *url);
 static JSValue js_canvas_get_context(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
 static JSValue js_getBoundingRect(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
 /* HTMLCanvasElement width & height getters/setters */
@@ -76,6 +78,8 @@ static JSValue js_bow_post_message(JSContext *ctx, JSValueConst this_val, int ar
 
 /* Bind an externally parsed HtmlDom_t tree as the active document root */
 void qjs_bind_dom(bow_t web, HtmlDom_t *dom) {
+	const char *active_url = NULL;
+
 	if (!web || !web->qjs || !web->qjs->ctx || !dom)
 		return;
 
@@ -92,6 +96,12 @@ void qjs_bind_dom(bow_t web, HtmlDom_t *dom) {
 
 	JS_FreeValue(web->qjs->ctx, doc_obj);
 	JS_FreeValue(web->qjs->ctx, global);
+
+	if (web->active_html) {
+		HTMLInfo hinfo = (HTMLInfo)web->active_html;
+		active_url = hinfo->url ? hinfo->url : hinfo->burl;
+	}
+	qjs_sync_location(web, active_url);
 }
 
 static unsigned long long hash_dom_snapshot(bow_t web) {
@@ -253,7 +263,7 @@ static void notify_mutation(const char *type, HtmlDom_t *target) {
 	JS_Observer *curr = gl_ctx.observers;
 	while (curr) {
 		if (!JS_IsUndefined(curr->callback) && !JS_IsNull(curr->callback) &&
-		    (curr->target == NULL || curr->target == target)) {
+			(curr->target == NULL || curr->target == target)) {
 			JSValue records = JS_NewArray(gl_ctx.ctx);
 			JSValue record = JS_NewObject(gl_ctx.ctx);
 			JS_SetPropertyStr(gl_ctx.ctx, record, "type",
@@ -534,8 +544,8 @@ static HtmlDom_t *find_clicked_node(HtmlDom_t *node, int mx, int my) {
 
 	int ay = node->y - gl_ctx.scroll_offset_y;
 	if (node->type == NODE_ELEMENT &&
-	    mx >= node->x && mx <= node->x + node->width &&
-	    my >= ay && my <= ay + node->height) {
+		mx >= node->x && mx <= node->x + node->width &&
+		my >= ay && my <= ay + node->height) {
 		return node;
 	}
 
@@ -664,7 +674,9 @@ struct QJSTimerData_S {
 	bow_t         web;
 	JSValue       callback;
 	XtIntervalId  tid;
+	unsigned long delay_ms;
 	bool          active;
+	bool          repeat;
 	QJSTimerData *prev;
 	QJSTimerData *next;
 };
@@ -710,47 +722,70 @@ static void qjs_xt_timeout_cb(XtPointer client_data, XtIntervalId *id) {
 		return;
 
 	td->active = false;
-	qjs_unlink_timer(td);
 
 	if (td->web && td->web->qjs && td->web->qjs->ctx) {
 		ctx = td->web->qjs->ctx;
-		JSValue cb = td->callback;
-		td->callback = JS_UNDEFINED;
-		free(td);
+		if (td->repeat && td->web->appcon) {
+			JSValue cb_dup = JS_DupValue(ctx, td->callback);
+			td->active = true;
+			td->tid = XtAppAddTimeOut(td->web->appcon, td->delay_ms, qjs_xt_timeout_cb, td);
 
-		if (!JS_IsUndefined(cb) && !JS_IsNull(cb)) {
-			JSValue ret = JS_Call(ctx, cb, JS_UNDEFINED, 0, NULL);
-			if (JS_IsException(ret)) {
-				JSValue ex = JS_GetException(ctx);
-				const char *msg = JS_ToCString(ctx, ex);
-				fprintf(stderr, "Timer Exception: %s\n", (msg ? msg : "(unknown)"));
-				if (msg)
-					JS_FreeCString(ctx, msg);
-				JS_FreeValue(ctx, ex);
+			if (!JS_IsUndefined(cb_dup) && !JS_IsNull(cb_dup)) {
+				JSValue ret = JS_Call(ctx, cb_dup, JS_UNDEFINED, 0, NULL);
+				if (JS_IsException(ret)) {
+					JSValue ex = JS_GetException(ctx);
+					const char *msg = JS_ToCString(ctx, ex);
+					fprintf(stderr, "Timer Exception: %s\n", (msg ? msg : "(unknown)"));
+					if (msg)
+						JS_FreeCString(ctx, msg);
+					JS_FreeValue(ctx, ex);
+				}
+				JS_FreeValue(ctx, ret);
+				JS_FreeValue(ctx, cb_dup);
 			}
-			JS_FreeValue(ctx, ret);
-			JS_FreeValue(ctx, cb);
+		} else {
+			qjs_unlink_timer(td);
+			JSValue cb = td->callback;
+			td->callback = JS_UNDEFINED;
+			free(td);
+
+			if (!JS_IsUndefined(cb) && !JS_IsNull(cb)) {
+				JSValue ret = JS_Call(ctx, cb, JS_UNDEFINED, 0, NULL);
+				if (JS_IsException(ret)) {
+					JSValue ex = JS_GetException(ctx);
+					const char *msg = JS_ToCString(ctx, ex);
+					fprintf(stderr, "Timer Exception: %s\n", (msg ? msg : "(unknown)"));
+					if (msg)
+						JS_FreeCString(ctx, msg);
+					JS_FreeValue(ctx, ex);
+				}
+				JS_FreeValue(ctx, ret);
+				JS_FreeValue(ctx, cb);
+			}
 		}
 		while (JS_ExecutePendingJob(JS_GetRuntime(ctx), &pctx) > 0)
 			;
 	} else {
+		qjs_unlink_timer(td);
 		free(td);
 	}
 }
 
-static JSValue js_global_set_timeout(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+static JSValue js_schedule_timer(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv, bool repeat) {
 	bow_t web = (bow_t)JS_GetContextOpaque(ctx);
 	int32_t delay = 0;
 	QJSTimerData *td;
 
 	(void)this_val;
 	if (argc < 1 || !JS_IsFunction(ctx, argv[0]) || !web || !web->appcon)
-		return JS_UNDEFINED;
+		return JS_NewInt32(ctx, 0);
 
 	if (argc >= 2)
 		JS_ToInt32(ctx, &delay, argv[1]);
 	if (delay < 0)
 		delay = 0;
+	if (repeat && delay < 1)
+		delay = 1;
 
 	td = (QJSTimerData *)calloc(1, sizeof(QJSTimerData));
 	if (!td)
@@ -758,14 +793,55 @@ static JSValue js_global_set_timeout(JSContext *ctx, JSValueConst this_val, int 
 
 	td->web = web;
 	td->callback = JS_DupValue(ctx, argv[0]);
+	td->delay_ms = (unsigned long)delay;
 	td->active = true;
+	td->repeat = repeat;
 	td->next = gl_ctx.timers;
 	if (gl_ctx.timers)
 		gl_ctx.timers->prev = td;
 	gl_ctx.timers = td;
 
-	td->tid = XtAppAddTimeOut(web->appcon, (unsigned long)delay, qjs_xt_timeout_cb, td);
+	td->tid = XtAppAddTimeOut(web->appcon, td->delay_ms, qjs_xt_timeout_cb, td);
 	return JS_NewInt64(ctx, (int64_t)td->tid);
+}
+
+static JSValue js_global_set_timeout(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	return js_schedule_timer(ctx, this_val, argc, argv, false);
+}
+
+static JSValue js_global_set_interval(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	return js_schedule_timer(ctx, this_val, argc, argv, true);
+}
+
+static JSValue js_global_clear_timer(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	int64_t id = 0;
+	QJSTimerData *curr;
+
+	(void)this_val;
+	if (argc < 1 || JS_IsUndefined(argv[0]) || JS_IsNull(argv[0]))
+		return JS_UNDEFINED;
+
+	if (JS_ToInt64(ctx, &id, argv[0]) < 0 || id == 0)
+		return JS_UNDEFINED;
+
+	curr = gl_ctx.timers;
+	while (curr) {
+		if ((int64_t)curr->tid == id) {
+			if (curr->active && curr->tid) {
+				XtRemoveTimeOut(curr->tid);
+				curr->active = false;
+			}
+			qjs_unlink_timer(curr);
+			if (!JS_IsUndefined(curr->callback)) {
+				JS_FreeValue(ctx, curr->callback);
+				curr->callback = JS_UNDEFINED;
+			}
+			free(curr);
+			break;
+}
+		curr = curr->next;
+	}
+	return JS_UNDEFINED;
 }
 
 void qjs_fire_onload(bow_t web) {
@@ -903,7 +979,7 @@ static void js_object_finalizer(JSRuntime *rt, JSValue val) {
 static void canvas_finalizer(JSRuntime *rt, JSValue val) {
 }
 
-static JSClassDef js_dom_obs_class = { "JS_Observer" };
+static JSClassDef js_dom_obs_class = {"JS_Observer"};
 static JSClassDef js_dom_node_class = {
 	"HtmlDom_t",
 	.finalizer = js_object_finalizer,
@@ -1135,6 +1211,28 @@ static void find_dom_by_class_rec(HtmlDom_t *node, const char *cls, HtmlDom_t **
 	}
 }
 
+static void find_dom_by_name_rec(HtmlDom_t *node, const char *name, HtmlDom_t ***items, size_t *count, size_t *cap) {
+	if (!node || !name)
+		return;
+
+	if (node->type == NODE_ELEMENT) {
+		const char *val = dom_get_attr(node, "name");
+		if (val && strcmp(val, name) == 0) {
+			if (*count == *cap) {
+				*cap = (*cap == 0) ? 16 : (*cap * 2);
+				*items = realloc(*items, sizeof(HtmlDom_t *) * (*cap));
+			}
+			(*items)[(*count)++] = node;
+		}
+	}
+
+	HtmlDom_t *c = node->first_child;
+	while (c) {
+		find_dom_by_name_rec(c, name, items, count, cap);
+		c = c->next_sibling;
+	}
+}
+
 /* ============================================================================
  * DOM Element / Node Properties (Getters & Setters)
  * ============================================================================ */
@@ -1175,7 +1273,7 @@ static JSValue js_dom_get_node_name(JSContext *ctx, JSValue this_val, int argc, 
 static JSValue js_dom_get_node_type(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
-		return JS_UNDEFINED;
+		return JS_NewInt32(ctx, 9);
 
 	/* Standard W3C DOM nodeType constants */
 	switch (node->type) {
@@ -1183,7 +1281,7 @@ static JSValue js_dom_get_node_type(JSContext *ctx, JSValue this_val, int argc, 
 		case NODE_TEXT:     return JS_NewInt32(ctx, 3); /* TEXT_NODE */
 		case NODE_COMMENT:  return JS_NewInt32(ctx, 8); /* COMMENT_NODE */
 		case NODE_DOCUMENT: return JS_NewInt32(ctx, 9); /* DOCUMENT_NODE */
-		default:            return JS_NewInt32(ctx, 0);
+		default:            return JS_NewInt32(ctx, 9);
 	}
 }
 
@@ -1748,6 +1846,25 @@ static JSValue js_dom_get_elements_by_class_name(JSContext *ctx, JSValueConst th
 	return arr;
 }
 
+static JSValue js_dom_get_elements_by_name(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
+	if (argc < 1)
+		return JS_NewArray(ctx);
+
+	const char *name = JS_ToCString(ctx, argv[0]);
+	if (!name)
+		return JS_NewArray(ctx);
+
+	HtmlDom_t **items = NULL;
+	size_t count = 0, cap = 0;
+	find_dom_by_name_rec(gl_ctx.dom_root, name, &items, &count, &cap);
+	JS_FreeCString(ctx, name);
+
+	JSValue arr = create_js_nodelist(ctx, items, count);
+	free(items);
+	return arr;
+}
+
 static JSValue js_dom_get_element_by_id(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
 	(void)this_val;
 	if (argc < 1)
@@ -2135,7 +2252,7 @@ static JSValue js_dom_remove_eventlistener(JSContext *ctx, JSValueConst this_val
 		JS_Listener *curr = node->listeners;
 		while (curr) {
 			if (curr->type && strcmp(curr->type, type) == 0 &&
-			    JS_VALUE_GET_PTR(curr->callback) == JS_VALUE_GET_PTR(argv[1])) {
+				JS_VALUE_GET_PTR(curr->callback) == JS_VALUE_GET_PTR(argv[1])) {
 				if (prev)
 					prev->next = curr->next;
 				else
@@ -2182,7 +2299,7 @@ static JSValue js_dom_dispatch_event(JSContext *ctx, JSValueConst this_val, int 
 			JS_FreeValue(ctx, ev_obj);
 			JS_FreeCString(ctx, ev_type);
 		}
-	}
+}
 
 	return JS_TRUE;
 }
@@ -2223,6 +2340,14 @@ static JSValue js_dom_create_comment(JSContext *ctx, JSValueConst this_val, int 
 	return create_js_dom_wrapper(ctx, native);
 }
 
+static JSValue js_dom_create_document_fragment(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)this_val;
+	(void)argc;
+	(void)argv;
+	HtmlDom_t *frag = dom_create_element("#document-fragment");
+	return create_js_dom_wrapper(ctx, frag);
+}
+
 static JSValue js_event_ctor(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
 	(void)this_val;
 	if (argc < 1)
@@ -2247,7 +2372,7 @@ static JSValue js_event_ctor(JSContext *ctx, JSValueConst this_val, int argc, JS
  * ============================================================================ */
 
 static void define_accessor(JSContext *ctx, JSValue proto, const char *name,
-                            JSCFunction *getter, JSCFunction *setter) {
+	JSCFunction *getter, JSCFunction *setter) {
 	JSAtom atom = JS_NewAtom(ctx, name);
 	JSValue get_fn = getter ? JS_NewCFunction2(ctx, getter, name, 0, JS_CFUNC_getter, 0) : JS_UNDEFINED;
 	JSValue set_fn = setter ? JS_NewCFunction2(ctx, setter, name, 1, JS_CFUNC_setter, 0) : JS_UNDEFINED;
@@ -2286,6 +2411,443 @@ static JSValue js_doc_get_document_element(JSContext *ctx, JSValue this_val, int
 	return create_js_dom_wrapper(ctx, html ? html : gl_ctx.dom_root);
 }
 
+/* ============================================================================
+ * Browser Environment Shim & Location Synchronization
+ * ============================================================================ */
+
+static void qjs_sync_location(bow_t web, const char *url) {
+	JSContext *ctx;
+	JSValue global, loc_obj, doc_obj;
+	const char *u = (url && *url) ? url : "about:blank";
+	char protocol[32] = "about:";
+	char host[256] = "";
+	char hostname[256] = "";
+	char port[16] = "";
+	char pathname[512] = "/";
+	char search[512] = "";
+	char hash[256] = "";
+	char origin[320] = "null";
+	const char *p, *auth_start, *auth_end, *colon, *qmark, *hmark;
+	size_t len;
+
+	if (!web || !web->qjs || !web->qjs->ctx)
+		return;
+
+	ctx = web->qjs->ctx;
+	p = strstr(u, "://");
+	if (p) {
+		len = (size_t)(p - u) + 1;
+		if (len >= sizeof(protocol))
+			len = sizeof(protocol) - 1;
+		memcpy(protocol, u, len);
+		protocol[len] = '\0';
+
+		auth_start = p + 3;
+		auth_end = strpbrk(auth_start, "/?#");
+		if (!auth_end)
+			auth_end = auth_start + strlen(auth_start);
+
+		len = (size_t)(auth_end - auth_start);
+		if (len >= sizeof(host))
+			len = sizeof(host) - 1;
+		memcpy(host, auth_start, len);
+		host[len] = '\0';
+
+		colon = strchr(host, ':');
+		if (colon) {
+			size_t hlen = (size_t)(colon - host);
+			if (hlen >= sizeof(hostname))
+				hlen = sizeof(hostname) - 1;
+			memcpy(hostname, host, hlen);
+			hostname[hlen] = '\0';
+			snprintf(port, sizeof(port), "%s", colon + 1);
+		} else {
+			snprintf(hostname, sizeof(hostname), "%s", host);
+		}
+
+		if (host[0])
+			snprintf(origin, sizeof(origin), "%s//%s", protocol, host);
+
+		hmark = strchr(auth_end, '#');
+		if (hmark)
+			snprintf(hash, sizeof(hash), "%s", hmark);
+
+		qmark = strchr(auth_end, '?');
+		if (qmark && (!hmark || qmark < hmark)) {
+			size_t slen = hmark ? (size_t)(hmark - qmark) : strlen(qmark);
+			if (slen >= sizeof(search))
+				slen = sizeof(search) - 1;
+			memcpy(search, qmark, slen);
+			search[slen] = '\0';
+		}
+
+		if (*auth_end == '/') {
+			const char *path_end = qmark ? qmark : (hmark ? hmark : auth_end + strlen(auth_end));
+			size_t plen = (size_t)(path_end - auth_end);
+			if (plen >= sizeof(pathname))
+				plen = sizeof(pathname) - 1;
+			memcpy(pathname, auth_end, plen);
+			pathname[plen] = '\0';
+		}
+	} else {
+		const char *c = strchr(u, ':');
+		if (c) {
+			len = (size_t)(c - u) + 1;
+			if (len >= sizeof(protocol))
+				len = sizeof(protocol) - 1;
+			memcpy(protocol, u, len);
+			protocol[len] = '\0';
+			snprintf(pathname, sizeof(pathname), "%s", c + 1);
+		} else {
+			snprintf(pathname, sizeof(pathname), "%s", u);
+		}
+	}
+
+	global = JS_GetGlobalObject(ctx);
+	loc_obj = JS_GetPropertyStr(ctx, global, "location");
+	if (JS_IsObject(loc_obj)) {
+		JS_SetPropertyStr(ctx, loc_obj, "href", JS_NewString(ctx, u));
+		JS_SetPropertyStr(ctx, loc_obj, "protocol", JS_NewString(ctx, protocol));
+		JS_SetPropertyStr(ctx, loc_obj, "host", JS_NewString(ctx, host));
+		JS_SetPropertyStr(ctx, loc_obj, "hostname", JS_NewString(ctx, hostname));
+		JS_SetPropertyStr(ctx, loc_obj, "port", JS_NewString(ctx, port));
+		JS_SetPropertyStr(ctx, loc_obj, "pathname", JS_NewString(ctx, pathname));
+		JS_SetPropertyStr(ctx, loc_obj, "search", JS_NewString(ctx, search));
+		JS_SetPropertyStr(ctx, loc_obj, "hash", JS_NewString(ctx, hash));
+		JS_SetPropertyStr(ctx, loc_obj, "origin", JS_NewString(ctx, origin));
+	}
+	JS_FreeValue(ctx, loc_obj);
+
+	doc_obj = JS_GetPropertyStr(ctx, global, "document");
+	if (JS_IsObject(doc_obj)) {
+		JS_SetPropertyStr(ctx, doc_obj, "URL", JS_NewString(ctx, u));
+		JS_SetPropertyStr(ctx, doc_obj, "documentURI", JS_NewString(ctx, u));
+		JS_SetPropertyStr(ctx, doc_obj, "domain", JS_NewString(ctx, hostname));
+	}
+	JS_FreeValue(ctx, doc_obj);
+	JS_FreeValue(ctx, global);
+}
+
+static void qjs_install_browser_env(JSContext *ctx, bow_t web) {
+	static const char *bootstrap_js =
+		"(function(g) {\n"
+		"  g.self = g;\n"
+		"  g.top = g;\n"
+		"  g.parent = g;\n"
+		"  g.frames = g;\n"
+		"  if (typeof g.innerWidth !== 'number') g.innerWidth = 1024;\n"
+		"  if (typeof g.innerHeight !== 'number') g.innerHeight = 768;\n"
+		"  if (typeof g.outerWidth !== 'number') g.outerWidth = 1024;\n"
+		"  if (typeof g.outerHeight !== 'number') g.outerHeight = 768;\n"
+		"  if (typeof g.devicePixelRatio !== 'number') g.devicePixelRatio = 1;\n"
+		"  if (!g.navigator) {\n"
+		"    g.navigator = {\n"
+		"      userAgent: 'Mozilla/5.0 (X11; "USE_PLATFORM_ARH") AppleWebKit/537.36 (KHTML, like Gecko) Bow/0.6.0 Safari/537.36',\n"
+		"      appName: 'Netscape',\n"
+		"      appVersion: '5.0 (X11)',\n"
+		"      platform: '"USE_PLATFORM_ARH"',\n"
+		"      language: 'en-US',\n"
+		"      languages: ['en-US', 'en'],\n"
+		"      cookieEnabled: true,\n"
+		"      onLine: true,\n"
+		"      vendor: 'Bow',\n"
+		"      product: 'Gecko',\n"
+		"      hardwareConcurrency: 4,\n"
+		"      maxTouchPoints: 0,\n"
+		"      plugins: [],\n"
+		"      mimeTypes: [],\n"
+		"      javaEnabled: function() { return false; },\n"
+		"      sendBeacon: function() { return true; }\n"
+		"    };\n"
+		"  }\n"
+		"  if (!g.location) {\n"
+		"    g.location = {\n"
+		"      href: 'about:blank',\n"
+		"      protocol: 'about:',\n"
+		"      host: '',\n"
+		"      hostname: '',\n"
+		"      port: '',\n"
+		"      pathname: 'blank',\n"
+		"      search: '',\n"
+		"      hash: '',\n"
+		"      origin: 'null',\n"
+		"      assign: function(u) { this.href = String(u); },\n"
+		"      replace: function(u) { this.href = String(u); },\n"
+		"      reload: function() {},\n"
+		"      toString: function() { return this.href; }\n"
+		"    };\n"
+		"  }\n"
+		"  if (!g.history) {\n"
+		"    g.history = {\n"
+		"      length: 1,\n"
+		"      state: null,\n"
+		"      scrollRestoration: 'auto',\n"
+		"      back: function() {},\n"
+		"      forward: function() {},\n"
+		"      go: function() {},\n"
+		"      pushState: function(s, t, u) { this.state = s; if (u) g.location.href = String(u); },\n"
+		"      replaceState: function(s, t, u) { this.state = s; if (u) g.location.href = String(u); }\n"
+		"    };\n"
+		"  }\n"
+		"  if (!g.screen) {\n"
+		"    g.screen = {\n"
+		"      width: 1024, height: 768,\n"
+		"      availWidth: 1024, availHeight: 768,\n"
+		"      colorDepth: 24, pixelDepth: 24,\n"
+		"      orientation: { type: 'landscape-primary', angle: 0 }\n"
+		"    };\n"
+		"  }\n"
+		"  if (!g.performance) {\n"
+		"    var _t0 = Date.now();\n"
+		"    g.performance = {\n"
+		"      timeOrigin: _t0,\n"
+		"      now: function() { return Date.now() - _t0; },\n"
+		"      mark: function() {},\n"
+		"      measure: function() {},\n"
+		"      clearMarks: function() {},\n"
+		"      clearMeasures: function() {},\n"
+		"      getEntries: function() { return []; },\n"
+		"      getEntriesByType: function() { return []; },\n"
+		"      getEntriesByName: function() { return []; },\n"
+		"      timing: { navigationStart: _t0 }\n"
+		"    };\n"
+		"  }\n"
+		"  if (!g.requestAnimationFrame) {\n"
+		"    g.requestAnimationFrame = function(cb) {\n"
+		"      return g.setTimeout(function() { cb(g.performance.now()); }, 16);\n"
+		"    };\n"
+		"  }\n"
+		"  if (!g.cancelAnimationFrame) {\n"
+		"    g.cancelAnimationFrame = function(id) { g.clearTimeout(id); };\n"
+		"  }\n"
+		"  if (!g.matchMedia) {\n"
+		"    g.matchMedia = function(q) {\n"
+		"      return {\n"
+		"        matches: false,\n"
+		"        media: String(q || ''),\n"
+		"        onchange: null,\n"
+		"        addListener: function() {},\n"
+		"        removeListener: function() {},\n"
+		"        addEventListener: function() {},\n"
+		"        removeEventListener: function() {},\n"
+		"        dispatchEvent: function() { return false; }\n"
+		"      };\n"
+		"    };\n"
+		"  }\n"
+		"  if (!g.getComputedStyle) {\n"
+		"    g.getComputedStyle = function(el) {\n"
+		"      var s = (el && el.style) ? el.style : {};\n"
+		"      return new Proxy(s, {\n"
+		"        get: function(t, p) {\n"
+		"          if (p === 'getPropertyValue') return function(k) { return t[k] || ''; };\n"
+		"          return (p in t) ? t[p] : '';\n"
+		"        }\n"
+		"      });\n"
+		"    };\n"
+		"  }\n"
+		"  if (!g.Image) {\n"
+		"    g.Image = function(w, h) {\n"
+		"      var img = g.document.createElement('img');\n"
+		"      if (w !== undefined) img.width = w;\n"
+		"      if (h !== undefined) img.height = h;\n"
+		"      return img;\n"
+		"    };\n"
+		"  }\n"
+		"  var _winListeners = {};\n"
+		"  if (typeof g.addEventListener !== 'function') {\n"
+		"    g.addEventListener = function(type, fn) {\n"
+		"      if (typeof fn !== 'function') return;\n"
+		"      if (!_winListeners[type]) _winListeners[type] = [];\n"
+		"      _winListeners[type].push(fn);\n"
+		"    };\n"
+		"  }\n"
+		"  if (typeof g.removeEventListener !== 'function') {\n"
+		"    g.removeEventListener = function(type, fn) {\n"
+		"      var list = _winListeners[type];\n"
+		"      if (!list) return;\n"
+		"      var idx = list.indexOf(fn);\n"
+		"      if (idx >= 0) list.splice(idx, 1);\n"
+		"    };\n"
+		"  }\n"
+		"  if (typeof g.dispatchEvent !== 'function') {\n"
+		"    g.dispatchEvent = function(ev) {\n"
+		"      if (!ev || !ev.type) return false;\n"
+		"      var list = _winListeners[ev.type] || [];\n"
+		"      for (var i = 0; i < list.length; i++) list[i].call(g, ev);\n"
+		"      return true;\n"
+		"    };\n"
+		"  }\n"
+		"  var doc = g.document;\n"
+		"  if (doc) {\n"
+		"    if (typeof doc.cookie !== 'string') doc.cookie = '';\n"
+		"    if (typeof doc.referrer !== 'string') doc.referrer = '';\n"
+		"    if (typeof doc.URL !== 'string') doc.URL = g.location.href;\n"
+		"    if (typeof doc.documentURI !== 'string') doc.documentURI = g.location.href;\n"
+		"    if (typeof doc.domain !== 'string') doc.domain = g.location.hostname;\n"
+		"    if (typeof doc.title !== 'string') doc.title = '';\n"
+		"    if (typeof doc.readyState !== 'string') doc.readyState = 'complete';\n"
+		"    if (typeof doc.compatMode !== 'string') doc.compatMode = 'CSS1Compat';\n"
+		"    if (typeof doc.characterSet !== 'string') doc.characterSet = 'UTF-8';\n"
+		"    if (!doc.defaultView) doc.defaultView = g;\n"
+		"    if (!doc.location) doc.location = g.location;\n"
+		"    if (typeof doc.write !== 'function') doc.write = function() {};\n"
+		"    if (typeof doc.writeln !== 'function') doc.writeln = function() {};\n"
+		"    if (!doc.forms) doc.forms = [];\n"
+		"    if (!doc.images) doc.images = [];\n"
+		"    if (!doc.links) doc.links = [];\n"
+		"    if (!doc.scripts) doc.scripts = [];\n"
+		"    if (!doc.styleSheets) doc.styleSheets = [];\n"
+		"    var proto = Object.getPrototypeOf(doc);\n"
+		"    if (proto) {\n"
+		"      if (!Object.getOwnPropertyDescriptor(proto, 'style')) {\n"
+		"        Object.defineProperty(proto, 'style', {\n"
+		"          configurable: true,\n"
+		"          get: function() {\n"
+		"            if (!this._styleObj) {\n"
+		"              var selfEl = this;\n"
+		"              this._styleObj = new Proxy({}, {\n"
+		"                get: function(t, k) {\n"
+		"                  if (k === 'setProperty') return function(n, v) { t[n] = String(v); };\n"
+		"                  if (k === 'getPropertyValue') return function(n) { return t[n] || ''; };\n"
+		"                  if (k === 'removeProperty') return function(n) { var old = t[n] || ''; delete t[n]; return old; };\n"
+		"                  return t[k] || '';\n"
+		"                },\n"
+		"                set: function(t, k, v) {\n"
+		"                  t[k] = String(v);\n"
+		"                  if (k === 'cssText' && selfEl.setAttribute) selfEl.setAttribute('style', String(v));\n"
+		"                  return true;\n"
+		"                }\n"
+		"              });\n"
+		"            }\n"
+		"            return this._styleObj;\n"
+		"          }\n"
+		"        });\n"
+		"      }\n"
+		"      if (!Object.getOwnPropertyDescriptor(proto, 'dataset')) {\n"
+		"        Object.defineProperty(proto, 'dataset', {\n"
+		"          configurable: true,\n"
+		"          get: function() {\n"
+		"            var selfEl = this;\n"
+		"            return new Proxy({}, {\n"
+		"              get: function(_, k) {\n"
+		"                var attr = 'data-' + String(k).replace(/[A-Z]/g, function(m) { return '-' + m.toLowerCase(); });\n"
+		"                var v = selfEl.getAttribute ? selfEl.getAttribute(attr) : null;\n"
+		"                return v === null ? undefined : v;\n"
+		"              },\n"
+		"              set: function(_, k, v) {\n"
+		"                var attr = 'data-' + String(k).replace(/[A-Z]/g, function(m) { return '-' + m.toLowerCase(); });\n"
+		"                if (selfEl.setAttribute) selfEl.setAttribute(attr, String(v));\n"
+		"                return true;\n"
+		"              }\n"
+		"            });\n"
+		"          }\n"
+		"        });\n"
+		"      }\n"
+		"      if (!Object.getOwnPropertyDescriptor(proto, 'classList')) {\n"
+		"        Object.defineProperty(proto, 'classList', {\n"
+		"          configurable: true,\n"
+		"          get: function() {\n"
+		"            var selfEl = this;\n"
+		"            function parts() {\n"
+		"              var cn = selfEl.className || '';\n"
+		"              return cn ? cn.trim().split(/\\s+/) : [];\n"
+		"            }\n"
+		"            return {\n"
+		"              add: function() {\n"
+		"                var list = parts();\n"
+		"                for (var i = 0; i < arguments.length; i++) {\n"
+		"                  if (list.indexOf(arguments[i]) < 0) list.push(arguments[i]);\n"
+		"                }\n"
+		"                selfEl.className = list.join(' ');\n"
+		"              },\n"
+		"              remove: function() {\n"
+		"                var list = parts();\n"
+		"                for (var i = 0; i < arguments.length; i++) {\n"
+		"                  var idx = list.indexOf(arguments[i]);\n"
+		"                  if (idx >= 0) list.splice(idx, 1);\n"
+		"                }\n"
+		"                selfEl.className = list.join(' ');\n"
+		"              },\n"
+		"              toggle: function(cls, force) {\n"
+		"                var has = this.contains(cls);\n"
+		"                if (force === true || (!has && force !== false)) { this.add(cls); return true; }\n"
+		"                this.remove(cls); return false;\n"
+		"              },\n"
+		"              contains: function(cls) { return parts().indexOf(cls) >= 0; },\n"
+		"              item: function(i) { return parts()[i] || null; },\n"
+		"              toString: function() { return selfEl.className || ''; }\n"
+		"            };\n"
+		"          }\n"
+		"        });\n"
+		"      }\n"
+		"      if (typeof proto.focus !== 'function') proto.focus = function() { doc.activeElement = this; };\n"
+		"      if (typeof proto.blur !== 'function') proto.blur = function() { if (doc.activeElement === this) doc.activeElement = doc.body; };\n"
+		"      if (typeof proto.click !== 'function') proto.click = function() { if (this.dispatchEvent) this.dispatchEvent('click'); };\n"
+		"      if (typeof proto.getBoundingClientRect !== 'function') {\n"
+		"        proto.getBoundingClientRect = function() {\n"
+		"          return { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 };\n"
+		"        };\n"
+		"      }\n"
+		"      if (typeof proto.contains !== 'function') {\n"
+		"        proto.contains = function(other) {\n"
+		"          var cur = other;\n"
+		"          while (cur) { if (cur === this) return true; cur = cur.parentNode; }\n"
+		"          return false;\n"
+		"        };\n"
+		"      }\n"
+		"      if (typeof proto.matches !== 'function') {\n"
+		"        proto.matches = function(sel) {\n"
+		"          if (!sel || !this.tagName) return false;\n"
+		"          if (sel[0] === '#') return this.id === sel.slice(1);\n"
+		"          if (sel[0] === '.') return this.classList.contains(sel.slice(1));\n"
+		"          return this.tagName.toLowerCase() === sel.toLowerCase();\n"
+		"        };\n"
+		"      }\n"
+		"      if (typeof proto.closest !== 'function') {\n"
+		"        proto.closest = function(sel) {\n"
+		"          var cur = this;\n"
+		"          while (cur && cur.nodeType === 1) {\n"
+		"            if (cur.matches(sel)) return cur;\n"
+		"            cur = cur.parentNode;\n"
+		"          }\n"
+		"          return null;\n"
+		"        };\n"
+		"      }\n"
+		"    }\n"
+		"  }\n"
+		"})(globalThis);\n";
+	const char *active_url = NULL;
+
+	if (!ctx)
+		return;
+
+	JS_SetPropertyStr(ctx, JS_GetGlobalObject(ctx), "clearTimeout",
+		JS_NewCFunction(ctx, js_global_clear_timer, "clearTimeout", 1));
+	JSValue global = JS_GetGlobalObject(ctx);
+	JS_SetPropertyStr(ctx, global, "setInterval",
+		JS_NewCFunction(ctx, js_global_set_interval, "setInterval", 2));
+	JS_SetPropertyStr(ctx, global, "clearInterval",
+		JS_NewCFunction(ctx, js_global_clear_timer, "clearInterval", 1));
+	JS_FreeValue(ctx, global);
+
+	JSValue res = JS_Eval(ctx, bootstrap_js, strlen(bootstrap_js), "<browser-env>", JS_EVAL_TYPE_GLOBAL);
+	if (JS_IsException(res)) {
+		JSValue ex = JS_GetException(ctx);
+		const char *msg = JS_ToCString(ctx, ex);
+		fprintf(stderr, "Browser Env Bootstrap Exception: %s\n", msg ? msg : "(unknown)");
+		if (msg)
+			JS_FreeCString(ctx, msg);
+		JS_FreeValue(ctx, ex);
+	}
+	JS_FreeValue(ctx, res);
+
+	if (web && web->active_html) {
+		HTMLInfo hinfo = (HTMLInfo)web->active_html;
+		active_url = hinfo->url ? hinfo->url : hinfo->burl;
+	}
+	qjs_sync_location(web, active_url);
+}
+
 static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
 #if defined(USE_QUICKJS_NG) || defined(QUICKJS_NG)
 	JS_NewClassID(rt, &gl_ctx.js_class_id);
@@ -2303,28 +2865,28 @@ static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
 	JSValue proto = JS_NewObject(ctx);
 
 	/* Standard DOM Node/Element Properties */
-	define_accessor(ctx, proto, "tagName",               js_dom_get_tag_name,               NULL);
-	define_accessor(ctx, proto, "nodeName",              js_dom_get_node_name,              NULL);
-	define_accessor(ctx, proto, "nodeType",              js_dom_get_node_type,              NULL);
-	define_accessor(ctx, proto, "id",                    js_dom_get_id,                     js_dom_set_id);
-	define_accessor(ctx, proto, "className",             js_dom_get_class_name,             js_dom_set_class_name);
-	define_accessor(ctx, proto, "textContent",           js_dom_get_text_content,           js_dom_set_text_content);
-	define_accessor(ctx, proto, "innerText",             js_dom_get_text_content,           js_dom_set_text_content);
-	define_accessor(ctx, proto, "innerHTML",             js_dom_get_inner_html,             js_dom_set_inner_html);
-	define_accessor(ctx, proto, "outerHTML",             js_dom_get_outer_html,             js_dom_set_outer_html);
-	define_accessor(ctx, proto, "parentNode",            js_dom_get_parent_node,            NULL);
-	define_accessor(ctx, proto, "parentElement",         js_dom_get_parent_node,            NULL);
-	define_accessor(ctx, proto, "childNodes",            js_dom_get_child_nodes,            NULL);
-	define_accessor(ctx, proto, "children",              js_dom_get_children,               NULL);
-	define_accessor(ctx, proto, "firstChild",            js_dom_get_first_child,            NULL);
-	define_accessor(ctx, proto, "lastChild",             js_dom_get_last_child,             NULL);
-	define_accessor(ctx, proto, "nextSibling",           js_dom_get_next_sibling,           NULL);
-	define_accessor(ctx, proto, "previousSibling",       js_dom_get_previous_sibling,       NULL);
-	define_accessor(ctx, proto, "firstElementChild",     js_dom_get_first_element_child,    NULL);
-	define_accessor(ctx, proto, "lastElementChild",      js_dom_get_last_element_child,     NULL);
-	define_accessor(ctx, proto, "nextElementSibling",    js_dom_get_next_element_sibling,   NULL);
-	define_accessor(ctx, proto, "previousElementSibling",js_dom_get_previous_element_sibling,NULL);
-	define_accessor(ctx, proto, "length",                js_dom_get_length,                 NULL);
+	define_accessor(ctx, proto, "tagName", js_dom_get_tag_name, NULL);
+	define_accessor(ctx, proto, "nodeName", js_dom_get_node_name, NULL);
+	define_accessor(ctx, proto, "nodeType", js_dom_get_node_type, NULL);
+	define_accessor(ctx, proto, "id", js_dom_get_id, js_dom_set_id);
+	define_accessor(ctx, proto, "className", js_dom_get_class_name, js_dom_set_class_name);
+	define_accessor(ctx, proto, "textContent", js_dom_get_text_content, js_dom_set_text_content);
+	define_accessor(ctx, proto, "innerText", js_dom_get_text_content, js_dom_set_text_content);
+	define_accessor(ctx, proto, "innerHTML", js_dom_get_inner_html, js_dom_set_inner_html);
+	define_accessor(ctx, proto, "outerHTML", js_dom_get_outer_html, js_dom_set_outer_html);
+	define_accessor(ctx, proto, "parentNode", js_dom_get_parent_node, NULL);
+	define_accessor(ctx, proto, "parentElement", js_dom_get_parent_node, NULL);
+	define_accessor(ctx, proto, "childNodes", js_dom_get_child_nodes, NULL);
+	define_accessor(ctx, proto, "children", js_dom_get_children, NULL);
+	define_accessor(ctx, proto, "firstChild", js_dom_get_first_child, NULL);
+	define_accessor(ctx, proto, "lastChild", js_dom_get_last_child, NULL);
+	define_accessor(ctx, proto, "nextSibling", js_dom_get_next_sibling, NULL);
+	define_accessor(ctx, proto, "previousSibling", js_dom_get_previous_sibling, NULL);
+	define_accessor(ctx, proto, "firstElementChild", js_dom_get_first_element_child, NULL);
+	define_accessor(ctx, proto, "lastElementChild", js_dom_get_last_element_child, NULL);
+	define_accessor(ctx, proto, "nextElementSibling", js_dom_get_next_element_sibling, NULL);
+	define_accessor(ctx, proto, "previousElementSibling", js_dom_get_previous_element_sibling, NULL);
+	define_accessor(ctx, proto, "length", js_dom_get_length, NULL);
 	define_accessor(ctx, proto, "childElementCount", js_dom_get_child_element_count, NULL);
 
 
@@ -2332,9 +2894,9 @@ static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
 	JS_SetPropertyStr(ctx, proto, "onclick", JS_NewCFunction(ctx, js_dom_set_onclick, "setclick", 1));
 
 	/* Standard W3C Node Type Constants on Node prototype */
-	JS_SetPropertyStr(ctx, proto, "ELEMENT_NODE",  JS_NewInt32(ctx, 1));
-	JS_SetPropertyStr(ctx, proto, "TEXT_NODE",     JS_NewInt32(ctx, 3));
-	JS_SetPropertyStr(ctx, proto, "COMMENT_NODE",  JS_NewInt32(ctx, 8));
+	JS_SetPropertyStr(ctx, proto, "ELEMENT_NODE", JS_NewInt32(ctx, 1));
+	JS_SetPropertyStr(ctx, proto, "TEXT_NODE", JS_NewInt32(ctx, 3));
+	JS_SetPropertyStr(ctx, proto, "COMMENT_NODE", JS_NewInt32(ctx, 8));
 	JS_SetPropertyStr(ctx, proto, "DOCUMENT_NODE", JS_NewInt32(ctx, 9));
 
 	/* DOM Mutation & Manipulation Methods */
@@ -2388,12 +2950,13 @@ static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
 }
 
 static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
+	bow_t web = (bow_t)JS_GetContextOpaque(ctx);
 	JSValue global = JS_GetGlobalObject(ctx);
 
 	/* Document object backed by dom_root */
 	JSValue doc_obj = create_js_dom_wrapper(ctx, root);
-	define_accessor(ctx, doc_obj, "body",            js_doc_get_body,             NULL);
-	define_accessor(ctx, doc_obj, "head",            js_doc_get_head,             NULL);
+	define_accessor(ctx, doc_obj, "body", js_doc_get_body, NULL);
+	define_accessor(ctx, doc_obj, "head", js_doc_get_head, NULL);
 	define_accessor(ctx, doc_obj, "documentElement", js_doc_get_document_element, NULL);
 
 	JS_SetPropertyStr(ctx, doc_obj, "getElementById",
@@ -2402,6 +2965,8 @@ static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
 		JS_NewCFunction(ctx, js_dom_get_elements_by_tag_name, "getElementsByTagName", 1));
 	JS_SetPropertyStr(ctx, doc_obj, "getElementsByClassName",
 		JS_NewCFunction(ctx, js_dom_get_elements_by_class_name, "getElementsByClassName", 1));
+	JS_SetPropertyStr(ctx, doc_obj, "getElementsByName",
+		JS_NewCFunction(ctx, js_dom_get_elements_by_name, "getElementsByName", 1));
 	JS_SetPropertyStr(ctx, doc_obj, "querySelector",
 		JS_NewCFunction(ctx, js_dom_query_selector, "querySelector", 1));
 	JS_SetPropertyStr(ctx, doc_obj, "querySelectorAll",
@@ -2412,6 +2977,8 @@ static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
 		JS_NewCFunction(ctx, js_dom_create_text_node, "createTextNode", 1));
 	JS_SetPropertyStr(ctx, doc_obj, "createComment",
 		JS_NewCFunction(ctx, js_dom_create_comment, "createComment", 1));
+	JS_SetPropertyStr(ctx, doc_obj, "createDocumentFragment",
+		JS_NewCFunction(ctx, js_dom_create_document_fragment, "createDocumentFragment", 0));
 
 	JS_SetPropertyStr(ctx, global, "document", doc_obj);
 	JS_SetPropertyStr(ctx, global, "window", JS_DupValue(ctx, global));
@@ -2461,6 +3028,7 @@ static void qjs_interfaces_set(JSContext *ctx, HtmlDom_t *root) {
 	JS_SetPropertyStr(ctx, global, "bow", bridge_obj);
 
 	JS_FreeValue(ctx, global);
+	qjs_install_browser_env(ctx, web);
 }
 
 /* Create QuickJS interpreter state */
@@ -2587,8 +3155,7 @@ FORCEINLINE bool qjs_func_set(bow_t web, const char *namespace) {
 	return r;
 }
 
-static const char *
-strip_file_url_prefix(const char *u) {
+static const char *strip_file_url_prefix(const char *u) {
 	if (!u)
 		return NULL;
 	if (strncmp(u, "file://", 7) == 0) {
@@ -2648,6 +3215,8 @@ FORCEINLINE char *qjs_get_file(const char *path_url) {
 }
 
 HtmlDom_t *qjs_parse(bow_t web, const char *html) {
+	const char *active_url = NULL;
+
 	if (!web || !html)
 		return NULL;
 
@@ -2675,6 +3244,12 @@ HtmlDom_t *qjs_parse(bow_t web, const char *html) {
 	JS_FreeValue(web->qjs->ctx, doc_obj);
 	JS_FreeValue(web->qjs->ctx, global);
 
+	if (web->active_html) {
+		HTMLInfo hinfo = (HTMLInfo)web->active_html;
+		active_url = hinfo->url ? hinfo->url : hinfo->burl;
+	}
+	qjs_sync_location(web, active_url);
+
 	if (web->js_data && web->js_data != (void *)html) {
 		free(web->js_data);
 	}
@@ -2700,10 +3275,10 @@ static void execute_script_blocks(JSContext *ctx, HtmlDom_t *n) {
 
 		/* Skip non-JS script types like application/ld+json */
 		if (type_attr && !is_mod &&
-		    strcasecmp(type_attr, "text/javascript") != 0 &&
-		    strcasecmp(type_attr, "application/javascript") != 0 &&
-		    strcasecmp(type_attr, "application/ecmascript") != 0 &&
-		    strcasecmp(type_attr, "text/ecmascript") != 0) {
+			strcasecmp(type_attr, "text/javascript") != 0 &&
+			strcasecmp(type_attr, "application/javascript") != 0 &&
+			strcasecmp(type_attr, "application/ecmascript") != 0 &&
+			strcasecmp(type_attr, "text/ecmascript") != 0) {
 			continue;
 		}
 
