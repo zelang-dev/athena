@@ -59,8 +59,8 @@ struct BowStreamP {
 	bool                  destroyed;
 	MemPool               mp;
 	BowResources      cres;
-	struct tls			*tls;
-	struct tls_config	*tls_config;
+	struct tls *tls;
+	struct tls_config *tls_config;
 	int                   s;
 	int                   as;
 	unsigned long         addr;
@@ -84,18 +84,13 @@ struct BowStreamP {
 	XtInputId             wrid;
 };
 
-static void WriteStreamHandler _ArgProto((XtPointer, int *, XtInputId *));
-static void ReadStreamHandler _ArgProto((XtPointer, int *, XtInputId *));
+static void WriteStreamHandler(XtPointer, int *, XtInputId *);
+static void ReadStreamHandler(XtPointer, int *, XtInputId *);
 
 /*
  * WriteStreamHandler
  */
-static void
-WriteStreamHandler(cldata, netfd, xid)
-XtPointer cldata;
-int *netfd;
-XtInputId *xid;
-{
+static void WriteStreamHandler(XtPointer cldata, int *netfd, XtInputId *xid) {
 	BowStream ps = (BowStream)cldata;
 	ssize_t wlen;
 	int s;
@@ -118,19 +113,12 @@ XtInputId *xid;
 			CMethod(ps->wrfunc)(ps, 0, ps->wrclosure);
 		}
 	}
-
-	return;
 }
 
 /*
  * ReadStreamHandler
  */
-static void
-ReadStreamHandler(cldata, netfd, xid)
-XtPointer cldata;
-int *netfd;
-XtInputId *xid;
-{
+static void ReadStreamHandler(XtPointer cldata, int *netfd, XtInputId *xid) {
 	BowStream ps = (BowStream)cldata;
 	ssize_t rlen;
 	struct sockaddr addr;
@@ -162,21 +150,12 @@ XtInputId *xid;
 		ps->rdid = 0;
 		CMethod(ps->rdfunc)(ps, rlen, ps->rdclosure);
 	}
-
-	return;
 }
 
 /*
  * StreamRead
  */
-void
-StreamRead(ps, b, blen, func, closure)
-BowStream ps;
-byte *b;
-size_t blen;
-BowStreamCallback func;
-void *closure;
-{
+void StreamRead(BowStream ps, byte *b, size_t blen, BowStreamCallback func, void *closure) {
 	int s;
 
 	myassert(!ps->destroyed, "BowStream destroyed");
@@ -198,14 +177,7 @@ void *closure;
 /*
  * StreamWrite
  */
-void
-StreamWrite(ps, b, blen, func, closure)
-BowStream ps;
-byte *b;
-size_t blen;
-BowStreamCallback func;
-void *closure;
-{
+void StreamWrite(BowStream ps, byte *b, size_t blen, BowStreamCallback func, void *closure) {
 	myassert(!ps->destroyed, "BowStream destroyed.");
 
 	ps->wrb = b;
@@ -217,8 +189,6 @@ void *closure;
 		ps->s,
 		(XtPointer)XtInputWriteMask,
 		WriteStreamHandler, (XtPointer)ps);
-
-	return;
 }
 
 /*
@@ -275,10 +245,7 @@ BowStream StreamCreateINet(BowResources cres, char *host, int port) {
 /*
  * StreamCreateINet2
  */
-BowStream
-StreamCreateINet2(cres)
-BowResources cres;
-{
+BowStream StreamCreateINet2(BowResources cres) {
 	MemPool mp;
 	BowStream ps;
 	int s;
@@ -346,10 +313,7 @@ BowResources cres;
 /*
  * StreamDestroy
  */
-void
-StreamDestroy(ps)
-BowStream ps;
-{
+void StreamDestroy(BowStream ps) {
 	myassert(!ps->destroyed, "BowStream destroyed");
 
 	ps->destroyed = true;
@@ -357,17 +321,12 @@ BowStream ps;
 	if (ps->wrid != 0) XtRemoveInput(ps->wrid);
 	close(ps->s);
 	MPDestroy(ps->mp);
-
-	return;
 }
 
 /*
  * StreamGetINetPort
  */
-int
-StreamGetINetPort(ps)
-BowStream ps;
-{
+int StreamGetINetPort(BowStream ps) {
 	return(ps->port);
 }
 
