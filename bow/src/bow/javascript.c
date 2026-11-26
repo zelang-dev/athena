@@ -10,7 +10,9 @@ static jsMessage_cb g_js_msg_cb = NULL;
 static void *g_js_msg_closure = NULL;
 
 /* Forward declarations */
-static void define_accessor(JSContext *ctx, JSValue proto, const char *name, JSCFunction *getter, JSCFunction *setter);
+typedef JSValue(*JSGetterFunc)(JSContext *ctx, JSValueConst this_val);
+typedef JSValue(*JSSetterFunc)(JSContext *ctx, JSValueConst this_val, JSValueConst val);
+static void define_accessor(JSContext *ctx, JSValue proto, const char *name, JSGetterFunc getter, JSSetterFunc setter);
 static JSValue create_js_dom_wrapper(JSContext *ctx, HtmlDom_t *node);
 static JSValue create_js_nodelist(JSContext *ctx, HtmlDom_t **items, size_t count);
 static void notify_mutation(const char *type, HtmlDom_t *target);
@@ -188,6 +190,45 @@ static void js_free_dom(HtmlDom_t *node) {
 	dom_free(node);
 }
 
+/* Break circular global references (window/self/top/parent/frames/document.defaultView)
+ * so QuickJS reference counting reclaims globalThis before JS_FreeRuntime. */
+static void qjs_break_global_cycles(JSContext *ctx) {
+	if (!ctx)
+		return;
+
+	static const char *cleanup_js =
+		"(function(g) {\n"
+		"  try {\n"
+		"    if (g.document) {\n"
+		"      delete g.document.defaultView;\n"
+		"      delete g.document.location;\n"
+		"      delete g.document.activeElement;\n"
+		"    }\n"
+		"    delete g.window;\n"
+		"    delete g.self;\n"
+		"    delete g.top;\n"
+		"    delete g.parent;\n"
+		"    delete g.frames;\n"
+		"    delete g.document;\n"
+		"    delete g.location;\n"
+		"    delete g.history;\n"
+		"    delete g.navigator;\n"
+		"    delete g.screen;\n"
+		"    delete g.performance;\n"
+		"    delete g.console;\n"
+		"    delete g.bow;\n"
+		"    delete g.sysConfig;\n"
+		"  } catch (e) {}\n"
+		"})(globalThis);\n";
+
+	JSValue v = JS_Eval(ctx, cleanup_js, strlen(cleanup_js), "<cleanup>", JS_EVAL_TYPE_GLOBAL);
+	if (JS_IsException(v)) {
+		JSValue ex = JS_GetException(ctx);
+		JS_FreeValue(ctx, ex);
+	}
+	JS_FreeValue(ctx, v);
+}
+
 void qjs_exit(void) {
 	g_run_pipeline = false;
 	usleep(50000); /* Allow async threads to exit gracefully */
@@ -245,8 +286,16 @@ void qjs_exit(void) {
 
 	if (gl_ctx.ctx) {
 		qjs_free_timers(gl_ctx.ctx);
-		JS_FreeValue(gl_ctx.ctx, gl_ctx.js_obs);
-		JS_FreeValue(gl_ctx.ctx, gl_ctx.js_this);
+		qjs_break_global_cycles(gl_ctx.ctx);
+		if (!JS_IsUndefined(gl_ctx.js_obs)) {
+			JS_FreeValue(gl_ctx.ctx, gl_ctx.js_obs);
+			gl_ctx.js_obs = JS_UNDEFINED;
+		}
+		if (!JS_IsUndefined(gl_ctx.js_this)) {
+			JS_FreeValue(gl_ctx.ctx, gl_ctx.js_this);
+			gl_ctx.js_this = JS_UNDEFINED;
+		}
+		JS_RunGC(gl_ctx.rt);
 		js_std_free_handlers(gl_ctx.rt);
 		JS_FreeContext(gl_ctx.ctx);
 		JS_RunGC(gl_ctx.rt);
@@ -502,6 +551,20 @@ static JSModuleDef *js_async_module_loader(JSContext *ctx, const char *name, voi
 	return JS_NewCModule(ctx, name, NULL);
 }
 
+static void dump_js_exception(JSContext *ctx, const char *prefix, JSValueConst v) {
+	JSValue ex = JS_IsException(v) ? JS_GetException(ctx) : JS_DupValue(ctx, v);
+	const char *msg = JS_ToCString(ctx, ex);
+	JSValue stack = JS_GetPropertyStr(ctx, ex, "stack");
+	const char *s = (!JS_IsUndefined(stack) && !JS_IsNull(stack)) ? JS_ToCString(ctx, stack) : NULL;
+	fprintf(stderr, "%s: %s\n%s\n", prefix, (msg ? msg : ""), (s ? s : ""));
+	if (s)
+		JS_FreeCString(ctx, s);
+	if (msg)
+		JS_FreeCString(ctx, msg);
+	JS_FreeValue(ctx, stack);
+	JS_FreeValue(ctx, ex);
+}
+
 static void run_javascript(JSContext *ctx, const char *script, int is_mod) {
 	if (!ctx || !script)
 		return;
@@ -510,17 +573,7 @@ static void run_javascript(JSContext *ctx, const char *script, int is_mod) {
 		(is_mod ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL));
 	js_std_loop(ctx);
 	if (JS_IsException(v)) {
-		JSValue stack = JS_GetPropertyStr(ctx, v, "stack");
-		const char *s = JS_ToCString(ctx, stack);
-		JSValue ex = JS_GetException(ctx);
-		const char *msg = JS_ToCString(ctx, ex);
-		fprintf(stderr, JS_NAME " Exception: %s\n%s\n", (msg ? msg : ""), (s ? s : ""));
-		if (s)
-			JS_FreeCString(ctx, s);
-		if (msg)
-			JS_FreeCString(ctx, msg);
-		JS_FreeValue(ctx, stack);
-		JS_FreeValue(ctx, ex);
+		dump_js_exception(ctx, JS_NAME " Exception", v);
 	}
 
 	JS_FreeValue(ctx, v);
@@ -567,8 +620,7 @@ static void dispatch_dom_event_internal(JSContext *ctx, HtmlDom_t *target, const
 				JSValue arg = event_obj;
 				JSValue ret = JS_Call(ctx, curr->callback, this_elem, 1, &arg);
 				if (JS_IsException(ret)) {
-					JSValue ex = JS_GetException(ctx);
-					JS_FreeValue(ctx, ex);
+					dump_js_exception(ctx, "Event Listener Exception", ret);
 				}
 				JS_FreeValue(ctx, ret);
 			}
@@ -580,19 +632,31 @@ static void dispatch_dom_event_internal(JSContext *ctx, HtmlDom_t *target, const
 				JSValue arg = event_obj;
 				JSValue ret = JS_Call(ctx, curr_node->js_onclick, this_elem, 1, &arg);
 				if (JS_IsException(ret)) {
-					JSValue ex = JS_GetException(ctx);
-					JS_FreeValue(ctx, ex);
+					dump_js_exception(ctx, "onclick Exception", ret);
 				}
 				JS_FreeValue(ctx, ret);
 			} else {
 				const char *attr_code = dom_get_attr(curr_node, "onclick");
 				if (attr_code && *attr_code) {
-					JSValue fn = JS_Eval(ctx, attr_code, strlen(attr_code), "<onclick>", JS_EVAL_TYPE_GLOBAL);
-					if (JS_IsException(fn)) {
-						JSValue ex = JS_GetException(ctx);
-						JS_FreeValue(ctx, ex);
+					/* Wrap inline onclick attribute so `this` and `event` are bound properly */
+					size_t code_len = strlen(attr_code);
+					char *wrapped = malloc(code_len + 64);
+					if (wrapped) {
+						snprintf(wrapped, code_len + 64, "(function(event){%s})", attr_code);
+						JSValue fn = JS_Eval(ctx, wrapped, strlen(wrapped), "<onclick>", JS_EVAL_TYPE_GLOBAL);
+						free(wrapped);
+						if (JS_IsFunction(ctx, fn)) {
+							JSValue arg = event_obj;
+							JSValue ret = JS_Call(ctx, fn, this_elem, 1, &arg);
+							if (JS_IsException(ret)) {
+								dump_js_exception(ctx, "Inline onclick Exception", ret);
+							}
+							JS_FreeValue(ctx, ret);
+						} else if (JS_IsException(fn)) {
+							dump_js_exception(ctx, "Inline onclick Compile Exception", fn);
+						}
+						JS_FreeValue(ctx, fn);
 					}
-					JS_FreeValue(ctx, fn);
 				}
 			}
 		}
@@ -607,34 +671,50 @@ static JSValue js_event_prevent_default(JSContext *ctx, JSValueConst this_val, i
 	return JS_UNDEFINED;
 }
 
+static JSValue js_event_stop_propagation(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+	(void)ctx; (void)this_val; (void)argc; (void)argv;
+	return JS_UNDEFINED;
+}
+
 static void dispatch_mouse_event(JSContext *ctx, HtmlDom_t *target, const char *type, int mx, int my, int button) {
 	if (!ctx || !target || !type)
 		return;
 
+	JSValue target_js = create_js_dom_wrapper(ctx, target);
 	JSValue ev_obj = JS_NewObject(ctx);
 	JS_SetPropertyStr(ctx, ev_obj, "type", JS_NewString(ctx, type));
 	JS_SetPropertyStr(ctx, ev_obj, "clientX", JS_NewInt32(ctx, mx));
 	JS_SetPropertyStr(ctx, ev_obj, "clientY", JS_NewInt32(ctx, my));
+	JS_SetPropertyStr(ctx, ev_obj, "pageX", JS_NewInt32(ctx, mx));
+	JS_SetPropertyStr(ctx, ev_obj, "pageY", JS_NewInt32(ctx, my + gl_ctx.scroll_offset_y));
 	JS_SetPropertyStr(ctx, ev_obj, "which", JS_NewInt32(ctx, button));
 	JS_SetPropertyStr(ctx, ev_obj, "button", JS_NewInt32(ctx, button > 0 ? button - 1 : 0));
+	JS_SetPropertyStr(ctx, ev_obj, "bubbles", JS_TRUE);
+	JS_SetPropertyStr(ctx, ev_obj, "cancelable", JS_TRUE);
 	JS_SetPropertyStr(ctx, ev_obj, "preventDefault",
 		JS_NewCFunction(ctx, js_event_prevent_default, "preventDefault", 0));
-	JS_SetPropertyStr(ctx, ev_obj, "target", create_js_dom_wrapper(ctx, target));
+	JS_SetPropertyStr(ctx, ev_obj, "stopPropagation",
+		JS_NewCFunction(ctx, js_event_stop_propagation, "stopPropagation", 0));
+	JS_SetPropertyStr(ctx, ev_obj, "stopImmediatePropagation",
+		JS_NewCFunction(ctx, js_event_stop_propagation, "stopImmediatePropagation", 0));
+	JS_SetPropertyStr(ctx, ev_obj, "target", JS_DupValue(ctx, target_js));
+	JS_SetPropertyStr(ctx, ev_obj, "srcElement", JS_DupValue(ctx, target_js));
+	JS_SetPropertyStr(ctx, ev_obj, "currentTarget", JS_DupValue(ctx, target_js));
 
-	/* Invoke on<type> handler property (e.g., canvas.onmousedown) on target */
-	char prop_name[32];
-	snprintf(prop_name, sizeof(prop_name), "on%s", type);
-	JSValue target_js = create_js_dom_wrapper(ctx, target);
-	JSValue handler = JS_GetPropertyStr(ctx, target_js, prop_name);
-	if (JS_IsFunction(ctx, handler)) {
-		JSValue ret = JS_Call(ctx, handler, target_js, 1, &ev_obj);
-		if (JS_IsException(ret)) {
-			JSValue ex = JS_GetException(ctx);
-			JS_FreeValue(ctx, ex);
+	/* Invoke on<type> handler property (except onclick, handled in dispatch_dom_event_internal) */
+	if (strcmp(type, "click") != 0) {
+		char prop_name[32];
+		snprintf(prop_name, sizeof(prop_name), "on%s", type);
+		JSValue handler = JS_GetPropertyStr(ctx, target_js, prop_name);
+		if (JS_IsFunction(ctx, handler)) {
+			JSValue ret = JS_Call(ctx, handler, target_js, 1, &ev_obj);
+			if (JS_IsException(ret)) {
+				dump_js_exception(ctx, "Mouse Handler Exception", ret);
+			}
+			JS_FreeValue(ctx, ret);
 		}
-		JS_FreeValue(ctx, ret);
+		JS_FreeValue(ctx, handler);
 	}
-	JS_FreeValue(ctx, handler);
 	JS_FreeValue(ctx, target_js);
 
 	dispatch_dom_event_internal(ctx, target, type, ev_obj);
@@ -733,12 +813,7 @@ static void qjs_xt_timeout_cb(XtPointer client_data, XtIntervalId *id) {
 			if (!JS_IsUndefined(cb_dup) && !JS_IsNull(cb_dup)) {
 				JSValue ret = JS_Call(ctx, cb_dup, JS_UNDEFINED, 0, NULL);
 				if (JS_IsException(ret)) {
-					JSValue ex = JS_GetException(ctx);
-					const char *msg = JS_ToCString(ctx, ex);
-					fprintf(stderr, "Timer Exception: %s\n", (msg ? msg : "(unknown)"));
-					if (msg)
-						JS_FreeCString(ctx, msg);
-					JS_FreeValue(ctx, ex);
+					dump_js_exception(ctx, "Timer Exception", ret);
 				}
 				JS_FreeValue(ctx, ret);
 				JS_FreeValue(ctx, cb_dup);
@@ -752,12 +827,7 @@ static void qjs_xt_timeout_cb(XtPointer client_data, XtIntervalId *id) {
 			if (!JS_IsUndefined(cb) && !JS_IsNull(cb)) {
 				JSValue ret = JS_Call(ctx, cb, JS_UNDEFINED, 0, NULL);
 				if (JS_IsException(ret)) {
-					JSValue ex = JS_GetException(ctx);
-					const char *msg = JS_ToCString(ctx, ex);
-					fprintf(stderr, "Timer Exception: %s\n", (msg ? msg : "(unknown)"));
-					if (msg)
-						JS_FreeCString(ctx, msg);
-					JS_FreeValue(ctx, ex);
+					dump_js_exception(ctx, "Timer Exception", ret);
 				}
 				JS_FreeValue(ctx, ret);
 				JS_FreeValue(ctx, cb);
@@ -838,7 +908,7 @@ static JSValue js_global_clear_timer(JSContext *ctx, JSValueConst this_val, int 
 			}
 			free(curr);
 			break;
-}
+		}
 		curr = curr->next;
 	}
 	return JS_UNDEFINED;
@@ -859,18 +929,7 @@ void qjs_fire_onload(bow_t web) {
 	if (JS_IsFunction(ctx, onload_fn)) {
 		ret = JS_Call(ctx, onload_fn, global, 0, NULL);
 		if (JS_IsException(ret)) {
-			JSValue ex = JS_GetException(ctx);
-			const char *msg = JS_ToCString(ctx, ex);
-			JSValue stack = JS_GetPropertyStr(ctx, ex, "stack");
-			const char *s = JS_ToCString(ctx, stack);
-			fprintf(stderr, "window.onload Exception: %s\n%s\n", (msg ? msg : ""), (s ? s : ""));
-			if (s)
-				JS_FreeCString(ctx, s);
-
-			if (msg)
-				JS_FreeCString(ctx, msg);
-			JS_FreeValue(ctx, stack);
-			JS_FreeValue(ctx, ex);
+			dump_js_exception(ctx, "window.onload Exception", ret);
 		}
 		JS_FreeValue(ctx, ret);
 	}
@@ -971,12 +1030,19 @@ uint8_t *JS_GetUint8Array(JSContext *ctx, size_t *pbyte_length, JSValueConst obj
 #endif
 
 static void js_object_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_func) {
+	(void)rt;
+	(void)val;
+	(void)mark_func;
 }
 
 static void js_object_finalizer(JSRuntime *rt, JSValue val) {
+	(void)rt;
+	(void)val;
 }
 
 static void canvas_finalizer(JSRuntime *rt, JSValue val) {
+	(void)rt;
+	(void)val;
 }
 
 static JSClassDef js_dom_obs_class = {"JS_Observer"};
@@ -1017,7 +1083,7 @@ static JSValue qjs_console_hook(JSContext *ctx, JSValueConst this_val, int argc,
 	(void)this_val;
 	bow_t web = (bow_t)JS_GetContextOpaque(ctx);
 	if (!web)
-		return;
+		return JS_UNDEFINED;
 
 	int i;
 	for (i = 0; i < argc; i++) {
@@ -1125,8 +1191,8 @@ static JSValue create_js_dom_wrapper(JSContext *ctx, HtmlDom_t *node) {
 			return obj;
 
 		JS_SetOpaque(obj, node);
-		define_accessor(ctx, obj, "width", (JSCFunction *)js_canvas_get_width, (JSCFunction *)js_canvas_set_width);
-		define_accessor(ctx, obj, "height", (JSCFunction *)js_canvas_get_height, (JSCFunction *)js_canvas_set_height);
+		define_accessor(ctx, obj, "width", js_canvas_get_width, js_canvas_set_width);
+		define_accessor(ctx, obj, "height", js_canvas_get_height, js_canvas_set_height);
 		JS_SetPropertyStr(ctx, obj, "getContext",
 			JS_NewCFunction(ctx, js_canvas_get_context, "getContext", 1));
 		JS_SetPropertyStr(ctx, obj, "getBoundingClientRect",
@@ -1237,7 +1303,7 @@ static void find_dom_by_name_rec(HtmlDom_t *node, const char *name, HtmlDom_t **
  * DOM Element / Node Properties (Getters & Setters)
  * ============================================================================ */
 
-static JSValue js_dom_get_tag_name(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_tag_name(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_UNDEFINED;
@@ -1254,13 +1320,13 @@ static JSValue js_dom_get_tag_name(JSContext *ctx, JSValue this_val, int argc, J
 	return JS_UNDEFINED;
 }
 
-static JSValue js_dom_get_node_name(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_node_name(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_UNDEFINED;
 
 	if (node->type == NODE_ELEMENT)
-		return js_dom_get_tag_name(ctx, this_val, argc, argv);
+		return js_dom_get_tag_name(ctx, this_val);
 	if (node->type == NODE_TEXT)
 		return JS_NewString(ctx, "#text");
 	if (node->type == NODE_COMMENT)
@@ -1270,7 +1336,7 @@ static JSValue js_dom_get_node_name(JSContext *ctx, JSValue this_val, int argc, 
 	return JS_UNDEFINED;
 }
 
-static JSValue js_dom_get_node_type(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_node_type(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NewInt32(ctx, 9);
@@ -1285,7 +1351,7 @@ static JSValue js_dom_get_node_type(JSContext *ctx, JSValue this_val, int argc, 
 	}
 }
 
-static JSValue js_dom_get_id(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_id(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node || node->type != NODE_ELEMENT)
 		return JS_NewString(ctx, "");
@@ -1294,12 +1360,12 @@ static JSValue js_dom_get_id(JSContext *ctx, JSValue this_val, int argc, JSValue
 	return JS_NewString(ctx, val ? val : "");
 }
 
-static JSValue js_dom_set_id(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+static JSValue js_dom_set_id(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node || node->type != NODE_ELEMENT)
 		return JS_UNDEFINED;
 
-	const char *str = JS_ToCString(ctx, argv[0]);
+	const char *str = JS_ToCString(ctx, val);
 	if (str) {
 		dom_set_attr(node, "id", str);
 		JS_FreeCString(ctx, str);
@@ -1308,7 +1374,7 @@ static JSValue js_dom_set_id(JSContext *ctx, JSValueConst this_val, int argc, JS
 	return JS_UNDEFINED;
 }
 
-static JSValue js_dom_get_class_name(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_class_name(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node || node->type != NODE_ELEMENT)
 		return JS_NewString(ctx, "");
@@ -1317,12 +1383,12 @@ static JSValue js_dom_get_class_name(JSContext *ctx, JSValue this_val, int argc,
 	return JS_NewString(ctx, val ? val : "");
 }
 
-static JSValue js_dom_set_class_name(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+static JSValue js_dom_set_class_name(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node || node->type != NODE_ELEMENT)
 		return JS_UNDEFINED;
 
-	const char *str = JS_ToCString(ctx, argv[0]);
+	const char *str = JS_ToCString(ctx, val);
 	if (str) {
 		dom_set_attr(node, "class", str);
 		JS_FreeCString(ctx, str);
@@ -1331,7 +1397,117 @@ static JSValue js_dom_set_class_name(JSContext *ctx, JSValueConst this_val, int 
 	return JS_UNDEFINED;
 }
 
-static JSValue js_dom_get_text_content(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_value(JSContext *ctx, JSValueConst this_val) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_NewString(ctx, "");
+
+	const char *val = dom_get_attr(node, "value");
+	return JS_NewString(ctx, val ? val : "");
+}
+
+static JSValue js_dom_set_value(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_UNDEFINED;
+
+	const char *str = JS_ToCString(ctx, val);
+	if (str) {
+		dom_set_attr(node, "value", str);
+		JS_FreeCString(ctx, str);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_href(JSContext *ctx, JSValueConst this_val) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_NewString(ctx, "");
+
+	const char *val = dom_get_attr(node, "href");
+	return JS_NewString(ctx, val ? val : "");
+}
+
+static JSValue js_dom_set_href(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_UNDEFINED;
+
+	const char *str = JS_ToCString(ctx, val);
+	if (str) {
+		dom_set_attr(node, "href", str);
+		JS_FreeCString(ctx, str);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_src(JSContext *ctx, JSValueConst this_val) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_NewString(ctx, "");
+
+	const char *val = dom_get_attr(node, "src");
+	return JS_NewString(ctx, val ? val : "");
+}
+
+static JSValue js_dom_set_src(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_UNDEFINED;
+
+	const char *str = JS_ToCString(ctx, val);
+	if (str) {
+		dom_set_attr(node, "src", str);
+		JS_FreeCString(ctx, str);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_type(JSContext *ctx, JSValueConst this_val) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_NewString(ctx, "");
+
+	const char *val = dom_get_attr(node, "type");
+	return JS_NewString(ctx, val ? val : "");
+}
+
+static JSValue js_dom_set_type(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_UNDEFINED;
+
+	const char *str = JS_ToCString(ctx, val);
+	if (str) {
+		dom_set_attr(node, "type", str);
+		JS_FreeCString(ctx, str);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_name(JSContext *ctx, JSValueConst this_val) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_NewString(ctx, "");
+
+	const char *val = dom_get_attr(node, "name");
+	return JS_NewString(ctx, val ? val : "");
+}
+
+static JSValue js_dom_set_name(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
+	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
+	if (!node || node->type != NODE_ELEMENT)
+		return JS_UNDEFINED;
+
+	const char *str = JS_ToCString(ctx, val);
+	if (str) {
+		dom_set_attr(node, "name", str);
+		JS_FreeCString(ctx, str);
+	}
+	return JS_UNDEFINED;
+}
+
+static JSValue js_dom_get_text_content(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NULL;
@@ -1342,12 +1518,12 @@ static JSValue js_dom_get_text_content(JSContext *ctx, JSValue this_val, int arg
 	return res;
 }
 
-static JSValue js_dom_set_text_content(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+static JSValue js_dom_set_text_content(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_UNDEFINED;
 
-	const char *str = JS_ToCString(ctx, argv[0]);
+	const char *str = JS_ToCString(ctx, val);
 	if (str) {
 		dom_set_text_content(node, str);
 		JS_FreeCString(ctx, str);
@@ -1356,7 +1532,7 @@ static JSValue js_dom_set_text_content(JSContext *ctx, JSValueConst this_val, in
 	return JS_UNDEFINED;
 }
 
-static JSValue js_dom_get_inner_html(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_inner_html(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NewString(ctx, "");
@@ -1367,12 +1543,12 @@ static JSValue js_dom_get_inner_html(JSContext *ctx, JSValue this_val, int argc,
 	return res;
 }
 
-static JSValue js_dom_set_inner_html(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+static JSValue js_dom_set_inner_html(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_UNDEFINED;
 
-	const char *str = JS_ToCString(ctx, argv[0]);
+	const char *str = JS_ToCString(ctx, val);
 	if (str) {
 		dom_set_inner_html(node, str);
 		JS_FreeCString(ctx, str);
@@ -1381,7 +1557,7 @@ static JSValue js_dom_set_inner_html(JSContext *ctx, JSValueConst this_val, int 
 	return JS_UNDEFINED;
 }
 
-static JSValue js_dom_get_outer_html(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_outer_html(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NewString(ctx, "");
@@ -1392,13 +1568,13 @@ static JSValue js_dom_get_outer_html(JSContext *ctx, JSValue this_val, int argc,
 	return res;
 }
 
-static JSValue js_dom_set_outer_html(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+static JSValue js_dom_set_outer_html(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node || !node->parent)
 		return JS_UNDEFINED;
 
 	HtmlDom_t *parent = node->parent;
-	const char *str = JS_ToCString(ctx, argv[0]);
+	const char *str = JS_ToCString(ctx, val);
 	if (str) {
 		JS_SetOpaque((JSValue)this_val, NULL);
 		dom_set_outer_html(node, str);
@@ -1408,35 +1584,35 @@ static JSValue js_dom_set_outer_html(JSContext *ctx, JSValueConst this_val, int 
 	return JS_UNDEFINED;
 }
 
-static JSValue js_dom_get_parent_node(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_parent_node(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node || !node->parent)
 		return JS_NULL;
 	return create_js_dom_wrapper(ctx, node->parent);
 }
 
-static JSValue js_dom_get_first_child(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_first_child(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node || !node->first_child)
 		return JS_NULL;
 	return create_js_dom_wrapper(ctx, node->first_child);
 }
 
-static JSValue js_dom_get_last_child(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_last_child(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node || !node->last_child)
 		return JS_NULL;
 	return create_js_dom_wrapper(ctx, node->last_child);
 }
 
-static JSValue js_dom_get_next_sibling(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_next_sibling(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node || !node->next_sibling)
 		return JS_NULL;
 	return create_js_dom_wrapper(ctx, node->next_sibling);
 }
 
-static JSValue js_dom_get_previous_sibling(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_previous_sibling(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NULL;
@@ -1446,7 +1622,7 @@ static JSValue js_dom_get_previous_sibling(JSContext *ctx, JSValue this_val, int
 	return create_js_dom_wrapper(ctx, prev);
 }
 
-static JSValue js_dom_get_first_element_child(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_first_element_child(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NULL;
@@ -1459,7 +1635,7 @@ static JSValue js_dom_get_first_element_child(JSContext *ctx, JSValue this_val, 
 	return JS_NULL;
 }
 
-static JSValue js_dom_get_last_element_child(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_last_element_child(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NULL;
@@ -1473,7 +1649,7 @@ static JSValue js_dom_get_last_element_child(JSContext *ctx, JSValue this_val, i
 	return last_elem ? create_js_dom_wrapper(ctx, last_elem) : JS_NULL;
 }
 
-static JSValue js_dom_get_next_element_sibling(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_next_element_sibling(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NULL;
@@ -1486,7 +1662,7 @@ static JSValue js_dom_get_next_element_sibling(JSContext *ctx, JSValue this_val,
 	return JS_NULL;
 }
 
-static JSValue js_dom_get_previous_element_sibling(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_previous_element_sibling(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NULL;
@@ -1499,7 +1675,7 @@ static JSValue js_dom_get_previous_element_sibling(JSContext *ctx, JSValue this_
 	return JS_NULL;
 }
 
-static JSValue js_dom_get_child_nodes(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_child_nodes(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	JSValue arr = JS_NewArray(ctx);
 	if (!node)
@@ -1514,7 +1690,7 @@ static JSValue js_dom_get_child_nodes(JSContext *ctx, JSValue this_val, int argc
 	return arr;
 }
 
-static JSValue js_dom_get_children(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_children(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	JSValue arr = JS_NewArray(ctx);
 	if (!node)
@@ -1531,7 +1707,7 @@ static JSValue js_dom_get_children(JSContext *ctx, JSValue this_val, int argc, J
 	return arr;
 }
 
-static JSValue js_dom_get_length(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_length(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NewInt32(ctx, 0);
@@ -1549,7 +1725,7 @@ static JSValue js_dom_get_length(JSContext *ctx, JSValue this_val, int argc, JSV
 	return JS_NewInt32(ctx, count);
 }
 
-static JSValue js_dom_get_child_element_count(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_child_element_count(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NewInt32(ctx, 0);
@@ -1564,20 +1740,20 @@ static JSValue js_dom_get_child_element_count(JSContext *ctx, JSValue this_val, 
 	return JS_NewInt32(ctx, count);
 }
 
-static JSValue js_dom_get_onclick(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_dom_get_onclick(JSContext *ctx, JSValueConst this_val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_NULL;
 	return JS_IsUndefined(node->js_onclick) ? JS_NULL : JS_DupValue(ctx, node->js_onclick);
 }
 
-static JSValue js_dom_set_onclick(JSContext *ctx, JSValueConst this_val, int argc, JSValue *argv) {
+static JSValue js_dom_set_onclick(JSContext *ctx, JSValueConst this_val, JSValueConst val) {
 	HtmlDom_t *node = JS_GetOpaque(this_val, gl_ctx.js_class_id);
 	if (!node)
 		return JS_UNDEFINED;
 	if (!JS_IsUndefined(node->js_onclick))
 		JS_FreeValue(ctx, node->js_onclick);
-	node->js_onclick = JS_IsFunction(ctx, argv[0]) ? JS_DupValue(ctx, argv[0]) : JS_UNDEFINED;
+	node->js_onclick = JS_IsFunction(ctx, val) ? JS_DupValue(ctx, val) : JS_UNDEFINED;
 	return JS_UNDEFINED;
 }
 
@@ -2011,7 +2187,7 @@ static JSValue js_getBoundingRect(JSContext *ctx, JSValueConst this_val, int arg
 	return rect;
 }
 
-static JSValue js_ctx_get_stroke_style(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_ctx_get_stroke_style(JSContext *ctx, JSValueConst this_val) {
 	(void)this_val;
 	JS_Canvas *cctx = gl_ctx.canvas;
 	return JS_NewString(ctx, (cctx && cctx->stroke_style[0]) ? cctx->stroke_style : "#000000");
@@ -2104,6 +2280,7 @@ static JSValue js_canvas_set_height(JSContext *ctx, JSValueConst this_val, JSVal
 // fillRect JS binding
 static JSValue js_fillRect(JSContext *ctx, JSValueConst this_val,
 	int argc, JSValueConst *argv) {
+	(void)this_val;
 	JS_Canvas *cctx = gl_ctx.canvas;
 	if (!cctx)
 		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
@@ -2160,6 +2337,7 @@ static JSValue js_clearRect(JSContext *ctx, JSValueConst this_val,
 // strokeRect JS binding
 static JSValue js_strokeRect(JSContext *ctx, JSValueConst this_val,
 	int argc, JSValueConst *argv) {
+	(void)this_val;
 	JS_Canvas *cctx = gl_ctx.canvas;
 	if (!cctx)
 		return JS_ThrowTypeError(ctx, "Invalid Canvas context");
@@ -2179,10 +2357,8 @@ static JSValue js_strokeRect(JSContext *ctx, JSValueConst this_val,
 }
 
 static JSValue create_canvas_context(JSContext *ctx, JSValue obj) {
-	define_accessor(ctx, obj, "strokeStyle", (JSCFunction *)js_ctx_get_stroke_style,
-		(JSCFunction *)js_ctx_set_stroke_style);
-	define_accessor(ctx, obj, "fillStyle", (JSCFunction *)js_ctx_get_fill_style,
-		(JSCFunction *)js_ctx_set_fill_style);
+	define_accessor(ctx, obj, "strokeStyle", js_ctx_get_stroke_style, js_ctx_set_stroke_style);
+	define_accessor(ctx, obj, "fillStyle", js_ctx_get_fill_style, js_ctx_set_fill_style);
 	JS_SetPropertyStr(ctx, obj, "beginPath",
 		JS_NewCFunction(ctx, js_beginPath, "beginPath", 0));
 	JS_SetPropertyStr(ctx, obj, "moveTo",
@@ -2299,7 +2475,7 @@ static JSValue js_dom_dispatch_event(JSContext *ctx, JSValueConst this_val, int 
 			JS_FreeValue(ctx, ev_obj);
 			JS_FreeCString(ctx, ev_type);
 		}
-}
+	}
 
 	return JS_TRUE;
 }
@@ -2357,6 +2533,10 @@ static JSValue js_event_ctor(JSContext *ctx, JSValueConst this_val, int argc, JS
 	JS_SetPropertyStr(ctx, ev, "type", JS_DupValue(ctx, argv[0]));
 	JS_SetPropertyStr(ctx, ev, "bubbles", JS_TRUE);
 	JS_SetPropertyStr(ctx, ev, "cancelable", JS_TRUE);
+	JS_SetPropertyStr(ctx, ev, "preventDefault",
+		JS_NewCFunction(ctx, js_event_prevent_default, "preventDefault", 0));
+	JS_SetPropertyStr(ctx, ev, "stopPropagation",
+		JS_NewCFunction(ctx, js_event_stop_propagation, "stopPropagation", 0));
 	if (argc >= 2 && JS_IsObject(argv[1])) {
 		JSValue detail = JS_GetPropertyStr(ctx, argv[1], "detail");
 		if (!JS_IsUndefined(detail))
@@ -2372,10 +2552,10 @@ static JSValue js_event_ctor(JSContext *ctx, JSValueConst this_val, int argc, JS
  * ============================================================================ */
 
 static void define_accessor(JSContext *ctx, JSValue proto, const char *name,
-	JSCFunction *getter, JSCFunction *setter) {
+	JSGetterFunc getter, JSSetterFunc setter) {
 	JSAtom atom = JS_NewAtom(ctx, name);
-	JSValue get_fn = getter ? JS_NewCFunction2(ctx, getter, name, 0, JS_CFUNC_getter, 0) : JS_UNDEFINED;
-	JSValue set_fn = setter ? JS_NewCFunction2(ctx, setter, name, 1, JS_CFUNC_setter, 0) : JS_UNDEFINED;
+	JSValue get_fn = getter ? JS_NewCFunction2(ctx, (JSCFunction *)getter, name, 0, JS_CFUNC_getter, 0) : JS_UNDEFINED;
+	JSValue set_fn = setter ? JS_NewCFunction2(ctx, (JSCFunction *)setter, name, 1, JS_CFUNC_setter, 0) : JS_UNDEFINED;
 	int flags = JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE;
 	if (getter)
 		flags |= JS_PROP_HAS_GET;
@@ -2387,7 +2567,7 @@ static void define_accessor(JSContext *ctx, JSValue proto, const char *name,
 	JS_FreeAtom(ctx, atom);
 }
 
-static JSValue js_doc_get_body(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_doc_get_body(JSContext *ctx, JSValueConst this_val) {
 	(void)this_val;
 	if (!gl_ctx.dom_root)
 		return JS_NULL;
@@ -2395,7 +2575,7 @@ static JSValue js_doc_get_body(JSContext *ctx, JSValue this_val, int argc, JSVal
 	return create_js_dom_wrapper(ctx, body ? body : gl_ctx.dom_root);
 }
 
-static JSValue js_doc_get_head(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_doc_get_head(JSContext *ctx, JSValueConst this_val) {
 	(void)this_val;
 	if (!gl_ctx.dom_root)
 		return JS_NULL;
@@ -2403,7 +2583,7 @@ static JSValue js_doc_get_head(JSContext *ctx, JSValue this_val, int argc, JSVal
 	return head ? create_js_dom_wrapper(ctx, head) : JS_NULL;
 }
 
-static JSValue js_doc_get_document_element(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
+static JSValue js_doc_get_document_element(JSContext *ctx, JSValueConst this_val) {
 	(void)this_val;
 	if (!gl_ctx.dom_root)
 		return JS_NULL;
@@ -2813,6 +2993,16 @@ static void qjs_install_browser_env(JSContext *ctx, bow_t web) {
 		"          return null;\n"
 		"        };\n"
 		"      }\n"
+		"      if (!Object.getOwnPropertyDescriptor(proto, 'elements')) {\n"
+		"        Object.defineProperty(proto, 'elements', {\n"
+		"          configurable: true,\n"
+		"          get: function() {\n"
+		"            return this.querySelectorAll ? this.querySelectorAll('input,select,textarea,button') : [];\n"
+		"          }\n"
+		"        });\n"
+		"      }\n"
+		"      if (typeof proto.submit !== 'function') proto.submit = function() {};\n"
+		"      if (typeof proto.reset !== 'function') proto.reset = function() {};\n"
 		"    }\n"
 		"  }\n"
 		"})(globalThis);\n";
@@ -2821,9 +3011,9 @@ static void qjs_install_browser_env(JSContext *ctx, bow_t web) {
 	if (!ctx)
 		return;
 
-	JS_SetPropertyStr(ctx, JS_GetGlobalObject(ctx), "clearTimeout",
-		JS_NewCFunction(ctx, js_global_clear_timer, "clearTimeout", 1));
 	JSValue global = JS_GetGlobalObject(ctx);
+	JS_SetPropertyStr(ctx, global, "clearTimeout",
+		JS_NewCFunction(ctx, js_global_clear_timer, "clearTimeout", 1));
 	JS_SetPropertyStr(ctx, global, "setInterval",
 		JS_NewCFunction(ctx, js_global_set_interval, "setInterval", 2));
 	JS_SetPropertyStr(ctx, global, "clearInterval",
@@ -2832,12 +3022,7 @@ static void qjs_install_browser_env(JSContext *ctx, bow_t web) {
 
 	JSValue res = JS_Eval(ctx, bootstrap_js, strlen(bootstrap_js), "<browser-env>", JS_EVAL_TYPE_GLOBAL);
 	if (JS_IsException(res)) {
-		JSValue ex = JS_GetException(ctx);
-		const char *msg = JS_ToCString(ctx, ex);
-		fprintf(stderr, "Browser Env Bootstrap Exception: %s\n", msg ? msg : "(unknown)");
-		if (msg)
-			JS_FreeCString(ctx, msg);
-		JS_FreeValue(ctx, ex);
+		dump_js_exception(ctx, "Browser Env Bootstrap Exception", res);
 	}
 	JS_FreeValue(ctx, res);
 
@@ -2870,6 +3055,11 @@ static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
 	define_accessor(ctx, proto, "nodeType", js_dom_get_node_type, NULL);
 	define_accessor(ctx, proto, "id", js_dom_get_id, js_dom_set_id);
 	define_accessor(ctx, proto, "className", js_dom_get_class_name, js_dom_set_class_name);
+	define_accessor(ctx, proto, "value", js_dom_get_value, js_dom_set_value);
+	define_accessor(ctx, proto, "href", js_dom_get_href, js_dom_set_href);
+	define_accessor(ctx, proto, "src", js_dom_get_src, js_dom_set_src);
+	define_accessor(ctx, proto, "type", js_dom_get_type, js_dom_set_type);
+	define_accessor(ctx, proto, "name", js_dom_get_name, js_dom_set_name);
 	define_accessor(ctx, proto, "textContent", js_dom_get_text_content, js_dom_set_text_content);
 	define_accessor(ctx, proto, "innerText", js_dom_get_text_content, js_dom_set_text_content);
 	define_accessor(ctx, proto, "innerHTML", js_dom_get_inner_html, js_dom_set_inner_html);
@@ -2888,10 +3078,7 @@ static void qjs_proto_init(JSContext *ctx, JSRuntime *rt) {
 	define_accessor(ctx, proto, "previousElementSibling", js_dom_get_previous_element_sibling, NULL);
 	define_accessor(ctx, proto, "length", js_dom_get_length, NULL);
 	define_accessor(ctx, proto, "childElementCount", js_dom_get_child_element_count, NULL);
-
-
-	JS_SetPropertyStr(ctx, proto, "onclick", JS_NewCFunction(ctx, js_dom_get_onclick, "onclick", 0));
-	JS_SetPropertyStr(ctx, proto, "onclick", JS_NewCFunction(ctx, js_dom_set_onclick, "setclick", 1));
+	define_accessor(ctx, proto, "onclick", js_dom_get_onclick, js_dom_set_onclick);
 
 	/* Standard W3C Node Type Constants on Node prototype */
 	JS_SetPropertyStr(ctx, proto, "ELEMENT_NODE", JS_NewInt32(ctx, 1));
@@ -3090,7 +3277,7 @@ bool qjs_init(bow_t web) {
 	}
 
 	if (gl_ctx.canvas) {
-		free(gl_ctx.canvas);
+		js_free(web->qjs->ctx, gl_ctx.canvas);
 	}
 
 	gl_ctx.canvas = cctx;
@@ -3332,10 +3519,20 @@ void qjs_free(bow_t web) {
 	web->qjs->dom_root = NULL;
 
 	qjs_free_timers(web->qjs->ctx);
-	JS_FreeValue(web->qjs->ctx, web->qjs->js_obs);
-	JS_FreeValue(web->qjs->ctx, web->qjs->js_this);
+	qjs_break_global_cycles(web->qjs->ctx);
+	if (!JS_IsUndefined(web->qjs->js_obs)) {
+		JS_FreeValue(web->qjs->ctx, web->qjs->js_obs);
+		web->qjs->js_obs = JS_UNDEFINED;
+	}
+
+	if (!JS_IsUndefined(web->qjs->js_this)) {
+		JS_FreeValue(web->qjs->ctx, web->qjs->js_this);
+		web->qjs->js_this = JS_UNDEFINED;
+	}
+
 	js_std_free_handlers(web->qjs->rt);
 	JS_FreeContext(web->qjs->ctx);
+	JS_RunGC(web->qjs->rt);
 	JS_FreeRuntime(web->qjs->rt);
 	web->qjs->ctx = NULL;
 	web->qjs->rt = NULL;
