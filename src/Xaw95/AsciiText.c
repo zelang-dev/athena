@@ -73,13 +73,13 @@ SOFTWARE.
 
 #include <Xaw95/XawInit.h>
 #include <Xaw95/Cardinals.h>
-#include <Xaw95/AsciiTextP.h>
+#include "AsciiTextP.h"
 #include <Xaw95/AsciiSrc.h>
 #include <Xaw95/AsciiSink.h>
 #include <Xaw95/MultiSrc.h>
-#include <Xaw95/MultiSinkP.h>
-#include <Xaw95/XawImP.h>
-#include <Xaw95/TraversalP.h>
+#include "MultiSinkP.h"
+#include "XawImP.h"
+#include "TraversalP.h"
 
 #define TAB_COUNT 32
 

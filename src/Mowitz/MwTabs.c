@@ -159,7 +159,7 @@
 
 #include 	<Mowitz/MwTabsP.h>
 #include	<Mowitz/MwGcs.h>
-#include 	<Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 #define	MIN_WID		10
 #define	MIN_HGT		12

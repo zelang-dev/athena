@@ -10,7 +10,7 @@
 
 #include <Mowitz/MwMenuButtonP.h>
 #include <Mowitz/MwNws.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 
 static XtResource resources [] = {

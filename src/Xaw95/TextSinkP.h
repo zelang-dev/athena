@@ -1,28 +1,6 @@
-/* $XConsortium: MultiSinkP.h,v 1.2 94/04/17 20:12:24 kaleb Exp $ */
-
 /*
- * Copyright 1991 by OMRON Corporation
- *
- * Permission to use, copy, modify, distribute, and sell this software and its
- * documentation for any purpose is hereby granted without fee, provided that
- * the above copyright notice appear in all copies and that both that
- * copyright notice and this permission notice appear in supporting
- * documentation, and that the name OMRON not be used in
- * advertising or publicity pertaining to distribution of the software without
- * specific, written prior permission.  OMRON make no representations
- * about the suitability of this software for any purpose.  It is provided
- * "as is" without express or implied warranty.
- *
- * OMRON DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
- * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL OMRON BE LIABLE FOR ANY SPECIAL, INDIRECT OR
- * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
- * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
- * TORTUOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
- * PERFORMANCE OF THIS SOFTWARE.
- *
- *      Author: Li Yuhong	 OMRON Corporation
- */
+* $XConsortium: TextSinkP.h,v 1.6 94/04/17 20:13:13 kaleb Exp $
+*/
 
 
 /***********************************************************
@@ -74,55 +52,62 @@ SOFTWARE.
 ******************************************************************/
 
 /*
- * multiSinkP.h - Private definitions for multiSink object
+ * TextSinkP.h - Private definitions for TextSink object
  *
  */
 
-#ifndef _XawMultiSinkP_h
-#define _XawMultiSinkP_h
+#ifndef _XawTextSinkP_h
+#define _XawTextSinkP_h
 
 /***********************************************************************
  *
- * MultiSink Object Private Data
+ * TextSink Object Private Data
  *
  ***********************************************************************/
 
-#include <Xaw95/TextSinkP.h>
-#include <Xaw95/MultiSink.h>
+#include <Xaw95/TextSink.h>
+#include "TextP.h"	/* This source works with the Text widget. */
+#include "TextSrcP.h"	/* This source works with the Text Source. */
 
 /************************************************************
  *
- * New fields for the MultiSink object class record.
+ * New fields for the TextSink object class record.
  *
  ************************************************************/
 
-typedef struct _MultiSinkClassPart {
-  int foo;
-} MultiSinkClassPart;
+typedef struct _TextSinkClassPart {
+  void (*DisplayText)();
+  void (*InsertCursor)();
+  void (*ClearToBackground)();
+  void (*FindPosition)();
+  void (*FindDistance)();
+  void (*Resolve)();
+  int  (*MaxLines)();
+  int  (*MaxHeight)();
+  void (*SetTabs)();
+  void (*GetCursorBounds)();
+} TextSinkClassPart;
 
 /* Full class record declaration */
-
-typedef struct _MultiSinkClassRec {
+typedef struct _TextSinkClassRec {
     ObjectClassPart     object_class;
     TextSinkClassPart	text_sink_class;
-    MultiSinkClassPart	multi_sink_class;
-} MultiSinkClassRec;
+} TextSinkClassRec;
 
-extern MultiSinkClassRec multiSinkClassRec;
+extern TextSinkClassRec textSinkClassRec;
 
-/* New fields for the MultiSink object record */
+/* New fields for the TextSink object record */
 typedef struct {
-    /* public resources */
-    Boolean echo;
-    Boolean display_nonprinting;
+    /* resources */
+    Pixel foreground;		/* Foreground color. */
+    Pixel background;		/* Background color. */
 
-    /* private state */
-    GC normgc, invgc, xorgc;
-    Pixmap insertCursorOn;
-    XawTextInsertState laststate;
-    short cursor_x, cursor_y;	/* Cursor Location. */
-    XFontSet fontset; /* font set to draw */
-} MultiSinkPart;
+    /* private state. */
+    Position *tabs;		/* The tab stops as pixel values. */
+    short    *char_tabs;	/* The tabs stops as character values. */
+    int      tab_count;		/* number of items in tabs */
+
+} TextSinkPart;
 
 /****************************************************************
  *
@@ -130,27 +115,29 @@ typedef struct {
  *
  ****************************************************************/
 
-typedef struct _MultiSinkRec {
-    ObjectPart          object;
-    TextSinkPart	text_sink;
-    MultiSinkPart	multi_sink;
-} MultiSinkRec;
+typedef struct _TextSinkRec {
+  ObjectPart    object;
+  TextSinkPart	text_sink;
+} TextSinkRec;
 
-
-/********************************************
+/************************************************************
  *
- * Semi-private functions
- * for use by other Xaw modules only
+ * Private declarations.
  *
- *******************************************/
+ ************************************************************/
 
-extern void _XawMultiSinkPosToXY(
-#if NeedFunctionPrototypes
-    Widget			/* w */,
-    XawTextPosition		/* pos */,
-    Position *			/* x */,
-    Position *			/*y */
-#endif
-);
+typedef int (*_XawSinkIntFunc)();
+typedef void (*_XawSinkVoidFunc)();
 
-#endif /* _XawMultiSinkP_h */
+#define XtInheritDisplayText          ((_XawSinkVoidFunc) _XtInherit)
+#define XtInheritInsertCursor         ((_XawSinkVoidFunc) _XtInherit)
+#define XtInheritClearToBackground    ((_XawSinkVoidFunc) _XtInherit)
+#define XtInheritFindPosition         ((_XawSinkVoidFunc) _XtInherit)
+#define XtInheritFindDistance         ((_XawSinkVoidFunc) _XtInherit)
+#define XtInheritResolve              ((_XawSinkVoidFunc) _XtInherit)
+#define XtInheritMaxLines             ((_XawSinkIntFunc) _XtInherit)
+#define XtInheritMaxHeight            ((_XawSinkIntFunc) _XtInherit)
+#define XtInheritSetTabs              ((_XawSinkVoidFunc) _XtInherit)
+#define XtInheritGetCursorBounds      ((_XawSinkVoidFunc) _XtInherit)
+
+#endif /* _XawTextSinkP_h */

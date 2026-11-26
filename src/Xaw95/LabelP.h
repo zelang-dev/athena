@@ -1,9 +1,11 @@
-/* $XConsortium: DialogP.h,v 1.13 94/04/17 20:12:05 kit Exp $ */
+/*
+* $XConsortium: LabelP.h,v 1.29 94/04/17 20:12:14 kaleb Exp $
+*/
 
 
 /***********************************************************
 
-Copyright (c) 1987, 1988  X Consortium
+Copyright (c) 1987, 1988, 1994  X Consortium
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -49,50 +51,81 @@ SOFTWARE.
 
 ******************************************************************/
 
-/* Private definitions for Dialog widget */
+/*
+ * LabelP.h - Private definitions for Label widget
+ *
+ */
 
-#ifndef _DialogP_h
-#define _DialogP_h
+#ifndef _XawLabelP_h
+#define _XawLabelP_h
 
-#include <Xaw95/Dialog.h>
-#include <Xaw95/FormP.h>
+/***********************************************************************
+ *
+ * Label Widget Private Data
+ *
+ ***********************************************************************/
 
-typedef struct {int empty;} DialogClassPart;
+#include <Xaw95/Label.h>
+#include "ThreeDP.h"
 
-typedef struct _DialogClassRec {
+/* New fields for the Label widget class record */
+
+typedef struct {int foo;} LabelClassPart;
+
+/* Full class record declaration */
+typedef struct _LabelClassRec {
     CoreClassPart	core_class;
-    CompositeClassPart	composite_class;
-    ConstraintClassPart	constraint_class;
-    FormClassPart	form_class;
-    DialogClassPart	dialog_class;
-} DialogClassRec;
+    SimpleClassPart	simple_class;
+    ThreeDClassPart     threeD_class;
+    LabelClassPart	label_class;
+} LabelClassRec;
 
-extern DialogClassRec dialogClassRec;
+extern LabelClassRec labelClassRec;
 
-typedef struct _DialogPart {
+/* New fields for the Label widget record */
+typedef struct {
     /* resources */
-    String	label;		/* description of the dialog	*/
-    String	value;		/* for the user response	*/
-    Pixmap	icon;		/* icon bitmap			*/
-    /* private data */
-    Widget	iconW;		/* widget to display the icon	*/
-    Widget	labelW;		/* widget to display description*/
-    Widget	valueW;		/* user response TextWidget	*/
-} DialogPart;
+    Pixel	foreground;
+    XFontStruct	*font;
+    XFontSet	fontset;
+    char	*label;
+    XtJustify	justify;
+    Dimension	internal_width;
+    Dimension	internal_height;
+    Pixmap	pixmap;
+    Boolean	resize;
+    unsigned char encoding;
+    Pixmap	left_bitmap;
 
-typedef struct _DialogRec {
-    CorePart		core;
-    CompositePart	composite;
-    ConstraintPart	constraint;
-    FormPart		form;
-    DialogPart		dialog;
-} DialogRec;
+    /* private state */
+    GC		normal_GC;
+    GC          gray_GC;
+    Pixmap	stipple;
+    Position	label_x;
+    Position	label_y;
+    Dimension	label_width;
+    Dimension	label_height;
+    Dimension	label_len;
+    int		lbm_y;			/* where in label */
+    unsigned int lbm_width, lbm_height;	 /* size of pixmap */
+} LabelPart;
 
-typedef struct {int empty;} DialogConstraintsPart;
 
-typedef struct _DialogConstraintsRec {
-    FormConstraintsPart	  form;
-    DialogConstraintsPart dialog;
-} DialogConstraintsRec, *DialogConstraints;
+/****************************************************************
+ *
+ * Full instance record declaration
+ *
+ ****************************************************************/
 
-#endif /* _DialogP_h */
+typedef struct _LabelRec {
+    CorePart	core;
+    SimplePart	simple;
+    ThreeDPart  threeD;
+    LabelPart	label;
+} LabelRec;
+
+#define LEFT_OFFSET(lw) ((lw)->label.left_bitmap \
+			 ? (lw)->label.lbm_width + (lw)->label.internal_width \
+			 : 0)
+
+#endif /* _XawLabelP_h */

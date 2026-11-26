@@ -31,8 +31,8 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/StringDefs.h>		/* for XtN and XtC defines */
 #include <X11/Xmu/CharSet.h>		/* for XmuCompareISOLatin1() */
 #include <Xaw95/XawInit.h>		/* for XawInitializeWidgetSet */
-#include <Xaw95/PannerP.h>		/* us */
-#include <Xaw95/TraversalP.h>		/* us */
+#include "PannerP.h"		/* us */
+#include "TraversalP.h"		/* us */
 #include <X11/Xos.h>
 #include <X11/Xmu/Misc.h>		/* for Min */
 #include <X11/Xmu/Drawing.h>

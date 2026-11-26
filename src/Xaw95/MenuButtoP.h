@@ -47,7 +47,7 @@ in this Software without prior written authorization from the X Consortium.
 #define _XawMenuButtonP_h
 
 #include <Xaw95/MenuButton.h>
-#include <Xaw95/CommandP.h>
+#include "CommandP.h"
 
 /************************************
  *

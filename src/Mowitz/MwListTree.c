@@ -35,7 +35,7 @@
 #ifdef USE_RDD
 #include "rdd.h"
 #endif
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 #define folder_width 16
 #define folder_height 12

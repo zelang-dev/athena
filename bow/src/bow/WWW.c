@@ -8,7 +8,7 @@
 #include <athena.h>
 
 #include <X11/keysym.h>
-#include <Xaw95/TraversalP.h>
+#include "../../../src/Xaw95/TraversalP.h"
 
 #include "WWWP.h"
 #include "Geom.h"

@@ -29,7 +29,7 @@
 
 #include <Mowitz.h>
 #include <Mowitz/MwTabbingP.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 #define offset(field) XtOffsetOf(MwTabbingRec, tabbing.field)
 static XtResource resources[] = {

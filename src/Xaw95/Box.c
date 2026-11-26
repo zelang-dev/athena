@@ -58,8 +58,8 @@ SOFTWARE.
 #include	<X11/StringDefs.h>
 #include	<X11/Xmu/Misc.h>
 #include	<Xaw95/XawInit.h>
-#include	<Xaw95/BoxP.h>
-#include <Xaw95/TraversalP.h>
+#include	"BoxP.h"
+#include 	"TraversalP.h"
 
 /****************************************************************
  *

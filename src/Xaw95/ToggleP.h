@@ -44,7 +44,7 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/Core.h>
 #include <X11/IntrinsicP.h>
 #include <Xaw95/Toggle.h>
-#include <Xaw95/CommandP.h>
+#include "CommandP.h"
 
 /***********************************************************************
  *

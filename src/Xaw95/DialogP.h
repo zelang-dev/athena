@@ -1,6 +1,4 @@
-/*
-* $XConsortium: CommandP.h,v 1.31 94/04/17 20:12:01 rws Exp $
-*/
+/* $XConsortium: DialogP.h,v 1.13 94/04/17 20:12:05 kit Exp $ */
 
 
 /***********************************************************
@@ -51,90 +49,50 @@ SOFTWARE.
 
 ******************************************************************/
 
-/*
- * CommandP.h - Private definitions for Command widget
- *
- */
+/* Private definitions for Dialog widget */
 
-#ifndef _XawCommandP_h
-#define _XawCommandP_h
+#ifndef _DialogP_h
+#define _DialogP_h
 
-#include <Xaw95/Command.h>
-#include <Xaw95/LabelP.h>
+#include <Xaw95/Dialog.h>
+#include "FormP.h"
 
-/***********************************************************************
- *
- * Command Widget Private Data
- *
- ***********************************************************************/
+typedef struct {int empty;} DialogClassPart;
 
-typedef enum {
-  HighlightNone,		/* Do not highlight. */
-  HighlightWhenUnset,		/* Highlight only when unset, this is
-				   to preserve current command widget
-				   functionality. */
-  HighlightAlways		/* Always highlight, lets the toggle widget
-				   and other subclasses do the right thing. */
-} XtCommandHighlight;
-
-/************************************
- *
- *  Class structure
- *
- ***********************************/
-
-
-   /* New fields for the Command widget class record */
-typedef struct _CommandClass
-  {
-    int makes_compiler_happy;  /* not used */
-  } CommandClassPart;
-
-   /* Full class record declaration */
-typedef struct _CommandClassRec {
+typedef struct _DialogClassRec {
     CoreClassPart	core_class;
-    SimpleClassPart	simple_class;
-    ThreeDClassPart	threeD_class;
-    LabelClassPart	label_class;
-    CommandClassPart    command_class;
-} CommandClassRec;
+    CompositeClassPart	composite_class;
+    ConstraintClassPart	constraint_class;
+    FormClassPart	form_class;
+    DialogClassPart	dialog_class;
+} DialogClassRec;
 
-extern CommandClassRec commandClassRec;
+extern DialogClassRec dialogClassRec;
 
-/***************************************
- *
- *  Instance (widget) structure
- *
- **************************************/
-
-    /* New fields for the Command widget record */
-typedef struct {
+typedef struct _DialogPart {
     /* resources */
-    Dimension   highlight_thickness;
-    XtCallbackList callbacks;
+    String	label;		/* description of the dialog	*/
+    String	value;		/* for the user response	*/
+    Pixmap	icon;		/* icon bitmap			*/
+    /* private data */
+    Widget	iconW;		/* widget to display the icon	*/
+    Widget	labelW;		/* widget to display description*/
+    Widget	valueW;		/* user response TextWidget	*/
+} DialogPart;
 
-    /* private state */
-    Pixmap      	gray_pixmap;
-    GC          	normal_GC;
-    GC          	inverse_GC;
-    Boolean     	set;
-    XtCommandHighlight	highlighted;
-    /* more resources */
-    int			shape_style;
-    Dimension		corner_round;
-} CommandPart;
+typedef struct _DialogRec {
+    CorePart		core;
+    CompositePart	composite;
+    ConstraintPart	constraint;
+    FormPart		form;
+    DialogPart		dialog;
+} DialogRec;
 
+typedef struct {int empty;} DialogConstraintsPart;
 
-/*    XtEventsPtr eventTable;*/
+typedef struct _DialogConstraintsRec {
+    FormConstraintsPart	  form;
+    DialogConstraintsPart dialog;
+} DialogConstraintsRec, *DialogConstraints;
 
-
-   /* Full widget declaration */
-typedef struct _CommandRec {
-    CorePart         core;
-    SimplePart	     simple;
-    ThreeDPart       threeD;
-    LabelPart	     label;
-    CommandPart      command;
-} CommandRec;
-
-#endif /* _XawCommandP_h */
+#endif /* _DialogP_h */

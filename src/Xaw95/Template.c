@@ -33,8 +33,8 @@ in this Software without prior written authorization from the X Consortium.
 
 #include <X11/IntrinsicP.h>
 #include <X11/StringDefs.h>
-#include <Xaw95/TemplateP.h>
-#include <Xaw95/TraversalP.h>
+#include "TemplateP.h"
+#include "TraversalP.h"
 
 static XtResource resources[] = {
 #define offset(field) XtOffsetOf(TemplateRec, template.field)

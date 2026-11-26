@@ -111,7 +111,7 @@
 
 #include <Mowitz/MwRulerP.h>
 #include 	<Mowitz/MwGcs.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 
 #define	RULER_MIN	4	/* min space between tic marks */

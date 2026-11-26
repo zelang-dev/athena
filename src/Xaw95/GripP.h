@@ -1,11 +1,11 @@
 /*
-* $XConsortium: LabelP.h,v 1.29 94/04/17 20:12:14 kaleb Exp $
+* $XConsortium: GripP.h,v 1.15 94/04/17 20:12:11 kit Exp $
 */
 
 
 /***********************************************************
 
-Copyright (c) 1987, 1988, 1994  X Consortium
+Copyright (c) 1987, 1988  X Consortium
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -52,80 +52,53 @@ SOFTWARE.
 ******************************************************************/
 
 /*
- * LabelP.h - Private definitions for Label widget
+ *  GripP.h - Private definitions for Grip widget (Used by VPane Widget)
  *
  */
 
-#ifndef _XawLabelP_h
-#define _XawLabelP_h
+#ifndef _XawGripP_h
+#define _XawGripP_h
 
-/***********************************************************************
+#include <Xaw95/Grip.h>
+#include "ThreeDP.h"
+
+/*****************************************************************************
  *
- * Label Widget Private Data
+ * Grip Widget Private Data
  *
- ***********************************************************************/
+ *****************************************************************************/
 
-#include <Xaw95/Label.h>
-#include <Xaw95/ThreeDP.h>
+#define DEFAULT_GRIP_SIZE 8
 
-/* New fields for the Label widget class record */
+/* New fields for the Grip widget class record */
+typedef struct {int empty;} GripClassPart;
 
-typedef struct {int foo;} LabelClassPart;
+/* Full Class record declaration */
+typedef struct _GripClassRec {
+    CoreClassPart    core_class;
+    SimpleClassPart  simple_class;
+    ThreeDClassPart  threeD_class;
+    GripClassPart    grip_class;
+} GripClassRec;
 
-/* Full class record declaration */
-typedef struct _LabelClassRec {
-    CoreClassPart	core_class;
-    SimpleClassPart	simple_class;
-    ThreeDClassPart     threeD_class;
-    LabelClassPart	label_class;
-} LabelClassRec;
+extern GripClassRec gripClassRec;
 
-extern LabelClassRec labelClassRec;
-
-/* New fields for the Label widget record */
+/* New fields for the Grip widget record */
 typedef struct {
-    /* resources */
-    Pixel	foreground;
-    XFontStruct	*font;
-    XFontSet	fontset;
-    char	*label;
-    XtJustify	justify;
-    Dimension	internal_width;
-    Dimension	internal_height;
-    Pixmap	pixmap;
-    Boolean	resize;
-    unsigned char encoding;
-    Pixmap	left_bitmap;
+  XtCallbackList grip_action;
+} GripPart;
 
-    /* private state */
-    GC		normal_GC;
-    GC          gray_GC;
-    Pixmap	stipple;
-    Position	label_x;
-    Position	label_y;
-    Dimension	label_width;
-    Dimension	label_height;
-    Dimension	label_len;
-    int		lbm_y;			/* where in label */
-    unsigned int lbm_width, lbm_height;	 /* size of pixmap */
-} LabelPart;
-
-
-/****************************************************************
+/*****************************************************************************
  *
  * Full instance record declaration
  *
- ****************************************************************/
+ ****************************************************************************/
 
-typedef struct _LabelRec {
-    CorePart	core;
-    SimplePart	simple;
-    ThreeDPart  threeD;
-    LabelPart	label;
-} LabelRec;
+typedef struct _GripRec {
+   CorePart    core;
+   SimplePart  simple;
+   ThreeDPart  threeD;
+   GripPart    grip;
+} GripRec;
 
-#define LEFT_OFFSET(lw) ((lw)->label.left_bitmap \
-			 ? (lw)->label.lbm_width + (lw)->label.internal_width \
-			 : 0)
-
-#endif /* _XawLabelP_h */
+#endif /* _XawGripP_h */

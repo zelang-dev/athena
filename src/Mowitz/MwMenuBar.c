@@ -15,7 +15,7 @@
 #define HIDE_PROTO 1
 #include <Mowitz/MwMBButtonP.h>
 #undef HIDE_PROTO
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 
 static XtResource menuBarConstraintsResources [] = {

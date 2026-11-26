@@ -50,7 +50,7 @@ extern int abs();
 
 #include <Xaw95/XawInit.h>
 #include <Xaw95/SimpleMenu.h>
-#include <Xaw95/SmeBSBP.h>
+#include "SmeBSBP.h"
 #include <Xaw95/Cardinals.h>
 
 #include <stdio.h>

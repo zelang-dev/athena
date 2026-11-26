@@ -30,7 +30,7 @@ in this Software without prior written authorization from the X Consortium.
 #ifndef _XawRepeaterP_h
 #define _XawRepeaterP_h
 
-#include <Xaw95/CommandP.h>
+#include "CommandP.h"
 #include <Xaw95/Repeater.h>
 
 typedef struct {			/* new fields in widget class */

@@ -11,7 +11,7 @@
 #include <Mowitz/MwXutils.h>
 #include <Mowitz/MwHandleP.h>
 #include <X11/Shell.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 
 #define MULTI_CLICK_TIME 500

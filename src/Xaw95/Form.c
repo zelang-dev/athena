@@ -53,8 +53,8 @@ SOFTWARE.
 #include <X11/Xmu/Converters.h>
 #include <X11/Xmu/CharSet.h>
 #include <Xaw95/XawInit.h>
-#include <Xaw95/FormP.h>
-#include <Xaw95/TraversalP.h>
+#include "FormP.h"
+#include "TraversalP.h"
 
 /* Private Definitions */
 

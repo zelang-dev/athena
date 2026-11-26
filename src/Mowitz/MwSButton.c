@@ -13,7 +13,7 @@
 #include 	<Mowitz/MwNws.h>
 
 #include <Mowitz/MwSButtonP.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 #define offset(field) XtOffsetOf(MwSButtonRec,sButton.field)
 

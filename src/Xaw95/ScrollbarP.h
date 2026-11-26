@@ -59,7 +59,7 @@ SOFTWARE.
 #define _ScrollbarP_h
 
 #include <Xaw95/Scrollbar.h>
-#include <Xaw95/ThreeDP.h>
+#include "ThreeDP.h"
 
 typedef struct {
      /* public */

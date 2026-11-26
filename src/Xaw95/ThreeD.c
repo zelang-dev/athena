@@ -33,8 +33,8 @@ SOFTWARE.
 #include <X11/StringDefs.h>
 #include <X11/IntrinsicP.h>
 #include <Xaw95/XawInit.h>
-#include <Xaw95/ThreeDP.h>
-#include <Xaw95/TraversalP.h>
+#include "ThreeDP.h"
+#include "TraversalP.h"
 #include <X11/Xosdefs.h>
 
 /* Initialization of defaults */

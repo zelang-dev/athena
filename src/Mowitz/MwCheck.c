@@ -30,7 +30,7 @@ MA 02111-1307, USA.
 #include <Mowitz/MwCheck.h>
 #include <Mowitz/MwUtils.h>
 #include <Mowitz/MwCheckP.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 #include "pixmaps/check_motif_off.xpm"
 #include "pixmaps/check_motif_on.xpm"

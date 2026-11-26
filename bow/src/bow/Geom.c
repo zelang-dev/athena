@@ -24,7 +24,7 @@
 
 #include "common.h"
 #include "GeomP.h"
-#include <Xaw95/TraversalP.h>
+#include "../../../src/Xaw95/TraversalP.h"
 
 static void GeomInitialize _ArgProto((Widget, Widget, ArgList, Cardinal *));
 static XtGeometryResult GeomGeometryManager _ArgProto((Widget,

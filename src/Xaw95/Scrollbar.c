@@ -64,8 +64,8 @@ SOFTWARE.
 #define ARROW_SCROLLBAR 1
 
 #include <Xaw95/XawInit.h>
-#include <Xaw95/ScrollbarP.h>
-#include <Xaw95/TraversalP.h>
+#include "ScrollbarP.h"
+#include "TraversalP.h"
 #include <Xaw95/ThreeD.h>
 
 #include <X11/Xmu/Drawing.h>

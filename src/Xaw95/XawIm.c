@@ -63,11 +63,11 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/Xos.h>
 #include <X11/Xfuncs.h>
 #include <X11/ShellP.h>
-#include <Xaw95/TextP.h>
+#include "TextP.h"
 #include <Xaw95/MultiSrc.h>
-#include <Xaw95/MultiSinkP.h>
-#include <Xaw95/XawImP.h>
-#include <Xaw95/VendorEP.h>
+#include "MultiSinkP.h"
+#include "XawImP.h"
+#include "VendorEP.h"
 #include <Xaw95/XawI18n.h>
 #include <ctype.h>
 

@@ -31,7 +31,7 @@ SOFTWARE.
 #define _XawSmeThreeDP_h
 
 #include <Xaw95/SmeThreeD.h>
-#include <Xaw95/SmeP.h>
+#include "SmeP.h"
 
 typedef struct {
     Dimension	    shadow_width;

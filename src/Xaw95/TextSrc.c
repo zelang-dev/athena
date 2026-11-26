@@ -43,8 +43,8 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/Xmu/CharSet.h>
 #include <Xaw95/XawI18n.h>
 #include <Xaw95/XawInit.h>
-#include <Xaw95/TextSrcP.h>
-#include <Xaw95/TraversalP.h>
+#include "TextSrcP.h"
+#include "TraversalP.h"
 #include <stdio.h>
 #include <ctype.h>
 
@@ -97,7 +97,7 @@ TextSrcClassRec textSrcClassRec = {
     /* set_values_hook		*/	NULL,
     /* set_values_almost	*/	NULL,
     /* get_values_hook		*/	NULL,
-	/* accept_focus	 	*/	XawAcceptFocus,
+	/* accept_focus	 	*/	NULL,
     /* version			*/	XtVersion,
     /* callback_private   	*/	NULL,
     /* tm_table		   	*/	NULL,

@@ -93,7 +93,7 @@
 #include <X11/IntrinsicP.h>
 #include <X11/StringDefs.h>
 #include <X11/Xmu/Converters.h>
-#include <Xaw95/TraversalP.h>
+#include "TraversalP.h"
 #include "GridboxP.h"
 
 #define	DEFAULT_MARGIN	-1

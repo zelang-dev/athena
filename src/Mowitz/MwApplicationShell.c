@@ -7,7 +7,7 @@
 #include <X11/StringDefs.h>
 #include <Mowitz.h>
 #include <Mowitz/MwApplicationShellP.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 #undef TESTING
 #ifdef TESTING

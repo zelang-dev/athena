@@ -52,7 +52,7 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/StringDefs.h>
 #include <X11/Shell.h>
 
-#include <Xaw95/TextP.h>
+#include "TextP.h"
 #include <Xaw95/AsciiText.h>
 #include <Xaw95/Cardinals.h>
 #include <Xaw95/Command.h>

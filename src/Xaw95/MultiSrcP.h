@@ -101,7 +101,7 @@ SOFTWARE.
 #ifndef _XawMultiSrcP_h
 #define _XawMultiSrcP_h
 
-#include <Xaw95/TextSrcP.h>
+#include "TextSrcP.h"
 #include <Xaw95/MultiSrc.h>
 
 /************************************************************

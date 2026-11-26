@@ -12,7 +12,7 @@
 
 #include <Mowitz/MwNws.h>
 #include <Mowitz/MwTraverse.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 static XtResource rowConstraintsResources [] = {
 	{

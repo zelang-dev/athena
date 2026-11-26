@@ -1,7 +1,7 @@
 /*
- * $XConsortium: SmeBSBP.h,v 1.8 94/04/17 21:44:11 rws Exp $
+ * $XConsortium: SmeLineP.h,v 1.4 94/04/17 20:12:54 kit Exp $
  *
-Copyright (c) 1989, 1994  X Consortium
+Copyright (c) 1989  X Consortium
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -28,69 +28,55 @@ in this Software without prior written authorization from the X Consortium.
  */
 
 /*
- * SmeP.h - Private definitions for Sme object
+ * SmeLineP.h - Private definitions for SmeLine widget
  *
  */
 
-#ifndef _XawSmeBSBP_h
-#define _XawSmeBSBP_h
+#ifndef _XawSmeLineP_h
+#define _XawSmeLineP_h
 
 /***********************************************************************
  *
- * Sme Object Private Data
+ * SmeLine Widget Private Data
  *
  ***********************************************************************/
 
-#include <Xaw95/SmeThreeDP.h>
-#include <Xaw95/SmeBSB.h>
+#include "SmeP.h"
+#include <Xaw95/SmeLine.h>
+#include <Xaw95/ThreeD.h>
 
 /************************************************************
  *
- * New fields for the Sme Object class record.
+ * New fields for the SmeLine widget class record.
  *
  ************************************************************/
 
-typedef struct _SmeBSBClassPart {
+typedef struct _SmeLineClassPart {
   XtPointer extension;
-} SmeBSBClassPart;
+} SmeLineClassPart;
 
 /* Full class record declaration */
-typedef struct _SmeBSBClassRec {
-    RectObjClassPart	rect_class;
+typedef struct _SmeLineClassRec {
+    RectObjClassPart    rect_class;
     SmeClassPart	sme_class;
-    SmeThreeDClassPart	sme_threeD_class;
-    SmeBSBClassPart	sme_bsb_class;
-} SmeBSBClassRec;
+    SmeLineClassPart	sme_line_class;
+} SmeLineClassRec;
 
-extern SmeBSBClassRec smeBSBClassRec;
+extern SmeLineClassRec smeLineClassRec;
 
-/* New fields for the Sme Object record */
+/* New fields for the SmeLine widget record */
 typedef struct {
     /* resources */
-    String label;		/* The entry label. */
-    int vert_space;		/* extra vert space to leave, as a percentage
-				   of the font height of the label. */
-    Pixmap left_bitmap, right_bitmap; /* bitmaps to show. */
-    Dimension left_margin, right_margin; /* left and right margins. */
-    Pixel foreground;		/* foreground color. */
-    XFontStruct * font;		/* The font to show label in. */
-    XFontSet fontset;		/* or fontset */
-    XtJustify justify;		/* Justification for the label. */
+    Pixel foreground;		/* Foreground color. */
+    Pixmap stipple;		/* Line Stipple. */
+    Dimension line_width;	/* Width of the line. */
 
-/* private resources. */
+    /* private data.  */
 
-    Boolean set_values_area_cleared; /* Remember if we need to unhighlight. */
-    GC norm_gc;			/* noral color gc. */
-    GC rev_gc;			/* reverse color gc. */
-    GC norm_gray_gc;		/* Normal color (grayed out) gc. */
-    GC invert_gc;		/* gc for flipping colors. */
-
-    Dimension left_bitmap_width; /* size of each bitmap. */
-    Dimension left_bitmap_height;
-    Dimension right_bitmap_width;
-    Dimension right_bitmap_height;
-
-} SmeBSBPart;
+    GC gc;			/* Graphics context for drawing line. */
+    GC top, bot;
+    ThreeDWidget threeD;
+} SmeLinePart;
 
 /****************************************************************
  *
@@ -98,13 +84,12 @@ typedef struct {
  *
  ****************************************************************/
 
-typedef struct _SmeBSBRec {
-    ObjectPart		object;
-    RectObjPart		rectangle;
-    SmePart		sme;
-    SmeThreeDPart	sme_threeD;
-    SmeBSBPart		sme_bsb;
-} SmeBSBRec;
+typedef struct _SmeLineRec {
+  ObjectPart     object;
+  RectObjPart    rectangle;
+  SmePart	 sme;
+  SmeLinePart	 sme_line;
+} SmeLineRec;
 
 /************************************************************
  *
@@ -112,4 +97,4 @@ typedef struct _SmeBSBRec {
  *
  ************************************************************/
 
-#endif /* _XawSmeBSBP_h */
+#endif /* _XawSmeLineP_h */

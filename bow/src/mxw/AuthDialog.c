@@ -61,7 +61,7 @@ SOFTWARE.
 #include <athena.h>
 
 #include "AuthDialogP.h"
-#include <Xaw95/TraversalP.h>
+#include "../../../src/Xaw95/TraversalP.h"
 
 /*
  * After we have set the string in the value widget we set the

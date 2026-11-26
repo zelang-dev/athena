@@ -40,7 +40,7 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/StringDefs.h>
 
 #include <Xaw95/XawInit.h>
-#include <Xaw95/SmeP.h>
+#include "SmeP.h"
 #include <Xaw95/Cardinals.h>
 
 #define offset(field) XtOffsetOf(SmeRec, sme.field)

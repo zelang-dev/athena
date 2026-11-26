@@ -69,9 +69,9 @@ SOFTWARE.
 
 /* The following two headers are for the input method. */
 
-#include <Xaw95/VendorEP.h>
-#include <Xaw95/XawImP.h>
-#include <Xaw95/TraversalP.h>
+#include "VendorEP.h"
+#include "XawImP.h"
+#include "TraversalP.h"
 
 
 static XtResource resources[] = {

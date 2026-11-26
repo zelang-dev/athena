@@ -30,7 +30,7 @@ MA 02111-1307, USA.
 #include <X11/xpm.h>
 
 #include <Mowitz/MwTabstopP.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 static float floatOne = 1.0;
 

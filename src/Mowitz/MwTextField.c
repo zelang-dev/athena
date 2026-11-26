@@ -35,7 +35,7 @@
 
 #include <Mowitz/MwUtils.h>
 #include <Mowitz/MwTextFieldP.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 #define offset(field) XtOffsetOf(MwTextFieldRec, text.field)
 static XtResource resources[] =

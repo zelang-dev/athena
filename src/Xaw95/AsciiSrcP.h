@@ -73,7 +73,7 @@ SOFTWARE.
 #ifndef _XawAsciiSrcP_h
 #define _XawAsciiSrcP_h
 
-#include <Xaw95/TextSrcP.h>
+#include "TextSrcP.h"
 #include <Xaw95/AsciiSrc.h>
 
 /************************************************************

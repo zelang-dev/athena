@@ -33,8 +33,8 @@
 # include <Xm/XmP.h>
 #endif
 
-#include <Xaw95/LayoutP.h>
-#include <Xaw95/TraversalP.h>
+#include "LayoutP.h"
+#include "TraversalP.h"
 
 #include <ctype.h>
 #include <stdio.h>

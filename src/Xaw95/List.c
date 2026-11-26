@@ -45,8 +45,8 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/Xmu/Drawing.h>
 
 #include <Xaw95/XawInit.h>
-#include <Xaw95/TraversalP.h>
-#include <Xaw95/ListP.h>
+#include "TraversalP.h"
+#include "ListP.h"
 
 /* These added so widget knows whether its height, width are user selected.
 I also added the freedoms member of the list widget part. */

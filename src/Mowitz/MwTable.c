@@ -29,7 +29,7 @@
 #include <X11/xpm.h>
 
 #include <Mowitz/MwTableP.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 static void plugin_coords(Widget, XtPointer, int *, int *);
 

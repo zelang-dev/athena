@@ -1,5 +1,5 @@
 /*
-* $XConsortium: TextSinkP.h,v 1.6 94/04/17 20:13:13 kaleb Exp $
+* $XConsortium: TextSrcP.h,v 1.20 94/04/17 20:13:15 kaleb Exp $
 */
 
 
@@ -52,62 +52,60 @@ SOFTWARE.
 ******************************************************************/
 
 /*
- * TextSinkP.h - Private definitions for TextSink object
+ * TextSrcP.h - Private definitions for TextSrc object
  *
  */
 
-#ifndef _XawTextSinkP_h
-#define _XawTextSinkP_h
+#ifndef _XawTextSrcP_h
+#define _XawTextSrcP_h
 
 /***********************************************************************
  *
- * TextSink Object Private Data
+ * TextSrc Object Private Data
  *
  ***********************************************************************/
 
-#include <Xaw95/TextSink.h>
-#include <Xaw95/TextP.h>	/* This source works with the Text widget. */
-#include <Xaw95/TextSrcP.h>	/* This source works with the Text Source. */
+#include <Xaw95/TextSrc.h>
+#include "TextP.h"	/* This source works with the Text widget. */
 
 /************************************************************
  *
- * New fields for the TextSink object class record.
+ * New fields for the TextSrc object class record.
  *
  ************************************************************/
 
-typedef struct _TextSinkClassPart {
-  void (*DisplayText)();
-  void (*InsertCursor)();
-  void (*ClearToBackground)();
-  void (*FindPosition)();
-  void (*FindDistance)();
-  void (*Resolve)();
-  int  (*MaxLines)();
-  int  (*MaxHeight)();
-  void (*SetTabs)();
-  void (*GetCursorBounds)();
-} TextSinkClassPart;
+typedef struct {
+  XtPointer		next_extension;
+  XrmQuark		record_type;
+  long			version;
+  Cardinal		record_size;
+  int			(*Input)();
+} TextSrcExtRec, *TextSrcExt;
+
+typedef struct _TextSrcClassPart {
+  XawTextPosition	(*Read)();
+  int			(*Replace)();
+  XawTextPosition	(*Scan)();
+  XawTextPosition       (*Search)();
+  void                  (*SetSelection)();
+  Boolean		(*ConvertSelection)();
+} TextSrcClassPart;
 
 /* Full class record declaration */
-typedef struct _TextSinkClassRec {
+typedef struct _TextSrcClassRec {
     ObjectClassPart     object_class;
-    TextSinkClassPart	text_sink_class;
-} TextSinkClassRec;
+    TextSrcClassPart	textSrc_class;
+} TextSrcClassRec;
 
-extern TextSinkClassRec textSinkClassRec;
+extern TextSrcClassRec textSrcClassRec;
 
-/* New fields for the TextSink object record */
+/* New fields for the TextSrc object record */
 typedef struct {
     /* resources */
-    Pixel foreground;		/* Foreground color. */
-    Pixel background;		/* Background color. */
-
-    /* private state. */
-    Position *tabs;		/* The tab stops as pixel values. */
-    short    *char_tabs;	/* The tabs stops as character values. */
-    int      tab_count;		/* number of items in tabs */
-
-} TextSinkPart;
+  XawTextEditType	edit_mode;
+  XrmQuark		text_format;	/* 2 formats: FMT8BIT for Ascii */
+					/*            FMTWIDE for ISO 10646 */
+} TextSrcPart;
 
 /****************************************************************
  *
@@ -115,10 +113,32 @@ typedef struct {
  *
  ****************************************************************/
 
-typedef struct _TextSinkRec {
+typedef struct _TextSrcRec {
   ObjectPart    object;
-  TextSinkPart	text_sink;
-} TextSinkRec;
+  TextSrcPart	textSrc;
+} TextSrcRec;
+
+/******************************************************************
+ *
+ * Semiprivate declarations of functions used in other modules
+ *
+ ******************************************************************/
+
+char* _XawTextWCToMB(
+#if NeedFunctionPrototypes
+    Display* /* d */,
+    wchar_t* /* wstr */,
+    int*     /* len_in_out */
+#endif
+);
+
+wchar_t* _XawTextMBToWC(
+#if NeedFunctionPrototypes
+    Display*  /* d */,
+    char*     /* str */,
+    int*      /* len_in_out */
+#endif
+);
 
 /************************************************************
  *
@@ -126,18 +146,19 @@ typedef struct _TextSinkRec {
  *
  ************************************************************/
 
-typedef int (*_XawSinkIntFunc)();
-typedef void (*_XawSinkVoidFunc)();
+typedef Boolean (*_XawBooleanFunc)();
+typedef int (*_XawIntFunc)();
+typedef XawTextPosition (*_XawTextPositionFunc)();
+typedef void (*_XawTextVoidFunc)();
 
-#define XtInheritDisplayText          ((_XawSinkVoidFunc) _XtInherit)
-#define XtInheritInsertCursor         ((_XawSinkVoidFunc) _XtInherit)
-#define XtInheritClearToBackground    ((_XawSinkVoidFunc) _XtInherit)
-#define XtInheritFindPosition         ((_XawSinkVoidFunc) _XtInherit)
-#define XtInheritFindDistance         ((_XawSinkVoidFunc) _XtInherit)
-#define XtInheritResolve              ((_XawSinkVoidFunc) _XtInherit)
-#define XtInheritMaxLines             ((_XawSinkIntFunc) _XtInherit)
-#define XtInheritMaxHeight            ((_XawSinkIntFunc) _XtInherit)
-#define XtInheritSetTabs              ((_XawSinkVoidFunc) _XtInherit)
-#define XtInheritGetCursorBounds      ((_XawSinkVoidFunc) _XtInherit)
+#define XtInheritInput                ((_XawTextPositionFunc) _XtInherit)
+#define XtInheritRead                 ((_XawTextPositionFunc) _XtInherit)
+#define XtInheritReplace              ((_XawIntFunc) _XtInherit)
+#define XtInheritScan                 ((_XawTextPositionFunc) _XtInherit)
+#define XtInheritSearch               ((_XawTextPositionFunc) _XtInherit)
+#define XtInheritSetSelection         ((_XawTextVoidFunc) _XtInherit)
+#define XtInheritConvertSelection     ((_XawBooleanFunc) _XtInherit)
+#define XtTextSrcExtVersion	      1
+#define XtTextSrcExtTypeString        "XT_TEXTSRC_EXT"
 
-#endif /* _XawTextSinkP_h */
+#endif /* _XawTextSrcP_h */

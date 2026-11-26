@@ -72,7 +72,7 @@ SOFTWARE.
 #ifndef _AsciiTextP_h
 #define _AsciiTextP_h
 
-#include <Xaw95/TextP.h>
+#include "TextP.h"
 #include <Xaw95/AsciiText.h>
 #include <Xaw95/AsciiSrc.h>
 #include <Xaw95/MultiSrc.h>

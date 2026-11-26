@@ -66,8 +66,8 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/Xmu/Misc.h>
 #include <X11/Xmu/CharSet.h>
 #include <Xaw95/XawInit.h>
-#include <Xaw95/MultiSrcP.h>
-#include <Xaw95/XawImP.h>
+#include "MultiSrcP.h"
+#include "XawImP.h"
 #include <Xaw95/XawI18n.h>
 #include <X11/Xos.h>
 #include <stdio.h>

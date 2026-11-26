@@ -32,7 +32,7 @@ in this Software without prior written authorization from the X Consortium.
 #ifndef	XawTraversalP_h
 #define	XawTraversalP_h
 
-#include "Traversal.h"
+#include <Xaw95/Traversal.h>
 
 
 

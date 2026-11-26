@@ -55,7 +55,7 @@ SOFTWARE.
 #define _XawTextP_h
 
 #include <Xaw95/Text.h>
-#include <Xaw95/SimpleP.h>
+#include "SimpleP.h"
 
 /****************************************************************
  *

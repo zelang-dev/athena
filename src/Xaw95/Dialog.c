@@ -62,9 +62,9 @@ SOFTWARE.
 #include <Xaw95/AsciiText.h>
 #include <Xaw95/Command.h>
 #include <Xaw95/Label.h>
-#include <Xaw95/DialogP.h>
+#include "DialogP.h"
 #include <Xaw95/Cardinals.h>
-#include <Xaw95/TraversalP.h>
+#include "TraversalP.h"
 #include <TextField.h>
 
 /*

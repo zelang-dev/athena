@@ -31,7 +31,7 @@ in this Software without prior written authorization from the X Consortium.
 #define _XawPannerP_h
 
 #include <Xaw95/Panner.h>
-#include <Xaw95/SimpleP.h>		/* parent */
+#include "SimpleP.h"		/* parent */
 
 typedef struct {			/* new fields in widget class */
     int dummy;

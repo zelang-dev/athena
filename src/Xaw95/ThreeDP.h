@@ -31,7 +31,7 @@ SOFTWARE.
 #define _ThreeDP_h
 
 #include <Xaw95/ThreeD.h>
-#include <Xaw95/SimpleP.h>
+#include "SimpleP.h"
 
 typedef struct {
     Dimension	shadow_width;

@@ -43,16 +43,16 @@ in this Software without prior written authorization from the X Consortium.
 #endif
 #include <X11/Xfuncs.h>
 #include <Xaw95/XawInit.h>
-#include <Xaw95/AsciiSrcP.h>
+#include "AsciiSrcP.h"
 #include <X11/Xmu/Misc.h>
 #include <X11/Xmu/CharSet.h>
-#include <Xaw95/MultiSrcP.h>
+#include "MultiSrcP.h"
 
 
 #if (defined(ASCII_STRING) || defined(ASCII_DISK))
 #  include <Xaw95/AsciiText.h> /* for Widget Classes. */
 #endif
-#include <Xaw95/TraversalP.h>
+#include "TraversalP.h"
 
 
 /****************************************************************

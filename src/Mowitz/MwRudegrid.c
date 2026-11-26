@@ -66,7 +66,7 @@ MA 02111-1307, USA.
 
 #include <Mowitz/MwUtils.h>
 #include <Mowitz/MwRudegridP.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 #define DEFAULT_HEIGHT 100
 #define DEFAULT_WIDTH 100

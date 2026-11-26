@@ -40,7 +40,7 @@ in this Software without prior written authorization from the X Consortium.
 #define _SimpleMenuP_h
 
 #include <Xaw95/SimpleMenu.h>
-#include <Xaw95/SmeP.h>
+#include "SmeP.h"
 #include <X11/ShellP.h>
 
 typedef struct {

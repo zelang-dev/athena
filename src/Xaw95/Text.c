@@ -64,11 +64,11 @@ SOFTWARE.
 #include <Xaw95/XawInit.h>
 #include <Xaw95/Cardinals.h>
 #include <Xaw95/Scrollbar.h>
-#include <Xaw95/TraversalP.h>
-#include <Xaw95/TextP.h>
-#include <Xaw95/MultiSinkP.h>
-#include <Xaw95/XawImP.h>
-#include <Xaw95/ThreeDP.h>
+#include "TraversalP.h"
+#include "TextP.h"
+#include "MultiSinkP.h"
+#include "XawImP.h"
+#include "ThreeDP.h"
 #include <Xaw95/ThreeD.h>
 #include <Xaw95/XawI18n.h>
 

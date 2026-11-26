@@ -42,7 +42,7 @@ a List.
 #include <Xaw95/Viewport.h>
 #include <Xaw95/List.h>
 #include <Xaw95/Form.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 #endif
 
 #include	<X11/Xmu/Misc.h>

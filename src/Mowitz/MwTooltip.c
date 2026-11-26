@@ -18,7 +18,7 @@
 #endif
 
 #include <Mowitz/MwUtils.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 #define offset(field) XtOffsetOf(MwTooltipRec, tooltip.field)
 

@@ -54,10 +54,10 @@ SOFTWARE.
 #include <X11/IntrinsicP.h>
 #include <X11/StringDefs.h>
 #include <Xaw95/XawInit.h>
-#include <Xaw95/AsciiSinkP.h>
-#include <Xaw95/AsciiSrcP.h>	/* For source function defs. */
-#include <Xaw95/TextP.h>	/* I also reach into the text widget. */
-#include <Xaw95/ThreeDP.h>
+#include "AsciiSinkP.h"
+#include "AsciiSrcP.h"	/* For source function defs. */
+#include "TextP.h"	/* I also reach into the text widget. */
+#include "ThreeDP.h"
 
 #ifdef GETLASTPOS
 #undef GETLASTPOS		/* We will use our own GETLASTPOS. */

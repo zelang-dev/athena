@@ -18,7 +18,7 @@
 #define HIDE_PROTO 1
 #include <Mowitz/MwBaseMEP.h>
 #undef HIDE_PROTO
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 #define PDTIME 500
 

@@ -43,7 +43,7 @@
 #include <Xaw95/Viewport.h>
 #include <Xaw95/List.h>
 #include <Xaw95/Scrollbar.h>
-#include "Xaw95/TraversalP.h"
+#include "TraversalP.h"
 #include <Xaw95/SimpleMenu.h>
 #include <Xaw95/SmeBSB.h>
 #include <Xaw95/SmeLine.h>

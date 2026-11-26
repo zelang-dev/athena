@@ -51,8 +51,8 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/StringDefs.h>
 
 #include <Xaw95/XawInit.h>
-#include <Xaw95/MenuButtoP.h>
-#include <Xaw95/TraversalP.h>
+#include "MenuButtoP.h"
+#include "TraversalP.h"
 
 static void ClassInitialize();
 static void PopupMenu();

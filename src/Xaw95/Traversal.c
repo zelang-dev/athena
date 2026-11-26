@@ -44,8 +44,8 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/IntrinsicP.h>
 #include <X11/StringDefs.h>
 #include <X11/Xmu/CharSet.h>
-#include <Xaw95/SimpleP.h>
-#include <Xaw95/TraversalP.h>
+#include "SimpleP.h"
+#include "TraversalP.h"
 #include <Xaw95/XawDebug.h>
 
 

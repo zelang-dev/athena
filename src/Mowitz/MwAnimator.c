@@ -30,7 +30,7 @@
 
 #include <X11/xpm.h>
 #include <Mowitz/MwAnimatorP.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 typedef struct s_ani_image {
 	char *filename;

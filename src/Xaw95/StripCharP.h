@@ -1,5 +1,5 @@
 /*
-* $XConsortium: GripP.h,v 1.15 94/04/17 20:12:11 kit Exp $
+* $XConsortium: StripCharP.h,v 1.5 94/04/17 20:12:55 converse Exp $
 */
 
 
@@ -51,54 +51,59 @@ SOFTWARE.
 
 ******************************************************************/
 
-/*
- *  GripP.h - Private definitions for Grip widget (Used by VPane Widget)
- *
- */
+#ifndef _XawStripChartP_h
+#define _XawStripChartP_h
 
-#ifndef _XawGripP_h
-#define _XawGripP_h
+#include <Xaw95/StripChart.h>
+#include "ThreeDP.h"
 
-#include <Xaw95/Grip.h>
-#include <Xaw95/ThreeDP.h>
+#define NO_GCS 0
+#define FOREGROUND 1 << 0
+#define HIGHLIGHT  1 << 1
+#define ALL_GCS (FOREGROUND | HIGHLIGHT)
 
-/*****************************************************************************
- *
- * Grip Widget Private Data
- *
- *****************************************************************************/
+/* New fields for the stripChart widget instance record */
 
-#define DEFAULT_GRIP_SIZE 8
-
-/* New fields for the Grip widget class record */
-typedef struct {int empty;} GripClassPart;
-
-/* Full Class record declaration */
-typedef struct _GripClassRec {
-    CoreClassPart    core_class;
-    SimpleClassPart  simple_class;
-    ThreeDClassPart  threeD_class;
-    GripClassPart    grip_class;
-} GripClassRec;
-
-extern GripClassRec gripClassRec;
-
-/* New fields for the Grip widget record */
 typedef struct {
-  XtCallbackList grip_action;
-} GripPart;
+    Pixel	fgpixel;	/* color index for graph */
+    Pixel	hipixel;	/* color index for lines */
+    GC	fgGC;		/* graphics context for fgpixel */
+    GC	hiGC;		/* graphics context for hipixel */
 
-/*****************************************************************************
- *
- * Full instance record declaration
- *
- ****************************************************************************/
+    /* start of graph stuff */
 
-typedef struct _GripRec {
-   CorePart    core;
-   SimplePart  simple;
-   ThreeDPart  threeD;
-   GripPart    grip;
-} GripRec;
+    int	update;		/* update frequence */
+    int	scale;		/* scale factor */
+    int	min_scale;	/* smallest scale factor */
+    int	interval;	/* data point interval */
+    XPoint * points ;	/* Poly point for repairing graph lines. */
+    double max_value;	/* Max Value in window */
+    double valuedata[2048];/* record of data points */
+    XtIntervalId interval_id;
+    XtCallbackList get_value; /* proc to call to fetch load pt */
+    int jump_val;		/* Amount to jump on each scroll. */
+} StripChartPart;
 
-#endif /* _XawGripP_h */
+/* Full instance record declaration */
+typedef struct _StripChartRec {
+   CorePart core;
+   SimplePart simple;
+   ThreeDPart threeD;
+   StripChartPart strip_chart;
+} StripChartRec;
+
+/* New fields for the StripChart widget class record */
+typedef struct {int dummy;} StripChartClassPart;
+
+/* Full class record declaration. */
+typedef struct _StripChartClassRec {
+   CoreClassPart core_class;
+   SimpleClassPart simple_class;
+   ThreeDClassPart threeD_class;
+   StripChartClassPart strip_chart_class;
+} StripChartClassRec;
+
+/* Class pointer. */
+extern StripChartClassRec stripChartClassRec;
+
+#endif /* _XawStripChartP_h */

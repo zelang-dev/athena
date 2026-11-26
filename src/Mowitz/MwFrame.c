@@ -38,7 +38,7 @@
 
 #include <Mowitz/MwFrameP.h>
 #include <Mowitz/MwGcs.h>
-#include <Xaw95/TraversalP.h>
+#include "../Xaw95/TraversalP.h"
 
 
 #define	MIN_SIZE	2	/* make sure we don't have zero-size widget */

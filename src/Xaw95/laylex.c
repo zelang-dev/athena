@@ -453,8 +453,8 @@ char *LayYYtext_ptr;
 #include    <X11/IntrinsicP.h>
 #include    <X11/StringDefs.h>
 
-#include <Xaw95/LayoutP.h>
-#include <Xaw95/laygram.h>
+#include 	"LayoutP.h"
+#include 	"laygram.h"
 static char *LayYYsourcebase, *LayYYsource;
 
 #ifndef FLEX_SCANNER

@@ -57,12 +57,12 @@ SOFTWARE.
 #include <X11/StringDefs.h>
 #include <X11/Xos.h>
 #include <Xaw95/XawInit.h>
-#include <Xaw95/LabelP.h>
+#include "LabelP.h"
 #include <X11/Xmu/Converters.h>
 #include <X11/Xmu/Drawing.h>
 #include <stdio.h>
 #include <ctype.h>
-#include <Xaw95/TraversalP.h>
+#include "TraversalP.h"
 
 /* needed for abs() */
 #ifndef X_NOT_STDC_ENV

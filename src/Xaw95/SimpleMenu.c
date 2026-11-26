@@ -40,12 +40,12 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/StringDefs.h>
 
 #include <Xaw95/XawInit.h>
-#include <Xaw95/SimpleMenP.h>
+#include "SimpleMenP.h"
 #include <Xaw95/SmeBSB.h>
 #include <Xaw95/Cardinals.h>
-#include <Xaw95/ThreeDP.h>
+#include "ThreeDP.h"
 #include <Xaw95/ThreeD.h>
-#include <Xaw95/TraversalP.h>
+#include "TraversalP.h"
 
 #include <X11/Xmu/Initer.h>
 #include <X11/Xmu/CharSet.h>

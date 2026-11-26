@@ -56,7 +56,7 @@ in this Software without prior written authorization from the X Consortium.
 #ifndef _VendorEP_h
 #define _VendorEP_h
 
-#include <Xaw95/XawImP.h>
+#include "XawImP.h"
 
 typedef struct {
     XtPointer	extension;

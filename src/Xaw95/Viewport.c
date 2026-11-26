@@ -54,9 +54,9 @@ SOFTWARE.
 #include <Xaw95/XawInit.h>
 #include <X11/Xmu/Misc.h>
 #include <Xaw95/Scrollbar.h>
-#include <Xaw95/ViewportP.h>
+#include "ViewportP.h"
 #include <Xaw95/ThreeD.h>
-#include <Xaw95/TraversalP.h>
+#include "TraversalP.h"
 
 static void ScrollUpDownProc(), ThumbProc();
 static Boolean GetGeometry();

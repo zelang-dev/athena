@@ -39,7 +39,7 @@
 
 #include    <X11/Xmu/Misc.h>
 #include    <X11/Xmu/Converters.h>
-#include <Xaw95/LayoutP.h>
+#include 	"LayoutP.h"
 
 static LayoutPtr    *dest;
 

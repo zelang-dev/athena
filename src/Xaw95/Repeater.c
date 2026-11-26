@@ -32,7 +32,7 @@ in this Software without prior written authorization from the X Consortium.
 #include <X11/IntrinsicP.h>
 #include <X11/StringDefs.h>		/* for XtN and XtC defines */
 #include <Xaw95/XawInit.h>		/* for XawInitializeWidgetSet() */
-#include <Xaw95/RepeaterP.h>		/* us */
+#include "RepeaterP.h"		/* us */
 
 static void tic();			/* clock timeout */
 

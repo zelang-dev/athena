@@ -1,5 +1,5 @@
 /*
-* $XConsortium: TextSrcP.h,v 1.20 94/04/17 20:13:15 kaleb Exp $
+* $XConsortium: AsciiSinkP.h,v 1.4 94/04/17 20:11:44 kaleb Exp $
 */
 
 
@@ -52,60 +52,55 @@ SOFTWARE.
 ******************************************************************/
 
 /*
- * TextSrcP.h - Private definitions for TextSrc object
+ * asciiSinkP.h - Private definitions for asciiSink object
  *
  */
 
-#ifndef _XawTextSrcP_h
-#define _XawTextSrcP_h
+#ifndef _XawAsciiSinkP_h
+#define _XawAsciiSinkP_h
 
 /***********************************************************************
  *
- * TextSrc Object Private Data
+ * AsciiSink Object Private Data
  *
  ***********************************************************************/
 
-#include <Xaw95/TextSrc.h>
-#include <Xaw95/TextP.h>	/* This source works with the Text widget. */
+#include "TextSinkP.h"
+#include <Xaw95/AsciiSink.h>
 
 /************************************************************
  *
- * New fields for the TextSrc object class record.
+ * New fields for the AsciiSink object class record.
  *
  ************************************************************/
 
-typedef struct {
-  XtPointer		next_extension;
-  XrmQuark		record_type;
-  long			version;
-  Cardinal		record_size;
-  int			(*Input)();
-} TextSrcExtRec, *TextSrcExt;
-
-typedef struct _TextSrcClassPart {
-  XawTextPosition	(*Read)();
-  int			(*Replace)();
-  XawTextPosition	(*Scan)();
-  XawTextPosition       (*Search)();
-  void                  (*SetSelection)();
-  Boolean		(*ConvertSelection)();
-} TextSrcClassPart;
+typedef struct _AsciiSinkClassPart {
+  int foo;
+} AsciiSinkClassPart;
 
 /* Full class record declaration */
-typedef struct _TextSrcClassRec {
+
+typedef struct _AsciiSinkClassRec {
     ObjectClassPart     object_class;
-    TextSrcClassPart	textSrc_class;
-} TextSrcClassRec;
+    TextSinkClassPart	text_sink_class;
+    AsciiSinkClassPart	ascii_sink_class;
+} AsciiSinkClassRec;
 
-extern TextSrcClassRec textSrcClassRec;
+extern AsciiSinkClassRec asciiSinkClassRec;
 
-/* New fields for the TextSrc object record */
+/* New fields for the AsciiSink object record */
 typedef struct {
-    /* resources */
-  XawTextEditType	edit_mode;
-  XrmQuark		text_format;	/* 2 formats: FMT8BIT for Ascii */
-					/*            FMTWIDE for ISO 10646 */
-} TextSrcPart;
+    /* public resources */
+    XFontStruct *font;          /* Font to draw in. */
+    Boolean echo;
+    Boolean display_nonprinting;
+
+    /* private state */
+    GC normgc, invgc, xorgc;
+    Pixmap insertCursorOn;
+    XawTextInsertState laststate;
+    short cursor_x, cursor_y;	/* Cursor Location. */
+} AsciiSinkPart;
 
 /****************************************************************
  *
@@ -113,52 +108,10 @@ typedef struct {
  *
  ****************************************************************/
 
-typedef struct _TextSrcRec {
-  ObjectPart    object;
-  TextSrcPart	textSrc;
-} TextSrcRec;
+typedef struct _AsciiSinkRec {
+    ObjectPart          object;
+    TextSinkPart	text_sink;
+    AsciiSinkPart	ascii_sink;
+} AsciiSinkRec;
 
-/******************************************************************
- *
- * Semiprivate declarations of functions used in other modules
- *
- ******************************************************************/
-
-char* _XawTextWCToMB(
-#if NeedFunctionPrototypes
-    Display* /* d */,
-    wchar_t* /* wstr */,
-    int*     /* len_in_out */
-#endif
-);
-
-wchar_t* _XawTextMBToWC(
-#if NeedFunctionPrototypes
-    Display*  /* d */,
-    char*     /* str */,
-    int*      /* len_in_out */
-#endif
-);
-
-/************************************************************
- *
- * Private declarations.
- *
- ************************************************************/
-
-typedef Boolean (*_XawBooleanFunc)();
-typedef int (*_XawIntFunc)();
-typedef XawTextPosition (*_XawTextPositionFunc)();
-typedef void (*_XawTextVoidFunc)();
-
-#define XtInheritInput                ((_XawTextPositionFunc) _XtInherit)
-#define XtInheritRead                 ((_XawTextPositionFunc) _XtInherit)
-#define XtInheritReplace              ((_XawIntFunc) _XtInherit)
-#define XtInheritScan                 ((_XawTextPositionFunc) _XtInherit)
-#define XtInheritSearch               ((_XawTextPositionFunc) _XtInherit)
-#define XtInheritSetSelection         ((_XawTextVoidFunc) _XtInherit)
-#define XtInheritConvertSelection     ((_XawBooleanFunc) _XtInherit)
-#define XtTextSrcExtVersion	      1
-#define XtTextSrcExtTypeString        "XT_TEXTSRC_EXT"
-
-#endif /* _XawTextSrcP_h */
+#endif /* _XawAsciiSinkP_h */

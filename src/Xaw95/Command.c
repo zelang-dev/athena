@@ -59,8 +59,8 @@ SOFTWARE.
 #include <X11/Xmu/Converters.h>
 #include <X11/extensions/shape.h>
 #include <Xaw95/XawInit.h>
-#include <Xaw95/CommandP.h>
-#include <Xaw95/TraversalP.h>
+#include "CommandP.h"
+#include "TraversalP.h"
 
 #define DEFAULT_HIGHLIGHT_THICKNESS 2
 #define DEFAULT_SHAPE_HIGHLIGHT 32767

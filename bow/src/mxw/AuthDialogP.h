@@ -58,7 +58,7 @@ SOFTWARE.
 #ifdef NATIVE_XAW
 #	include <X11/Xaw/FormP.h>
 #else
-#	include <Xaw95/FormP.h>
+#	include "../../../src/Xaw95/FormP.h"
 #endif
 
 typedef struct {int empty;} AuthDialogClassPart;

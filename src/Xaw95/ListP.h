@@ -46,7 +46,7 @@ in this Software without prior written authorization from the X Consortium.
  *
  ***********************************************************************/
 
-#include <Xaw95/SimpleP.h>
+#include "SimpleP.h"
 #include <Xaw95/List.h>
 
 #define NO_HIGHLIGHT            XAW_LIST_NONE

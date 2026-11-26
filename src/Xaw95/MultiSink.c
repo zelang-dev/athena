@@ -76,9 +76,9 @@ SOFTWARE.
 #include <X11/StringDefs.h>
 #include <X11/Xatom.h>
 #include <Xaw95/XawInit.h>
-#include <Xaw95/MultiSinkP.h>
-#include <Xaw95/MultiSrcP.h>
-#include <Xaw95/TextP.h>
+#include "MultiSinkP.h"
+#include "MultiSrcP.h"
+#include "TextP.h"
 #include <Xaw95/XawI18n.h>
 #include <stdio.h>
 #include <ctype.h>

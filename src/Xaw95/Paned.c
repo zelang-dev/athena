@@ -69,10 +69,10 @@ SOFTWARE.
 
 #include <Xaw95/XawInit.h>
 #include <Xaw95/Grip.h>
-#include <Xaw95/PanedP.h>
+#include "PanedP.h"
 
 /* I don't know why Paned.c calls _XawImCallVendorShellExtResize, but... */
-#include <Xaw95/XawImP.h>
+#include "XawImP.h"
 
 #include <ctype.h>
 
