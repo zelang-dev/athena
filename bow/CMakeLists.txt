@@ -6,7 +6,7 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
 endif()
 
 project(bow
-	VERSION 0.6.0
+	VERSION 0.0.1
 	DESCRIPTION "Native X11/Athena Webview library, and Web Browser"
     LANGUAGES C
 )
@@ -141,7 +141,6 @@ else()
 		file(COPY ${quickjs_SOURCE_DIR}/quickjs-libc.h DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include)
 		target_link_libraries(${JAVASCRIPT} m dl pthread)
 	endif()
-
 	if(BUILD_APP)
 		set(app_files	${CMAKE_CURRENT_SOURCE_DIR}/src/main.c)
 	endif(BUILD_APP)

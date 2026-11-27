@@ -1,21 +1,5 @@
 /*
  * BowP.h
- *
- * Copyright (c) 1995-1997, John Kilburg <john@cs.unlv.edu>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 #ifndef __BOW_P_H__
 #define __BOW_P_H__
@@ -119,97 +103,95 @@ struct BowResourcesP {
 /*
  * cache.c
  */
-BowCache CacheCreate _ArgProto((BowResources));
-void CacheDestroy _ArgProto((BowCache));
-bool CacheIsDiskCached _ArgProto((BowCache, char *));
-int CacheWrite _ArgProto((BowCache, BowSource));
-BowSourceHooks *CacheGetHooks _ArgProto((BowCache));
+BowCache CacheCreate(BowResources);
+void CacheDestroy(BowCache);
+bool CacheIsDiskCached(BowCache, char *);
+int CacheWrite(BowCache, BowSource);
+BowSourceHooks *CacheGetHooks(BowCache);
 
 /*
  * data.c
  */
-void SourceGetData _ArgProto((BowSource,
-	byte **, size_t *, MIMEHeader *));
+void SourceGetData(BowSource, byte **, size_t *, MIMEHeader *);
 
 /*
  * gui.c
  */
-BowGUI GUICreateToplevel _ArgProto((BowContext, Widget,
-	GUISizeCallback, void *));
-void GUIReset _ArgProto((BowGUI));
-void GUIAddRender _ArgProto((BowGUI, BowRender));
+BowGUI GUICreateToplevel(BowContext, Widget,
+	GUISizeCallback, void *);
+void GUIReset(BowGUI);
+void GUIAddRender(BowGUI, BowRender);
 
 /*
  * bookmark.c
  */
-BookmarkContext BookmarkCreateContext _ArgProto((BowResources));
-void BookmarkDestroyContext _ArgProto((BookmarkContext));
-void BookmarkAdd _ArgProto((BookmarkContext, char *, char *));
-void BookmarkShow _ArgProto((BookmarkContext));
+BookmarkContext BookmarkCreateContext(BowResources);
+void BookmarkDestroyContext(BookmarkContext);
+void BookmarkAdd(BookmarkContext, char *, char *);
+void BookmarkShow(BookmarkContext);
 
 /*
  * head.c
  */
-void HeadCreate _ArgProto((BowResources, BowRequest *,
-	BowRequest *));
-void HeadDestroy _ArgProto((BowContext));
-void HeadPrintMessage _ArgProto((BowContext, char *));
-void HeadPrintURL _ArgProto((BowContext, char *));
+void HeadCreate(BowResources, BowRequest *,
+	BowRequest *);
+void HeadDestroy(BowContext);
+void HeadPrintMessage(BowContext, char *);
+void HeadPrintURL(BowContext, char *);
 
-Widget CreateDialog _ArgProto((Widget, char *,
-	void (*)(), void (*)(), void (*)(), XtPointer));
-Widget GetDialogWidget _ArgProto((Widget));
+Widget CreateDialog(Widget, char *,	void (*)(), void (*)(), void (*)(), XtPointer);
+Widget GetDialogWidget(Widget);
 
 /*
  * main.c
  */
-void BowAddReference _ArgProto((BowResources));
-void BowRemoveReference _ArgProto((BowResources));
+void BowAddReference(BowResources);
+void BowRemoveReference(BowResources);
 
 /*
  * callback.c
  */
-bool MessageCallback _ArgProto((void *, char *));
-bool ActionCallback _ArgProto((void *, BowRequest *, char *));
-bool RedrawCallback _ArgProto((void *));
-bool ResizeCallback _ArgProto((void *));
+bool MessageCallback(void *, char *);
+bool ActionCallback(void *, BowRequest *, char *);
+bool RedrawCallback(void *);
+bool ResizeCallback(void *);
 
 /*
  * builtin.c
  */
-void InitBowBuiltins _ArgProto((BowResources));
+void InitBowBuiltins(BowResources);
 
 /*
  * view.c
  */
-void ViewOpen _ArgProto((BowResources, BowRequest *));
+void ViewOpen(BowResources, BowRequest *);
 
 /*
  * download.c
  */
-void DownloadOpen _ArgProto((BowResources, BowRequest *));
+void DownloadOpen(BowResources, BowRequest *);
 
 /*
  * stack.c
  */
-BowStack StackCreateToplevel _ArgProto((BowContext, Widget));
-BowGUI StackToGUI _ArgProto((BowStack));
-BowRender StackToRender _ArgProto((BowStack));
-void StackSetRender _ArgProto((BowStack, BowRenderHooks *));
+BowStack StackCreateToplevel(BowContext, Widget);
+BowGUI StackToGUI(BowStack);
+BowRender StackToRender(BowStack);
+void StackSetRender(BowStack, BowRenderHooks *);
 
 /*
  * resource.c
  */
-char *ResourceGetStringP _ArgProto((BowResources, char *));
+char *ResourceGetStringP(BowResources, char *);
 
 /*
  * cmisc.c
  */
-BowSourceHooks *SourceGetHooks _ArgProto((BowResources, char *));
+BowSourceHooks *SourceGetHooks(BowResources, char *);
 
 /*
  * task.c
  */
-BowScheduler SchedulerCreate _ArgProto((void));
+BowScheduler SchedulerCreate(void);
 
 #endif

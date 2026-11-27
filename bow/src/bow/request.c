@@ -422,6 +422,7 @@ BowRequest *RequestCreate(BowResources cres, char *url, char *base) {
 	 */
 	wr->url = rurl;
 	wr->up = rup;
+	wr->is_secure = rup->scheme && strncmp(rup->scheme, "https", 5) == 0;
 
 	/*
 	 * Check for a proxy server.

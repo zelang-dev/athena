@@ -59,6 +59,7 @@ struct BowRequestP
   char *input_type;          /* input data MIME content-type */
   char *input_method;        /* input method GET/POST */
   bool reload;               /* don't use cache? */
+  bool is_secure;            /* is TLS connection? */
   GList contents;            /* acceptable contents, NULL = '*' */
   BowSourceHooks hooks;  /* */
 

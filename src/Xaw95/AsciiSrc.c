@@ -140,7 +140,7 @@ AsciiSrcClassRec asciiSrcClassRec = {
     /* set_values_hook		*/	NULL,
     /* set_values_almost	*/	NULL,
     /* get_values_hook		*/	GetValuesHook,
-	/* accept_focus	 	*/	XawAcceptFocus,
+	/* accept_focus	 	*/	NULL,
     /* version			*/	XtVersion,
     /* callback_private   	*/	NULL,
     /* tm_table		   	*/	NULL,

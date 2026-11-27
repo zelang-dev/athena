@@ -1062,10 +1062,6 @@ void InitModule_HTTP(BowResources cres) {
 	size_t tlen;
 	int i;
 
-	if (tls_init() != 0) {
-		fprintf(stderr, "tls_init failed\n");
-	}
-
 	mp = MPCreate();
 	hc = (HTTPClass *)MPCGet(mp, sizeof(HTTPClass));
 	hc->mp = mp;
